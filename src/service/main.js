@@ -2,8 +2,11 @@
 // this process only holds a short-lived snapshot cache and the session password
 // in memory. The token is persisted by the config module (mode 600).
 import http from 'node:http';
+import { existsSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { basename, join } from 'node:path';
 import { createServiceHost, SESSION_EVENTS_PATH, readSessionEventRequest } from '@openchamber/sdk';
-import { clearConfig, isConnected, readConfig, saveConfig } from '../shared/config.js';
+import { ROOT, clearConfig, isConnected, readConfig, saveConfig } from '../shared/config.js';
 import { clearClosePending, getLink, linksForSession, listLinks, pendingCloseForSession, removeLink, setLink } from '../shared/links.js';
 import { getBoardProject, setBoardProject } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
@@ -564,11 +567,16 @@ const routes = {
     return { source };
   },
 
-  'GET /local/export': async () => {
+  'POST /local/export': async (body) => {
     if (readConfig().source !== 'local') {
       throw new PlankaError('La copia solo existe en el tablero local.', { kind: 'validation' });
     }
-    return { data: exportBoard() };
+    const format = body?.format === 'md' || body?.format === 'csv' ? body.format : 'json';
+    const downloads = join(homedir(), 'Downloads');
+    const dir = existsSync(downloads) ? downloads : ROOT;
+    const file = join(dir, `kanban-${new Date().toISOString().slice(0, 10)}.${format}`);
+    writeFileSync(file, exportBoard(format), { mode: 0o600 });
+    return { path: file.replace(homedir(), '~'), name: basename(file), format };
   },
 
   'POST /local/import': async (body) => {

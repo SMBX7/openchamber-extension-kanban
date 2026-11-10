@@ -23,6 +23,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 
 // src/service/main.js
 var import_node_http = __toESM(require("node:http"));
+var import_node_fs6 = require("node:fs");
+var import_node_os4 = require("node:os");
+var import_node_path6 = require("node:path");
 
 // node_modules/@openchamber/sdk/dist/scrollbar-style.js
 var GUEST_SCROLLING_ATTRIBUTE = "data-oc-scrolling";
@@ -1452,13 +1455,70 @@ var LocalClient = class {
     return true;
   }
 };
-var exportBoard = () => {
-  try {
-    return (0, import_node_fs5.readFileSync)(boardPath(), "utf8");
-  } catch {
-    return `${JSON.stringify(emptyStore(), null, 2)}
-`;
+var csvCell = (value) => {
+  const text = String(value ?? "").replace(/"/g, '""');
+  return /[",\n]/.test(text) ? `"${text}"` : text;
+};
+var storeRows = (store) => {
+  const lists = store.lists.slice().sort(byPosition2);
+  const doneId = (lists.find((list) => DONE_NAME2.test(list.name)) || lists[lists.length - 1])?.id;
+  return lists.map((list) => ({
+    list,
+    cards: store.cards.filter((card) => card.listId === list.id).sort(byPosition2).map((card) => {
+      const taskLists = store.taskLists.filter((taskList) => taskList.cardId === card.id);
+      const tasks = store.tasks.filter((task) => taskLists.some((taskList) => taskList.id === task.taskListId));
+      return {
+        card,
+        done: list.id === doneId,
+        labels: store.cardLabels.filter((link) => link.cardId === card.id).map((link) => store.labels.find((label) => label.id === link.labelId)?.name).filter(Boolean),
+        total: tasks.length,
+        checked: tasks.filter((task) => task.isCompleted).length
+      };
+    })
+  }));
+};
+var toMarkdown = (store) => {
+  const lines = [`# ${store.board.name}`, ""];
+  for (const { list, cards } of storeRows(store)) {
+    lines.push(`## ${list.name} (${cards.length})`, "");
+    if (!cards.length) lines.push("_Sin tarjetas._", "");
+    for (const { card, done, labels, total, checked } of cards) {
+      lines.push(`- [${done ? "x" : " "}] ${card.name}`);
+      if (card.description.trim()) lines.push(`  - ${card.description.replace(/\n/g, " ").trim()}`);
+      if (labels.length) lines.push(`  - Etiquetas: ${labels.join(", ")}`);
+      if (total) lines.push(`  - Checklist: ${checked}/${total}`);
+      if (card.dueDate) lines.push(`  - Fecha: ${card.dueDate.slice(0, 10)}`);
+      lines.push("");
+    }
   }
+  return `${lines.join("\n")}
+`;
+};
+var toCsv = (store) => {
+  const rows = [["lista", "estado", "tarjeta", "descripcion", "etiquetas", "checklist_hechas", "checklist_total", "fecha"]];
+  for (const { list, cards } of storeRows(store)) {
+    for (const { card, done, labels, total, checked } of cards) {
+      rows.push([
+        list.name,
+        done ? "hecha" : "pendiente",
+        card.name,
+        card.description,
+        labels.join("; "),
+        checked,
+        total,
+        card.dueDate ? card.dueDate.slice(0, 10) : ""
+      ]);
+    }
+  }
+  return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}
+`;
+};
+var exportBoard = (format = "json") => {
+  const store = readStore();
+  if (format === "md") return toMarkdown(store);
+  if (format === "csv") return toCsv(store);
+  return `${JSON.stringify(store, null, 2)}
+`;
 };
 var importBoard = (raw) => {
   let parsed;
@@ -1978,11 +2038,16 @@ var routes = {
     invalidate();
     return { source };
   },
-  "GET /local/export": async () => {
+  "POST /local/export": async (body) => {
     if (readConfig().source !== "local") {
       throw new PlankaError("La copia solo existe en el tablero local.", { kind: "validation" });
     }
-    return { data: exportBoard() };
+    const format = body?.format === "md" || body?.format === "csv" ? body.format : "json";
+    const downloads = (0, import_node_path6.join)((0, import_node_os4.homedir)(), "Downloads");
+    const dir = (0, import_node_fs6.existsSync)(downloads) ? downloads : ROOT;
+    const file = (0, import_node_path6.join)(dir, `kanban-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.${format}`);
+    (0, import_node_fs6.writeFileSync)(file, exportBoard(format), { mode: 384 });
+    return { path: file.replace((0, import_node_os4.homedir)(), "~"), name: (0, import_node_path6.basename)(file), format };
   },
   "POST /local/import": async (body) => {
     if (readConfig().source !== "local") {

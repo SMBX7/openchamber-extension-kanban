@@ -534,12 +534,77 @@ export class LocalClient {
   }
 }
 
-export const exportBoard = () => {
-  try {
-    return readFileSync(boardPath(), 'utf8');
-  } catch {
-    return `${JSON.stringify(emptyStore(), null, 2)}\n`;
+const csvCell = (value) => {
+  const text = String(value ?? '').replace(/"/g, '""');
+  return /[",\n]/.test(text) ? `"${text}"` : text;
+};
+
+const storeRows = (store) => {
+  const lists = store.lists.slice().sort(byPosition);
+  const doneId = (lists.find((list) => DONE_NAME.test(list.name)) || lists[lists.length - 1])?.id;
+  return lists.map((list) => ({
+    list,
+    cards: store.cards
+      .filter((card) => card.listId === list.id)
+      .sort(byPosition)
+      .map((card) => {
+        const taskLists = store.taskLists.filter((taskList) => taskList.cardId === card.id);
+        const tasks = store.tasks.filter((task) => taskLists.some((taskList) => taskList.id === task.taskListId));
+        return {
+          card,
+          done: list.id === doneId,
+          labels: store.cardLabels
+            .filter((link) => link.cardId === card.id)
+            .map((link) => store.labels.find((label) => label.id === link.labelId)?.name)
+            .filter(Boolean),
+          total: tasks.length,
+          checked: tasks.filter((task) => task.isCompleted).length,
+        };
+      }),
+  }));
+};
+
+const toMarkdown = (store) => {
+  const lines = [`# ${store.board.name}`, ''];
+  for (const { list, cards } of storeRows(store)) {
+    lines.push(`## ${list.name} (${cards.length})`, '');
+    if (!cards.length) lines.push('_Sin tarjetas._', '');
+    for (const { card, done, labels, total, checked } of cards) {
+      lines.push(`- [${done ? 'x' : ' '}] ${card.name}`);
+      if (card.description.trim()) lines.push(`  - ${card.description.replace(/\n/g, ' ').trim()}`);
+      if (labels.length) lines.push(`  - Etiquetas: ${labels.join(', ')}`);
+      if (total) lines.push(`  - Checklist: ${checked}/${total}`);
+      if (card.dueDate) lines.push(`  - Fecha: ${card.dueDate.slice(0, 10)}`);
+      lines.push('');
+    }
   }
+  return `${lines.join('\n')}\n`;
+};
+
+const toCsv = (store) => {
+  const rows = [['lista', 'estado', 'tarjeta', 'descripcion', 'etiquetas', 'checklist_hechas', 'checklist_total', 'fecha']];
+  for (const { list, cards } of storeRows(store)) {
+    for (const { card, done, labels, total, checked } of cards) {
+      rows.push([
+        list.name,
+        done ? 'hecha' : 'pendiente',
+        card.name,
+        card.description,
+        labels.join('; '),
+        checked,
+        total,
+        card.dueDate ? card.dueDate.slice(0, 10) : '',
+      ]);
+    }
+  }
+  return `${rows.map((row) => row.map(csvCell).join(',')).join('\n')}\n`;
+};
+
+export const exportBoard = (format = 'json') => {
+  const store = readStore();
+  if (format === 'md') return toMarkdown(store);
+  if (format === 'csv') return toCsv(store);
+  return `${JSON.stringify(store, null, 2)}\n`;
 };
 
 export const importBoard = (raw) => {

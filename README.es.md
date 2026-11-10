@@ -66,8 +66,9 @@ con las tres listas y tres etiquetas, guardado en tu equipo.
 - Es solo tuyo: no se ve desde el móvil ni desde otro ordenador.
 - Puedes volver a Planka cuando quieras; no tendrás que entrar otra vez.
 - Planka y local son tableros distintos: no se copian cosas de uno a otro.
-- En **Copia del tablero** tienes **Copiar tablero** y **Restaurar** para guardar una
-  copia del texto o recuperarla.
+- **Descargar MD** y **Descargar CSV** guardan el tablero en tu carpeta de Descargas,
+  para leerlo o compartirlo. **Copia JSON** guarda una copia completa y **Importar
+  copia…** la recupera.
 
 ![Conexión y apariencia](docs/settings.png)
 

@@ -65,8 +65,9 @@ board with the three lists and three labels, stored on your machine.
 - It is yours only: not visible from your phone or another computer.
 - You can go back to Planka whenever you want; you will not have to log in again.
 - Planka and local are separate boards: nothing is copied between them.
-- **Copiar tablero** and **Restaurar** let you keep a copy of the text and bring it
-  back.
+- **Descargar MD** and **Descargar CSV** save the board to your Downloads folder, to
+  read or share it. **Copia JSON** saves a complete copy and **Importar copia…**
+  restores it.
 
 ![Connection and appearance](docs/settings.png)
 

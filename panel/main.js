@@ -2870,53 +2870,50 @@ ${card.description}`.toLowerCase();
     if (isLocal) {
       sourceBox.append(el2("p", "settings-note", "Guardado en board.local.json, junto a la extensi\xF3n. Solo se ve en este equipo."));
       const backup = el2("div", "settings-actions");
-      const copy = el2("button", "ghost-btn", "Copiar tablero");
-      copy.type = "button";
-      const restore = el2("button", "ghost-btn", "Restaurar");
-      restore.type = "button";
-      const area = el2("textarea", "settings-textarea");
-      area.hidden = true;
-      area.spellcheck = false;
-      area.setAttribute("aria-label", "Contenido del tablero local");
-      const apply = el2("button", "btn-mint", "Restaurar ahora");
-      apply.type = "button";
-      apply.hidden = true;
-      copy.addEventListener("click", async () => {
+      const downloadButton = (format, label) => {
+        const button2 = el2("button", "ghost-btn", label);
+        button2.type = "button";
+        button2.addEventListener("click", async () => {
+          try {
+            const answer = await api("POST", "/local/export", { format });
+            toast("success", `Guardado en ${answer.path}`);
+          } catch (error) {
+            toast("error", error.message);
+          }
+        });
+        return button2;
+      };
+      const importInput = document.createElement("input");
+      importInput.type = "file";
+      importInput.accept = ".json,application/json";
+      importInput.hidden = true;
+      importInput.addEventListener("change", async () => {
+        const file = importInput.files?.[0];
+        if (!file) return;
         try {
-          const answer = await api("GET", "/local/export");
-          area.value = answer.data || "";
-          area.hidden = false;
-          area.readOnly = true;
-          apply.hidden = true;
-          area.focus();
-          area.select();
-          document.execCommand("copy");
-          toast("success", "Tablero copiado. Gu\xE1rdalo donde quieras.");
-        } catch (error) {
-          toast("error", error.message);
-        }
-      });
-      restore.addEventListener("click", () => {
-        area.value = "";
-        area.hidden = false;
-        area.readOnly = false;
-        apply.hidden = false;
-        area.focus();
-      });
-      apply.addEventListener("click", async () => {
-        apply.disabled = true;
-        try {
-          await api("POST", "/local/import", { data: area.value });
+          const text = await file.text();
+          await api("POST", "/local/import", { data: text });
           toast("success", "Tablero restaurado.");
           closeSettings(true);
           await boot();
         } catch (error) {
           toast("error", error.message);
-          apply.disabled = false;
+        } finally {
+          importInput.value = "";
         }
       });
-      backup.append(copy, restore);
-      sourceBox.append(backup, area, apply);
+      const importButton = el2("button", "ghost-btn", "Importar copia\u2026");
+      importButton.type = "button";
+      importButton.addEventListener("click", () => importInput.click());
+      backup.append(
+        downloadButton("md", "Descargar MD"),
+        downloadButton("csv", "Descargar CSV"),
+        downloadButton("json", "Copia JSON"),
+        importButton,
+        importInput
+      );
+      sourceBox.append(backup);
+      sourceBox.append(el2("p", "settings-note", "Se guardan en tu carpeta de Descargas. MD y CSV son para leer y compartir; la copia JSON es la que se puede volver a importar."));
     } else {
       const connActions = el2("div", "settings-actions");
       const openPlanka = el2("button", "ghost-btn", "Abrir Planka");
