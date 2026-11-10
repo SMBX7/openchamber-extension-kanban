@@ -404,22 +404,6 @@ const loadProjects = async () => {
   return state.projects;
 };
 
-const THEME_COLORS = ['--oc-info', '--oc-warning', '--oc-success'];
-
-const themeColorHex = (name) => {
-  const probe = document.createElement('span');
-  probe.style.color = `var(${name})`;
-  probe.style.display = 'none';
-  document.body.append(probe);
-  const value = getComputedStyle(probe).color;
-  probe.remove();
-  const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-  if (!match) return '';
-  return `#${[1, 2, 3].map((index) => Number(match[index]).toString(16).padStart(2, '0')).join('')}`;
-};
-
-const defaultColumnHex = (index) => themeColorHex(THEME_COLORS[index % THEME_COLORS.length]);
-
 const applyAppearance = () => {
   const rootEl = document.documentElement;
   const appearance = state.appearance || {};
@@ -1236,8 +1220,8 @@ const openSettings = () => {
 
   /* Estilo */
   const estilo = el('section', 'settings-section');
-  estilo.append(el('div', 'settings-heading', 'Estilo'));
-  estilo.append(el('p', 'settings-note', 'Acabado de las tarjetas, los botones y los paneles.'));
+  estilo.append(el('div', 'settings-heading', 'Apariencia'));
+  estilo.append(el('p', 'settings-note', 'Acabado de las tarjetas, los botones y los paneles. Los colores se mantienen como están.'));
   const styleGrid = el('div', 'style-grid');
   const styleOptions = [
     ['neumorphism', 'Neumorfismo', 'Relieve suave y sombras difusas.'],
@@ -1259,66 +1243,6 @@ const openSettings = () => {
   }
   estilo.append(styleGrid);
 
-  /* Colores */
-  const colores = el('section', 'settings-section');
-  colores.append(el('div', 'settings-heading', 'Colores'));
-  colores.append(el('p', 'settings-note', 'Colores de las columnas y de las tarjetas. «Tema» vuelve al color del tema del host.'));
-  const colorList = el('div', 'color-list');
-  const addColorRow = (label, value, fallback, onChange, onReset) => {
-    const row = el('div', 'color-row');
-    row.append(el('span', 'color-label', label));
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.className = 'color-input';
-    input.value = value || fallback || '#888888';
-    input.setAttribute('aria-label', `Color de ${label}`);
-    input.addEventListener('change', () => onChange(input.value));
-    const reset = el('button', 'ghost-btn color-reset', 'Tema');
-    reset.type = 'button';
-    reset.addEventListener('click', () => {
-      onReset();
-      input.value = fallback || '#888888';
-    });
-    row.append(input, reset);
-    colorList.append(row);
-  };
-  const lists = state.snapshot?.lists || [];
-  const names = ['IDEAS', 'EN PROGRESO', 'HECHO'];
-  const currentColumns = state.appearance.columns.slice();
-  for (let index = 0; index < 3; index += 1) {
-    const fallback = defaultColumnHex(index);
-    addColorRow(
-      lists[index]?.name || names[index],
-      currentColumns[index] || '',
-      fallback,
-      (value) => {
-        const columns = state.appearance.columns.slice();
-        columns[index] = value;
-        void saveAppearance({ columns });
-      },
-      () => {
-        const columns = state.appearance.columns.slice();
-        columns[index] = '';
-        void saveAppearance({ columns });
-      },
-    );
-  }
-  addColorRow(
-    'Tarjetas',
-    state.appearance.card || '',
-    themeColorHex('--oc-elevated') || '#888888',
-    (value) => void saveAppearance({ card: value }),
-    () => void saveAppearance({ card: '' }),
-  );
-  colores.append(colorList);
-  const resetColors = el('button', 'ghost-btn', 'Restablecer colores');
-  resetColors.type = 'button';
-  resetColors.addEventListener('click', () => {
-    void saveAppearance({ columns: ['', '', ''], card: '' });
-    reopenSettings();
-  });
-  colores.append(resetColors);
-
   /* Sesiones */
   const sesiones = el('section', 'settings-section');
   sesiones.append(el('div', 'settings-heading', 'Sesiones'));
@@ -1329,7 +1253,7 @@ const openSettings = () => {
   avanzado.append(el('div', 'settings-heading', 'Avanzado'));
   avanzado.append(el('p', 'settings-note', 'MCP de Kanban: crear, mover, completar y enlazar tarjetas desde el agente. Tras actualizar la extensión, reinicia OpenCode para que el agente use la versión nueva.'));
 
-  scroll.append(conexion, tablero, delegacion, estilo, colores, sesiones, avanzado);
+  scroll.append(conexion, tablero, delegacion, estilo, sesiones, avanzado);
 
   const foot = el('div', 'sheet-foot settings-foot');
   const done = el('button', 'btn-mint', 'Listo');
