@@ -1865,7 +1865,7 @@ ${GUEST_UI_LOOK_CSS}`;
     sheet: null,
     settings: null,
     settingsDirty: false,
-    appearance: { columns: ["", "", ""], card: "" },
+    appearance: { style: "neumorphism", columns: ["", "", ""], card: "" },
     hiddenCards: /* @__PURE__ */ new Set(),
     pendingDelete: null,
     stoppedOnly: false,
@@ -2196,6 +2196,7 @@ ${card.description}`.toLowerCase();
   var applyAppearance = () => {
     const rootEl = document.documentElement;
     const appearance = state.appearance || {};
+    rootEl.dataset.style = appearance.style || "neumorphism";
     for (let index = 0; index < 3; index += 1) {
       const color = appearance.columns?.[index];
       if (color) rootEl.style.setProperty(`--col-tone-${index}`, color);
@@ -2214,6 +2215,7 @@ ${card.description}`.toLowerCase();
   };
   var saveAppearance = async (patch) => {
     const next = {
+      style: state.appearance.style || "neumorphism",
       columns: state.appearance.columns.slice(),
       card: state.appearance.card,
       ...patch
@@ -2906,6 +2908,29 @@ ${card.description}`.toLowerCase();
     modes.append(manualCard, autoCard);
     delegacion.append(modes);
     if (!mapping) delegacion.append(el2("p", "settings-note warning", "Asigna primero un proyecto al tablero."));
+    const estilo = el2("section", "settings-section");
+    estilo.append(el2("div", "settings-heading", "Estilo"));
+    estilo.append(el2("p", "settings-note", "Acabado de las tarjetas, los botones y los paneles."));
+    const styleGrid = el2("div", "style-grid");
+    const styleOptions = [
+      ["neumorphism", "Neumorfismo", "Relieve suave y sombras difusas."],
+      ["brutalism", "Brutalismo", "Bordes duros y sombras s\xF3lidas."],
+      ["glass", "Cristal", "Fondo transl\xFAcido con desenfoque."]
+    ];
+    for (const [key, label, text] of styleOptions) {
+      const option = el2("button", "style-card");
+      option.type = "button";
+      option.setAttribute("aria-pressed", (state.appearance.style || "neumorphism") === key ? "true" : "false");
+      const preview = el2("span", "style-preview");
+      preview.dataset.preview = key;
+      option.append(preview, el2("span", "style-name", label), el2("span", "style-text", text));
+      option.addEventListener("click", () => {
+        void saveAppearance({ style: key });
+        reopenSettings();
+      });
+      styleGrid.append(option);
+    }
+    estilo.append(styleGrid);
     const colores = el2("section", "settings-section");
     colores.append(el2("div", "settings-heading", "Colores"));
     colores.append(el2("p", "settings-note", "Colores de las columnas y de las tarjetas. \xABTema\xBB vuelve al color del tema del host."));
@@ -2970,7 +2995,7 @@ ${card.description}`.toLowerCase();
     const avanzado = el2("section", "settings-section");
     avanzado.append(el2("div", "settings-heading", "Avanzado"));
     avanzado.append(el2("p", "settings-note", "MCP de Kanban: crear, mover, completar y enlazar tarjetas desde el agente. Tras actualizar la extensi\xF3n, reinicia OpenCode para que el agente use la versi\xF3n nueva."));
-    scroll.append(conexion, tablero, delegacion, colores, sesiones, avanzado);
+    scroll.append(conexion, tablero, delegacion, estilo, colores, sesiones, avanzado);
     const foot = el2("div", "sheet-foot settings-foot");
     const done = el2("button", "btn-mint", "Listo");
     done.type = "button";

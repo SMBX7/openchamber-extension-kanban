@@ -153,7 +153,7 @@ const renderSummary = (data) => {
   if (data.backlogId) {
     const add = el('button', 'summary-add');
     add.type = 'button';
-    add.title = `Añadir a ${data.backlogName || 'ideas'}`;
+    add.title = `Añadir una idea a ${data.backlogName || 'ideas'}`;
     add.setAttribute('aria-label', add.title);
     add.disabled = state.busy;
     add.append(icon('plus'));
@@ -522,6 +522,7 @@ const load = async (force = false) => {
   try {
     const data = await api('GET', '/work');
     state.data = data;
+    document.documentElement.dataset.style = data?.style || 'neumorphism';
     state.error = '';
     if (data?.project?.id) await loadSessions(data.project.id);
   } catch (error) {

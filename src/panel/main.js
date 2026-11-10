@@ -42,7 +42,7 @@ const state = {
   sheet: null,
   settings: null,
   settingsDirty: false,
-  appearance: { columns: ['', '', ''], card: '' },
+  appearance: { style: 'neumorphism', columns: ['', '', ''], card: '' },
   hiddenCards: new Set(),
   pendingDelete: null,
   stoppedOnly: false,
@@ -422,6 +422,7 @@ const defaultColumnHex = (index) => themeColorHex(THEME_COLORS[index % THEME_COL
 const applyAppearance = () => {
   const rootEl = document.documentElement;
   const appearance = state.appearance || {};
+  rootEl.dataset.style = appearance.style || 'neumorphism';
   for (let index = 0; index < 3; index += 1) {
     const color = appearance.columns?.[index];
     if (color) rootEl.style.setProperty(`--col-tone-${index}`, color);
@@ -443,6 +444,7 @@ const loadAppearance = async () => {
 
 const saveAppearance = async (patch) => {
   const next = {
+    style: state.appearance.style || 'neumorphism',
     columns: state.appearance.columns.slice(),
     card: state.appearance.card,
     ...patch,
@@ -1231,6 +1233,31 @@ const openSettings = () => {
   delegacion.append(modes);
   if (!mapping) delegacion.append(el('p', 'settings-note warning', 'Asigna primero un proyecto al tablero.'));
 
+  /* Estilo */
+  const estilo = el('section', 'settings-section');
+  estilo.append(el('div', 'settings-heading', 'Estilo'));
+  estilo.append(el('p', 'settings-note', 'Acabado de las tarjetas, los botones y los paneles.'));
+  const styleGrid = el('div', 'style-grid');
+  const styleOptions = [
+    ['neumorphism', 'Neumorfismo', 'Relieve suave y sombras difusas.'],
+    ['brutalism', 'Brutalismo', 'Bordes duros y sombras sólidas.'],
+    ['glass', 'Cristal', 'Fondo translúcido con desenfoque.'],
+  ];
+  for (const [key, label, text] of styleOptions) {
+    const option = el('button', 'style-card');
+    option.type = 'button';
+    option.setAttribute('aria-pressed', (state.appearance.style || 'neumorphism') === key ? 'true' : 'false');
+    const preview = el('span', 'style-preview');
+    preview.dataset.preview = key;
+    option.append(preview, el('span', 'style-name', label), el('span', 'style-text', text));
+    option.addEventListener('click', () => {
+      void saveAppearance({ style: key });
+      reopenSettings();
+    });
+    styleGrid.append(option);
+  }
+  estilo.append(styleGrid);
+
   /* Colores */
   const colores = el('section', 'settings-section');
   colores.append(el('div', 'settings-heading', 'Colores'));
@@ -1301,7 +1328,7 @@ const openSettings = () => {
   avanzado.append(el('div', 'settings-heading', 'Avanzado'));
   avanzado.append(el('p', 'settings-note', 'MCP de Kanban: crear, mover, completar y enlazar tarjetas desde el agente. Tras actualizar la extensión, reinicia OpenCode para que el agente use la versión nueva.'));
 
-  scroll.append(conexion, tablero, delegacion, colores, sesiones, avanzado);
+  scroll.append(conexion, tablero, delegacion, estilo, colores, sesiones, avanzado);
 
   const foot = el('div', 'sheet-foot settings-foot');
   const done = el('button', 'btn-mint', 'Listo');

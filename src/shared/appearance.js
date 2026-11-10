@@ -15,7 +15,10 @@ const clean = (value) => {
   return HEX.test(text) ? text.toLowerCase() : '';
 };
 
-const empty = () => ({ version: 1, columns: ['', '', ''], card: '' });
+const STYLES = ['neumorphism', 'brutalism', 'glass'];
+const cleanStyle = (value) => (STYLES.includes(value) ? value : 'neumorphism');
+
+const empty = () => ({ version: 1, style: 'neumorphism', columns: ['', '', ''], card: '' });
 
 export const readAppearance = () => {
   try {
@@ -23,7 +26,7 @@ export const readAppearance = () => {
     if (!parsed || typeof parsed !== 'object') return empty();
     const columns = Array.isArray(parsed.columns) ? parsed.columns.slice(0, 3).map(clean) : [];
     while (columns.length < 3) columns.push('');
-    return { version: 1, columns, card: clean(parsed.card) };
+    return { version: 1, style: cleanStyle(parsed.style), columns, card: clean(parsed.card) };
   } catch {
     return empty();
   }
@@ -47,6 +50,7 @@ export const setAppearance = (input = {}) => {
   while (columns.length < 3) columns.push('');
   const next = {
     version: 1,
+    style: input.style === undefined ? current.style : cleanStyle(input.style),
     columns,
     card: input.card === undefined ? current.card : clean(input.card),
   };

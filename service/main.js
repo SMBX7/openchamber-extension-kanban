@@ -486,14 +486,16 @@ var clean = (value) => {
   const text = String(value || "").trim();
   return HEX.test(text) ? text.toLowerCase() : "";
 };
-var empty3 = () => ({ version: 1, columns: ["", "", ""], card: "" });
+var STYLES = ["neumorphism", "brutalism", "glass"];
+var cleanStyle = (value) => STYLES.includes(value) ? value : "neumorphism";
+var empty3 = () => ({ version: 1, style: "neumorphism", columns: ["", "", ""], card: "" });
 var readAppearance = () => {
   try {
     const parsed = JSON.parse((0, import_node_fs4.readFileSync)(FILE3, "utf8"));
     if (!parsed || typeof parsed !== "object") return empty3();
     const columns = Array.isArray(parsed.columns) ? parsed.columns.slice(0, 3).map(clean) : [];
     while (columns.length < 3) columns.push("");
-    return { version: 1, columns, card: clean(parsed.card) };
+    return { version: 1, style: cleanStyle(parsed.style), columns, card: clean(parsed.card) };
   } catch {
     return empty3();
   }
@@ -515,6 +517,7 @@ var setAppearance = (input = {}) => {
   while (columns.length < 3) columns.push("");
   const next = {
     version: 1,
+    style: input.style === void 0 ? current.style : cleanStyle(input.style),
     columns,
     card: input.card === void 0 ? current.card : clean(input.card)
   };
@@ -1987,6 +1990,7 @@ var routes = {
     return {
       connected: true,
       board: { id: snapshot.board.id, name: snapshot.board.name },
+      style: readAppearance().style,
       counts: { total, completed, incomplete: total - completed },
       project: project ? {
         id: project.projectId,

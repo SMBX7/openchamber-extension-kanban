@@ -600,6 +600,7 @@ const routes = {
     return {
       connected: true,
       board: { id: snapshot.board.id, name: snapshot.board.name },
+      style: readAppearance().style,
       counts: { total, completed, incomplete: total - completed },
       project: project
         ? {

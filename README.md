@@ -37,8 +37,8 @@ three lists (IDEAS, EN PROGRESO, HECHO) and three labels.
 - Card sheet with description, labels, checklist items, due date and the linked
   session.
 - Search across the board, filter stopped work, and switch between boards.
-- Settings sheet: board ↔ OpenChamber project mapping, delegation mode, appearance
-  and the Planka connection.
+- Settings sheet: board ↔ OpenChamber project mapping, delegation mode, style presets
+  (neumorphism, brutalism, glass), colours and the data source.
 
 ### Work Status section
 
