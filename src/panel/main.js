@@ -24,6 +24,7 @@ const ICONS = {
 };
 
 const state = {
+  loginSource: '',
   surface: 'panel',
   booted: false,
   view: 'boot',
@@ -395,7 +396,23 @@ const showLogin = (message = '') => {
   const card = el('div', 'login-card');
   const title = el('h1');
   title.append(makeIcon('check'), el('span', '', 'Kanban'));
-  const subtitle = el('p', '', 'Planka es la única fuente de verdad. Entra con tu cuenta para leer y editar el tablero desde aquí.');
+  const source = state.loginSource || ((state.config || {}).source === 'local' ? 'local' : 'planka');
+  const subtitle = el('p', '', source === 'local'
+    ? 'Un tablero guardado en este equipo. No necesita servidor, cuenta ni red.'
+    : 'Planka es la única fuente de verdad. Entra con tu cuenta para leer y editar el tablero desde aquí.');
+
+  const toggle = el('div', 'source-toggle');
+  const sourceButton = (key, label) => {
+    const button = el('button', 'source-btn', label);
+    button.type = 'button';
+    button.setAttribute('aria-pressed', source === key ? 'true' : 'false');
+    button.addEventListener('click', () => {
+      state.loginSource = key;
+      showLogin(message);
+    });
+    return button;
+  };
+  toggle.append(sourceButton('planka', 'Planka'), sourceButton('local', 'Local'));
 
   const form = el('div');
   form.style.display = 'contents';
@@ -445,7 +462,28 @@ const showLogin = (message = '') => {
   submit.type = 'button';
   actions.append(submit);
 
-  form.append(emailField, passwordField, urlField, errorBox, note, actions);
+  const useLocal = el('button', 'btn-mint', 'Usar tablero local');
+  useLocal.type = 'button';
+  useLocal.addEventListener('click', async () => {
+    useLocal.disabled = true;
+    useLocal.textContent = 'Preparando…';
+    try {
+      await api('POST', '/config', { source: 'local' });
+      await boot();
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.hidden = false;
+      useLocal.disabled = false;
+      useLocal.textContent = 'Usar tablero local';
+    }
+  });
+
+  if (source === 'local') {
+    const localNote = el('p', 'login-note-text', 'Las tarjetas se guardan en board.local.json junto a la extensión. Las sesiones del agente funcionan igual.');
+    form.append(toggle, localNote, errorBox, useLocal);
+  } else {
+    form.append(toggle, emailField, passwordField, urlField, errorBox, note, actions);
+  }
   card.append(title, subtitle, form);
 
   const submitLogin = () => {
@@ -469,7 +507,7 @@ const showLogin = (message = '') => {
   wrapper.append(card);
   root.replaceChildren(wrapper);
   state.refs = null;
-  setTimeout(() => email.focus(), 30);
+  setTimeout(() => (source === 'local' ? useLocal.focus() : email.focus()), 30);
 };
 
 const doLogin = async (values, submit, errorBox, note) => {
@@ -982,11 +1020,35 @@ const openSettings = () => {
   /* Conexión */
   const conexion = el('section', 'settings-section');
   conexion.append(el('div', 'settings-heading', 'Conexión'));
+  const isLocal = (config.source || 'planka') === 'local';
   const connRow = el('div', 'settings-line');
   const connDot = el('span', 'col-dot');
   connDot.style.setProperty('--dot', config.connected ? 'var(--oc-success)' : 'var(--oc-error)');
-  connRow.append(connDot, el('span', 'settings-line-text', config.connected ? `${config.email || 'Planka'} en ${config.baseUrl || 'Planka'}` : 'Sin conexión con Planka'));
+  connRow.append(connDot, el('span', 'settings-line-text', isLocal
+    ? 'Tablero local en este equipo'
+    : (config.connected ? `${config.email || 'Planka'} en ${config.baseUrl || 'Planka'}` : 'Sin conexión con Planka')));
   conexion.append(connRow);
+
+  const sourceRow = el('div', 'source-toggle');
+  const switchSource = async (target) => {
+    try {
+      await api('POST', '/config', { source: target });
+      closeSettings(true);
+      await boot();
+      toast('success', target === 'local' ? 'Tablero local activado.' : 'Has vuelto a Planka.');
+    } catch (error) {
+      toast('error', error.message);
+    }
+  };
+  const sourcePick = (key, label) => {
+    const button = el('button', 'source-btn', label);
+    button.type = 'button';
+    button.setAttribute('aria-pressed', (isLocal ? 'local' : 'planka') === key ? 'true' : 'false');
+    button.addEventListener('click', () => void switchSource(key));
+    return button;
+  };
+  sourceRow.append(sourcePick('planka', 'Planka'), sourcePick('local', 'Local'));
+  conexion.append(sourceRow);
   const connActions = el('div', 'settings-actions');
   const openPlanka = el('button', 'ghost-btn', 'Abrir Planka');
   openPlanka.type = 'button';
@@ -1007,7 +1069,7 @@ const openSettings = () => {
       toast('error', error.message);
     }
   });
-  connActions.append(openPlanka, logout);
+  if (!isLocal) connActions.append(openPlanka, logout);
   conexion.append(connActions);
 
   /* Tablero y proyecto */

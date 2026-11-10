@@ -6,7 +6,8 @@
   "description": "Kanban en OpenChamber sobre Planka: tablero, tarjetas, checklist y agente, con Planka como única fuente de verdad.",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "check": "node scripts/check.mjs"
+    "check": "node scripts/check.mjs",
+    "test": "node scripts/test-local.mjs"
   },
   "openchamber": {
     "apiVersion": 1,

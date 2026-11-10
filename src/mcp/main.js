@@ -1,6 +1,7 @@
 // MCP stdio server for the Kanban extension. Same Planka client and the same
 // config.json as the service; cards are addressed by id or by part of a title.
 import { readConfig } from '../shared/config.js';
+import { LOCAL_BOARD_ID, LocalClient } from '../shared/local.js';
 import { clearClosePending, markClosePending, removeLink, setLink } from '../shared/links.js';
 import {
   PlankaClient,
@@ -32,6 +33,9 @@ const failResult = (message) => ({
 
 const context = async () => {
   const config = readConfig();
+  if (config.source === 'local') {
+    return { client: new LocalClient(config), boardId: LOCAL_BOARD_ID };
+  }
   if (!config.token) {
     throw new Error('Kanban is not connected to Planka yet. Sign in from the Kanban panel in OpenChamber.');
   }

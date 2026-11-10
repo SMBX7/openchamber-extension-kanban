@@ -230,6 +230,20 @@
       .color-input::-webkit-color-swatch-wrapper { padding: 2px; }
       .color-input::-webkit-color-swatch { border: 0; border-radius: 4px; }
       .color-reset { padding: 4px 8px; font-size: 10.5px; }
+      .source-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 2px 0 8px; }
+      .source-btn {
+        padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 500;
+        border: 1px solid var(--oc-border); background: var(--oc-elevated); color: var(--oc-muted);
+        box-shadow: var(--relief-btn);
+        transition: color .12s, background .12s, border-color .12s;
+      }
+      .source-btn:hover { color: var(--oc-fg); background: var(--oc-hover); }
+      .source-btn[aria-pressed="true"] {
+        color: var(--mint-text);
+        border-color: color-mix(in srgb, var(--mint) 55%, var(--oc-border));
+        background: color-mix(in srgb, var(--mint) 14%, transparent);
+      }
+      .login-note-text { margin: 0 0 10px; font-size: 11.5px; line-height: 1.45; color: var(--oc-muted); }
       .settings-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
       .mode-card {
         display: flex; flex-direction: column; gap: 4px; text-align: left;

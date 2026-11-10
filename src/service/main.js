@@ -7,6 +7,7 @@ import { clearConfig, isConnected, readConfig, saveConfig } from '../shared/conf
 import { clearClosePending, getLink, linksForSession, listLinks, pendingCloseForSession, removeLink, setLink } from '../shared/links.js';
 import { getBoardProject, setBoardProject } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
+import { LOCAL_BOARD_ID, LocalClient } from '../shared/local.js';
 import { PlankaClient, PlankaError, flattenCards, searchCards } from '../shared/planka.js';
 
 const PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
@@ -116,7 +117,10 @@ const handleSessionEvent = async (event) => {
   }
 };
 
-const client = () => new PlankaClient(readConfig(), {
+const client = () => {
+  const config = readConfig();
+  if (config.source === 'local') return new LocalClient(config);
+  return new PlankaClient(config, {
   password: sessionPassword,
   onToken: (token) => {
     try {
@@ -126,9 +130,11 @@ const client = () => new PlankaClient(readConfig(), {
       // failure on the next request.
     }
   },
-});
+  });
+};
 
 const boardIdOf = async (config, requested) => {
+  if (config.source === 'local') return LOCAL_BOARD_ID;
   const candidate = requested || config.boardId;
   if (candidate) return String(candidate);
   return client().resolveBoardId();
@@ -501,9 +507,29 @@ const routes = {
 
   'GET /config': async () => {
     const config = readConfig();
+    if (config.source === 'local') {
+      let boards = [];
+      try {
+        boards = await client().getBoards();
+      } catch {
+        boards = [];
+      }
+      const board = boards[0] || null;
+      return {
+        connected: true,
+        source: 'local',
+        baseUrl: '',
+        email: '',
+        boardId: LOCAL_BOARD_ID,
+        boardName: board?.name || 'Kanban local',
+        boards,
+        boardUrl: '',
+      };
+    }
     if (!isConnected(config)) {
       return {
         connected: false,
+        source: 'planka',
         baseUrl: config.baseUrl,
         email: config.email,
         boardId: config.boardId,
@@ -526,7 +552,19 @@ const routes = {
       boardName: board?.name || config.boardName,
       boards,
       boardUrl: board?.url || '',
+      source: 'planka',
     };
+  },
+
+  'POST /config': async (body) => {
+    const source = body?.source === 'local' ? 'local' : 'planka';
+    if (source === 'local') {
+      saveConfig({ source: 'local', boardId: LOCAL_BOARD_ID, boardName: 'Kanban local' });
+    } else {
+      saveConfig({ source: 'planka', boardId: '', boardName: '' });
+    }
+    invalidate();
+    return { source };
   },
 
   'GET /appearance': async () => ({ appearance: readAppearance() }),

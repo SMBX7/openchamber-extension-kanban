@@ -1,15 +1,31 @@
 # Kanban for OpenChamber
 
-An OpenChamber extension that turns a [Planka](https://planka.app) board into a working
-Kanban inside the app. It ships four pieces that share one Planka client:
+An OpenChamber extension that turns a [Planka](https://planka.app) board — or a board
+stored on this machine — into a working Kanban inside the app. It ships four pieces:
 
 - a **board panel** for planning,
 - a compact **Work Status** section in the sidebar for day-to-day work,
 - a **host service** that owns the Planka connection and the session links,
 - an **MCP server** so the agent can read and move cards.
 
-Planka is the single source of truth. The extension keeps no local copy of the board:
-it caches a snapshot for 1.5 s to render, and invalidates it on every write.
+Planka is the single source of truth in Planka mode, and the extension keeps no local
+copy of the board: it caches a snapshot for 1.5 s to render and invalidates it on every
+write. Local mode swaps the backend for a single JSON file with the same shape, so the
+panel, the Work Status section, the service and the MCP server do not change.
+
+## Data sources
+
+Choose where the board lives under **Settings → Conexión**:
+
+- **Planka** (default): a Planka instance stores the board, so it is visible from any
+  device that can reach it.
+- **Local**: the board lives in `board.local.json` next to the package, mode `600`, on
+  this machine only.
+
+Sessions, the session picker and manual or automatic delegation behave the same in both
+modes: they belong to OpenChamber, not to the storage. Switching to local keeps the
+Planka token, so going back does not ask for the password again. Local mode starts with
+three lists (IDEAS, EN PROGRESO, HECHO) and three labels.
 
 ## What you can do
 
@@ -69,17 +85,19 @@ status/index.html ─┼─ iframes ─> service/main.js ─> Planka REST API
 ## Requirements
 
 - OpenChamber `>= 2.7.0`, with the host service capability.
-- A reachable **Planka** instance and an account on it. The extension is useless without
-  it: every route requires a token.
+- **Either** a reachable Planka instance with an account on it, **or** the local board,
+  which needs nothing else.
 - Node.js 20+ to build the bundles.
 - A Planka account is asked once for base URL, email and password. The password is used
   to obtain a token and is never written to disk; the token is stored in `config.json`
   next to the package with mode `600`.
 
-`config.json` is machine-local and git-ignored. Its shape:
+`config.json` is machine-local and git-ignored. Its shape (`source` is `planka` or
+`local`):
 
 ```json
 {
+  "source": "planka",
   "baseUrl": "http://127.0.0.1:3040",
   "email": "",
   "token": "",
@@ -90,8 +108,9 @@ status/index.html ─┼─ iframes ─> service/main.js ─> Planka REST API
 
 ## Things to know
 
-- **No offline or local mode.** Planka is the only backend. Without a Planka instance
-  the panel only shows the "connect Kanban" notice.
+- **Local mode is single-device.** The board is one JSON file on this machine: no
+  mobile, no second computer, no sharing. Switching modes does not migrate cards between
+  Planka and the local file.
 - **One board at a time** for the Work Status; the panel can switch between boards.
 - **Mobile** needs both OpenChamber and the Planka instance reachable from the phone,
   which usually means a private network (Tailscale, WireGuard) or a tunnel.
@@ -130,18 +149,21 @@ can be installed as-is; run `npm run build` after changing anything in `src/`.
 | `src/service/main.js` | Host service: Planka client usage, routes, session link, caching |
 | `src/mcp/main.js` | MCP server exposing the board to the agent |
 | `src/shared/planka.js` | Planka REST client and snapshot builders |
+| `src/shared/local.js` | Local board client with the same surface, JSON storage |
 | `src/shared/config.js` | `config.json` read/write with mode 600 |
 | `src/shared/links.js` | Card ↔ session links |
 | `src/shared/board-projects.js` | Board ↔ project mapping |
 | `src/shared/appearance.js` | Colours and relief tokens |
 | `scripts/build.mjs` | esbuild bundling into `panel/`, `status/`, `service/`, `mcp/` |
 | `scripts/check.mjs` | Package validation |
+| `scripts/test-local.mjs` | Local board client tests, run with `npm test` |
 
 ## Build
 
 ```bash
 npm run build   # bundle every entry point
 npm run check   # validate the package manifest and outputs
+npm test        # exercise the local board client in a temp file
 ```
 
 ## License

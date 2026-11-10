@@ -1847,6 +1847,7 @@ ${GUEST_UI_LOOK_CSS}`;
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 15a1.65 1.65 0 0 0-1.51-1H2a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 3.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6h.09A1.65 1.65 0 0 0 9.1 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09A1.65 1.65 0 0 0 21 10.1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/>'
   };
   var state = {
+    loginSource: "",
     surface: "panel",
     booted: false,
     view: "boot",
@@ -2170,7 +2171,20 @@ ${card.description}`.toLowerCase();
     const card = el2("div", "login-card");
     const title = el2("h1");
     title.append(makeIcon("check"), el2("span", "", "Kanban"));
-    const subtitle = el2("p", "", "Planka es la \xFAnica fuente de verdad. Entra con tu cuenta para leer y editar el tablero desde aqu\xED.");
+    const source = state.loginSource || ((state.config || {}).source === "local" ? "local" : "planka");
+    const subtitle = el2("p", "", source === "local" ? "Un tablero guardado en este equipo. No necesita servidor, cuenta ni red." : "Planka es la \xFAnica fuente de verdad. Entra con tu cuenta para leer y editar el tablero desde aqu\xED.");
+    const toggle = el2("div", "source-toggle");
+    const sourceButton = (key, label) => {
+      const button2 = el2("button", "source-btn", label);
+      button2.type = "button";
+      button2.setAttribute("aria-pressed", source === key ? "true" : "false");
+      button2.addEventListener("click", () => {
+        state.loginSource = key;
+        showLogin(message);
+      });
+      return button2;
+    };
+    toggle.append(sourceButton("planka", "Planka"), sourceButton("local", "Local"));
     const form = el2("div");
     form.style.display = "contents";
     const emailField = el2("label", "field");
@@ -2213,7 +2227,27 @@ ${card.description}`.toLowerCase();
     const submit = el2("button", "btn-mint", "Entrar");
     submit.type = "button";
     actions.append(submit);
-    form.append(emailField, passwordField, urlField, errorBox, note, actions);
+    const useLocal = el2("button", "btn-mint", "Usar tablero local");
+    useLocal.type = "button";
+    useLocal.addEventListener("click", async () => {
+      useLocal.disabled = true;
+      useLocal.textContent = "Preparando\u2026";
+      try {
+        await api("POST", "/config", { source: "local" });
+        await boot();
+      } catch (error) {
+        errorBox.textContent = error.message;
+        errorBox.hidden = false;
+        useLocal.disabled = false;
+        useLocal.textContent = "Usar tablero local";
+      }
+    });
+    if (source === "local") {
+      const localNote = el2("p", "login-note-text", "Las tarjetas se guardan en board.local.json junto a la extensi\xF3n. Las sesiones del agente funcionan igual.");
+      form.append(toggle, localNote, errorBox, useLocal);
+    } else {
+      form.append(toggle, emailField, passwordField, urlField, errorBox, note, actions);
+    }
     card.append(title, subtitle, form);
     const submitLogin = () => {
       void doLogin({ email: email.value, password: password.value, baseUrl: baseUrl.value.trim() }, submit, errorBox, note);
@@ -2235,7 +2269,7 @@ ${card.description}`.toLowerCase();
     wrapper.append(card);
     root.replaceChildren(wrapper);
     state.refs = null;
-    setTimeout(() => email.focus(), 30);
+    setTimeout(() => source === "local" ? useLocal.focus() : email.focus(), 30);
   };
   var doLogin = async (values, submit, errorBox, note) => {
     submit.disabled = true;
@@ -2678,11 +2712,32 @@ ${card.description}`.toLowerCase();
     const scroll = el2("div", "sheet-scroll settings-scroll");
     const conexion = el2("section", "settings-section");
     conexion.append(el2("div", "settings-heading", "Conexi\xF3n"));
+    const isLocal = (config.source || "planka") === "local";
     const connRow = el2("div", "settings-line");
     const connDot = el2("span", "col-dot");
     connDot.style.setProperty("--dot", config.connected ? "var(--oc-success)" : "var(--oc-error)");
-    connRow.append(connDot, el2("span", "settings-line-text", config.connected ? `${config.email || "Planka"} en ${config.baseUrl || "Planka"}` : "Sin conexi\xF3n con Planka"));
+    connRow.append(connDot, el2("span", "settings-line-text", isLocal ? "Tablero local en este equipo" : config.connected ? `${config.email || "Planka"} en ${config.baseUrl || "Planka"}` : "Sin conexi\xF3n con Planka"));
     conexion.append(connRow);
+    const sourceRow = el2("div", "source-toggle");
+    const switchSource = async (target) => {
+      try {
+        await api("POST", "/config", { source: target });
+        closeSettings(true);
+        await boot();
+        toast("success", target === "local" ? "Tablero local activado." : "Has vuelto a Planka.");
+      } catch (error) {
+        toast("error", error.message);
+      }
+    };
+    const sourcePick = (key, label) => {
+      const button2 = el2("button", "source-btn", label);
+      button2.type = "button";
+      button2.setAttribute("aria-pressed", (isLocal ? "local" : "planka") === key ? "true" : "false");
+      button2.addEventListener("click", () => void switchSource(key));
+      return button2;
+    };
+    sourceRow.append(sourcePick("planka", "Planka"), sourcePick("local", "Local"));
+    conexion.append(sourceRow);
     const connActions = el2("div", "settings-actions");
     const openPlanka = el2("button", "ghost-btn", "Abrir Planka");
     openPlanka.type = "button";
@@ -2704,7 +2759,7 @@ ${card.description}`.toLowerCase();
         toast("error", error.message);
       }
     });
-    connActions.append(openPlanka, logout);
+    if (!isLocal) connActions.append(openPlanka, logout);
     conexion.append(connActions);
     const tablero = el2("section", "settings-section");
     tablero.append(el2("div", "settings-heading", "Tablero y proyecto"));

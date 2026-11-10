@@ -8,6 +8,7 @@ export const CONFIG_PATH = join(ROOT, 'config.json');
 export const DEFAULT_BASE_URL = 'http://127.0.0.1:3040';
 
 const EMPTY = {
+  source: 'planka',
   baseUrl: DEFAULT_BASE_URL,
   email: '',
   token: '',
@@ -18,6 +19,7 @@ const EMPTY = {
 const normalise = (value) => {
   const baseUrl = String(value?.baseUrl || DEFAULT_BASE_URL).trim().replace(/\/+$/, '') || DEFAULT_BASE_URL;
   return {
+    source: value?.source === 'local' ? 'local' : 'planka',
     baseUrl,
     email: typeof value?.email === 'string' ? value.email : '',
     token: typeof value?.token === 'string' ? value.token : '',
@@ -35,7 +37,7 @@ export const readConfig = () => {
   }
 };
 
-export const isConnected = (config = readConfig()) => Boolean(config.token);
+export const isConnected = (config = readConfig()) => config.source === 'local' || Boolean(config.token);
 
 export const saveConfig = (patch) => {
   const next = normalise({ ...readConfig(), ...patch });

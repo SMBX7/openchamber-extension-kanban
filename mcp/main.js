@@ -5,6 +5,7 @@ var ROOT = (0, import_node_path.resolve)(__dirname, "..");
 var CONFIG_PATH = (0, import_node_path.join)(ROOT, "config.json");
 var DEFAULT_BASE_URL = "http://127.0.0.1:3040";
 var EMPTY = {
+  source: "planka",
   baseUrl: DEFAULT_BASE_URL,
   email: "",
   token: "",
@@ -14,6 +15,7 @@ var EMPTY = {
 var normalise = (value) => {
   const baseUrl = String(value?.baseUrl || DEFAULT_BASE_URL).trim().replace(/\/+$/, "") || DEFAULT_BASE_URL;
   return {
+    source: value?.source === "local" ? "local" : "planka",
     baseUrl,
     email: typeof value?.email === "string" ? value.email : "",
     token: typeof value?.token === "string" ? value.token : "",
@@ -30,74 +32,10 @@ var readConfig = () => {
   }
 };
 
-// src/shared/links.js
+// src/shared/local.js
 var import_node_fs2 = require("node:fs");
-var import_node_os = require("node:os");
 var import_node_path2 = require("node:path");
-var DIR = (0, import_node_path2.join)((0, import_node_os.homedir)(), ".kanban");
-var FILE = (0, import_node_path2.join)(DIR, "links.json");
-var empty = () => ({ version: 1, links: {} });
-var readLinks = () => {
-  try {
-    const parsed = JSON.parse((0, import_node_fs2.readFileSync)(FILE, "utf8"));
-    if (!parsed || typeof parsed !== "object" || typeof parsed.links !== "object" || !parsed.links) return empty();
-    return parsed;
-  } catch {
-    return empty();
-  }
-};
-var writeLinks = (data) => {
-  (0, import_node_fs2.mkdirSync)(DIR, { recursive: true, mode: 448 });
-  const temp = (0, import_node_path2.join)(DIR, `.links-${process.pid}.tmp`);
-  (0, import_node_fs2.writeFileSync)(temp, `${JSON.stringify(data, null, 2)}
-`, { mode: 384 });
-  (0, import_node_fs2.renameSync)(temp, FILE);
-  try {
-    (0, import_node_fs2.chmodSync)(FILE, 384);
-  } catch {
-  }
-};
-var setLink = (cardId, sessionId, meta = {}) => {
-  const id = String(cardId || "");
-  const session = String(sessionId || "").trim();
-  if (!id || !session) throw new Error("La tarjeta y la sesi\xF3n son obligatorias.");
-  const data = readLinks();
-  data.links[id] = {
-    sessionId: session,
-    boardId: String(meta.boardId || ""),
-    title: String(meta.title || "").slice(0, 200),
-    sessionTitle: String(meta.sessionTitle || meta.title || session).slice(0, 120),
-    linkedAt: (/* @__PURE__ */ new Date()).toISOString()
-  };
-  writeLinks(data);
-  return data.links[id];
-};
-var markClosePending = (cardId) => {
-  const id = String(cardId || "");
-  const data = readLinks();
-  if (!data.links[id]) return false;
-  data.links[id].closePending = true;
-  data.links[id].closePendingAt = (/* @__PURE__ */ new Date()).toISOString();
-  writeLinks(data);
-  return true;
-};
-var clearClosePending = (cardId) => {
-  const id = String(cardId || "");
-  const data = readLinks();
-  if (!data.links[id]?.closePending) return false;
-  delete data.links[id].closePending;
-  delete data.links[id].closePendingAt;
-  writeLinks(data);
-  return true;
-};
-var removeLink = (cardId) => {
-  const id = String(cardId || "");
-  const data = readLinks();
-  if (!data.links[id]) return false;
-  delete data.links[id];
-  writeLinks(data);
-  return true;
-};
+var import_node_crypto = require("node:crypto");
 
 // src/shared/planka.js
 var POSITION_STEP = 65536;
@@ -623,6 +561,525 @@ var boardSummary = (board2) => ({
   counts: board2.counts
 });
 
+// src/shared/local.js
+var POSITION_STEP2 = 65536;
+var DONE_NAME2 = /(^|\b)(hecho|done|completad[oa]?s?|finalizad[oa]?s?|listo)(\b|$)/i;
+var BOARD_ID = "local";
+var DEFAULT_LISTS = ["IDEAS", "EN PROGRESO", "HECHO"];
+var DEFAULT_LABELS = [
+  { name: "Urgente", color: "hsl(0 62% 58%)" },
+  { name: "Importante", color: "hsl(38 78% 58%)" },
+  { name: "Idea", color: "hsl(210 70% 62%)" }
+];
+var boardPath = () => process.env.KANBAN_LOCAL_PATH || (0, import_node_path2.join)(ROOT, "board.local.json");
+var lockPath = () => `${boardPath()}.lock`;
+var sleep = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
+var byPosition2 = (a, b) => {
+  const left = Number.isFinite(a?.position) ? a.position : Number.POSITIVE_INFINITY;
+  const right = Number.isFinite(b?.position) ? b.position : Number.POSITIVE_INFINITY;
+  if (left !== right) return left - right;
+  return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
+};
+var uid = (prefix) => `${prefix}-${(0, import_node_crypto.randomUUID)()}`;
+var toIso = (value) => {
+  if (!value) return "";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const date2 = /* @__PURE__ */ new Date(`${value}T12:00:00`);
+    return Number.isNaN(date2.getTime()) ? "" : date2.toISOString();
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+};
+var emptyStore = () => ({
+  version: 1,
+  board: { id: BOARD_ID, name: "Kanban local" },
+  lists: DEFAULT_LISTS.map((name, index) => ({
+    id: `list-${index + 1}`,
+    name,
+    position: (index + 1) * POSITION_STEP2
+  })),
+  cards: [],
+  labels: DEFAULT_LABELS.map((label, index) => ({
+    id: `label-${index + 1}`,
+    name: label.name,
+    color: label.color
+  })),
+  cardLabels: [],
+  taskLists: [],
+  tasks: []
+});
+var normaliseStore = (value) => {
+  const base = emptyStore();
+  const store = value && typeof value === "object" ? value : {};
+  const lists = Array.isArray(store.lists) && store.lists.length ? store.lists : base.lists;
+  return {
+    version: 1,
+    board: {
+      id: BOARD_ID,
+      name: typeof store.board?.name === "string" && store.board.name.trim() ? store.board.name.trim().slice(0, 120) : base.board.name
+    },
+    lists: lists.filter((list) => list && list.id).map((list, index) => ({
+      id: String(list.id),
+      name: String(list.name || `Columna ${index + 1}`).slice(0, 120),
+      position: Number.isFinite(list.position) ? list.position : (index + 1) * POSITION_STEP2
+    })),
+    cards: (Array.isArray(store.cards) ? store.cards : []).filter((card) => card && card.id && card.listId).map((card) => ({
+      id: String(card.id),
+      listId: String(card.listId),
+      name: String(card.name || "Sin t\xEDtulo").slice(0, 1024),
+      description: typeof card.description === "string" ? card.description : "",
+      position: Number.isFinite(card.position) ? card.position : 0,
+      dueDate: typeof card.dueDate === "string" ? card.dueDate : "",
+      isDueCompleted: Boolean(card.isDueCompleted),
+      createdAt: Number.isFinite(card.createdAt) ? card.createdAt : Date.now()
+    })),
+    labels: (Array.isArray(store.labels) ? store.labels : base.labels).filter((label) => label && label.id).map((label) => ({
+      id: String(label.id),
+      name: String(label.name || "Etiqueta").slice(0, 120),
+      color: String(label.color || "hsl(210 20% 60%)")
+    })),
+    cardLabels: (Array.isArray(store.cardLabels) ? store.cardLabels : []).filter((link) => link && link.id && link.cardId && link.labelId).map((link) => ({ id: String(link.id), cardId: String(link.cardId), labelId: String(link.labelId) })),
+    taskLists: (Array.isArray(store.taskLists) ? store.taskLists : []).filter((taskList) => taskList && taskList.id && taskList.cardId).map((taskList) => ({
+      id: String(taskList.id),
+      cardId: String(taskList.cardId),
+      name: String(taskList.name || "Checklist").slice(0, 120),
+      position: Number.isFinite(taskList.position) ? taskList.position : POSITION_STEP2
+    })),
+    tasks: (Array.isArray(store.tasks) ? store.tasks : []).filter((task) => task && task.id && task.taskListId).map((task) => ({
+      id: String(task.id),
+      taskListId: String(task.taskListId),
+      name: String(task.name || "").slice(0, 1024),
+      isCompleted: Boolean(task.isCompleted),
+      position: Number.isFinite(task.position) ? task.position : POSITION_STEP2
+    }))
+  };
+};
+var readStore = () => {
+  try {
+    return normaliseStore(JSON.parse((0, import_node_fs2.readFileSync)(boardPath(), "utf8")));
+  } catch {
+    return emptyStore();
+  }
+};
+var writeStore = (store) => {
+  const target = boardPath();
+  const temp = `${target}.tmp`;
+  (0, import_node_fs2.writeFileSync)(temp, `${JSON.stringify(store, null, 2)}
+`, { mode: 384 });
+  (0, import_node_fs2.renameSync)(temp, target);
+  try {
+    (0, import_node_fs2.chmodSync)(target, 384);
+  } catch {
+  }
+};
+var withLock = async (work) => {
+  const deadline = Date.now() + 2500;
+  let handle = null;
+  while (handle === null) {
+    try {
+      handle = (0, import_node_fs2.openSync)(lockPath(), "wx");
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      try {
+        if (Date.now() - (0, import_node_fs2.statSync)(lockPath()).mtimeMs > 5e3) {
+          (0, import_node_fs2.unlinkSync)(lockPath());
+          continue;
+        }
+      } catch {
+        continue;
+      }
+      if (Date.now() > deadline) {
+        throw new PlankaError("El tablero local est\xE1 ocupado, int\xE9ntalo otra vez.", { kind: "busy" });
+      }
+      await sleep(25);
+    }
+  }
+  try {
+    return await work();
+  } finally {
+    try {
+      (0, import_node_fs2.closeSync)(handle);
+    } catch {
+    }
+    try {
+      (0, import_node_fs2.unlinkSync)(lockPath());
+    } catch {
+    }
+  }
+};
+var mutate = (work) => withLock(() => {
+  const store = readStore();
+  const result = work(store);
+  writeStore(store);
+  return result;
+});
+var topPosition2 = (cards) => {
+  const positions = cards.map((card) => Number(card.position)).filter((value) => Number.isFinite(value) && value > 0);
+  if (!positions.length) return POSITION_STEP2;
+  const first = Math.min(...positions);
+  return first > 0 ? first / 2 : 0.5;
+};
+var nextPosition = (rows) => {
+  const positions = rows.map((row) => Number(row.position)).filter((value) => Number.isFinite(value) && value >= 0);
+  return positions.length ? Math.max(...positions) + POSITION_STEP2 : POSITION_STEP2;
+};
+var positionAtIndex2 = (cards, index, movingId) => {
+  const rest = cards.filter((card) => card.id !== String(movingId)).slice().sort(byPosition2);
+  const target = Math.max(0, Math.min(index, rest.length));
+  const previous = rest[target - 1];
+  const next = rest[target];
+  const previousPosition = Number(previous?.position);
+  const nextPositionValue = Number(next?.position);
+  if (Number.isFinite(previousPosition) && Number.isFinite(nextPositionValue)) {
+    return (previousPosition + nextPositionValue) / 2;
+  }
+  if (Number.isFinite(nextPositionValue)) return nextPositionValue / 2;
+  if (Number.isFinite(previousPosition)) return previousPosition + POSITION_STEP2;
+  return POSITION_STEP2;
+};
+var findCardRow = (store, cardId) => {
+  const card = store.cards.find((item) => item.id === String(cardId));
+  if (!card) throw new PlankaError("Esa tarjeta ya no existe en el tablero local.", { kind: "not-found", status: 404 });
+  return card;
+};
+var findListRow = (store, listId) => {
+  const list = store.lists.find((item) => item.id === String(listId));
+  if (!list) throw new PlankaError("Esa columna ya no existe en el tablero local.", { kind: "not-found", status: 404 });
+  return list;
+};
+var view = (store) => {
+  const lists = store.lists.slice().sort(byPosition2).map((list) => ({ id: list.id, name: list.name, color: "", position: list.position, cards: [] }));
+  const listsById = new Map(lists.map((list) => [list.id, list]));
+  const doneList = lists.find((list) => DONE_NAME2.test(list.name)) || lists[lists.length - 1] || null;
+  for (const card of store.cards.slice().sort(byPosition2)) {
+    const list = listsById.get(card.listId);
+    if (!list) continue;
+    const cardTaskLists = store.taskLists.filter((taskList) => taskList.cardId === card.id).sort(byPosition2).map((taskList) => {
+      const cardTasks = store.tasks.filter((task) => task.taskListId === taskList.id).sort(byPosition2).map((task) => ({
+        id: task.id,
+        name: task.name,
+        isCompleted: Boolean(task.isCompleted),
+        position: task.position
+      }));
+      return { id: taskList.id, name: taskList.name, position: taskList.position, tasks: cardTasks };
+    });
+    const total = cardTaskLists.reduce((sum, taskList) => sum + taskList.tasks.length, 0);
+    const done = cardTaskLists.reduce(
+      (sum, taskList) => sum + taskList.tasks.filter((task) => task.isCompleted).length,
+      0
+    );
+    const cardLabelRows = store.cardLabels.filter((link) => link.cardId === card.id).map((link) => {
+      const label = store.labels.find((item) => item.id === link.labelId);
+      return label ? { id: label.id, name: label.name, color: label.color, cardLabelId: link.id } : null;
+    }).filter(Boolean);
+    list.cards.push({
+      id: card.id,
+      name: card.name,
+      description: card.description,
+      dueDate: card.dueDate || "",
+      isDueCompleted: Boolean(card.isDueCompleted),
+      listId: list.id,
+      position: card.position,
+      labels: cardLabelRows,
+      taskLists: cardTaskLists,
+      checklist: { total, done }
+    });
+  }
+  for (const list of lists) list.cards.sort(byPosition2);
+  const allCards = lists.flatMap((list) => list.cards);
+  return {
+    board: { id: store.board.id, name: store.board.name, url: "", baseUrl: "" },
+    lists,
+    labels: store.labels.slice().map((label) => ({ id: label.id, name: label.name, color: label.color })).sort((a, b) => a.name.localeCompare(b.name, "es")),
+    doneListId: doneList?.id || "",
+    counts: {
+      total: allCards.length,
+      incomplete: doneList ? allCards.filter((card) => card.listId !== doneList.id).length : allCards.length
+    },
+    updatedAt: Date.now()
+  };
+};
+var LocalClient = class {
+  constructor(config = {}) {
+    this.boardId = BOARD_ID;
+    this.boardName = typeof config?.boardName === "string" ? config.boardName : "";
+  }
+  async login() {
+    return { token: "local" };
+  }
+  async getBoards() {
+    const store = readStore();
+    return [
+      {
+        id: BOARD_ID,
+        name: store.board.name || "Kanban local",
+        projectId: "local",
+        position: 0,
+        url: ""
+      }
+    ];
+  }
+  async resolveBoardId() {
+    return BOARD_ID;
+  }
+  async readBoard() {
+    return view(readStore());
+  }
+  async findCard(cardId, boardId) {
+    const board2 = await this.readBoard(boardId);
+    const card = board2.lists.flatMap((list) => list.cards).find((item) => item.id === String(cardId));
+    if (!card) throw new PlankaError("Esa tarjeta ya no existe en el tablero local.", { kind: "not-found", status: 404 });
+    return { board: board2, card };
+  }
+  async createCard(listId, name, boardId, options = {}) {
+    return mutate((store) => {
+      const list = findListRow(store, listId);
+      const title = String(name || "").trim().slice(0, 1024);
+      if (!title) throw new PlankaError("El t\xEDtulo no puede quedar vac\xEDo.", { kind: "validation" });
+      const card = {
+        id: uid("card"),
+        listId: list.id,
+        name: title,
+        description: typeof options.description === "string" ? options.description : "",
+        position: topPosition2(store.cards.filter((item) => item.listId === list.id)),
+        dueDate: toIso(options.dueDate),
+        isDueCompleted: false,
+        createdAt: Date.now()
+      };
+      store.cards.push(card);
+      return card;
+    });
+  }
+  async updateCard(cardId, patch = {}, boardId) {
+    return mutate((store) => {
+      const card = findCardRow(store, cardId);
+      if (typeof patch.name === "string") {
+        const name = patch.name.trim();
+        if (!name) throw new PlankaError("El t\xEDtulo no puede quedar vac\xEDo.", { kind: "validation" });
+        card.name = name.slice(0, 1024);
+      }
+      if (patch.description !== void 0) {
+        const description = typeof patch.description === "string" ? patch.description : "";
+        card.description = description.trim() ? description : "";
+      }
+      if (patch.dueDate !== void 0) card.dueDate = toIso(patch.dueDate);
+      if (patch.isDueCompleted !== void 0) card.isDueCompleted = Boolean(patch.isDueCompleted);
+      if (patch.listId !== void 0) {
+        const list = findListRow(store, patch.listId);
+        const index = Number.isInteger(patch.index) ? patch.index : 0;
+        card.listId = list.id;
+        card.position = positionAtIndex2(
+          store.cards.filter((item) => item.listId === list.id),
+          index,
+          card.id
+        );
+      }
+      return card;
+    });
+  }
+  async moveCard(cardId, listId, index, boardId) {
+    return mutate((store) => {
+      const card = findCardRow(store, cardId);
+      const list = findListRow(store, listId);
+      const target = Number.isInteger(index) ? index : 0;
+      card.listId = list.id;
+      card.position = positionAtIndex2(
+        store.cards.filter((item) => item.listId === list.id),
+        target,
+        card.id
+      );
+      return card;
+    });
+  }
+  async completeCard(cardId, boardId) {
+    return mutate((store) => {
+      const card = findCardRow(store, cardId);
+      const lists = store.lists.slice().sort(byPosition2);
+      const done = lists.find((list) => DONE_NAME2.test(list.name)) || lists[lists.length - 1];
+      if (!done) throw new PlankaError("Este tablero no tiene una columna HECHO.", { kind: "validation" });
+      if (card.listId === done.id) return { item: null, already: true };
+      card.listId = done.id;
+      card.position = topPosition2(store.cards.filter((item) => item.listId === done.id));
+      return { item: card, already: false };
+    });
+  }
+  async deleteCard(cardId) {
+    return mutate((store) => {
+      const id = String(cardId);
+      store.cards = store.cards.filter((card) => card.id !== id);
+      const taskLists = new Set(store.taskLists.filter((taskList) => taskList.cardId === id).map((item) => item.id));
+      store.taskLists = store.taskLists.filter((taskList) => taskList.cardId !== id);
+      store.tasks = store.tasks.filter((task) => !taskLists.has(task.taskListId));
+      store.cardLabels = store.cardLabels.filter((link) => link.cardId !== id);
+      return true;
+    });
+  }
+  async renameList(listId, name) {
+    return mutate((store) => {
+      const list = findListRow(store, listId);
+      const trimmed = String(name || "").trim().slice(0, 120);
+      if (!trimmed) throw new PlankaError("El nombre de la columna no puede quedar vac\xEDo.", { kind: "validation" });
+      list.name = trimmed;
+      return list;
+    });
+  }
+  async addChecklist(cardId, name, boardId, tasks = []) {
+    return mutate((store) => {
+      const card = findCardRow(store, cardId);
+      const taskList = {
+        id: uid("checklist"),
+        cardId: card.id,
+        name: String(name || "Checklist").trim().slice(0, 120) || "Checklist",
+        position: nextPosition(store.taskLists.filter((item) => item.cardId === card.id))
+      };
+      store.taskLists.push(taskList);
+      const added = [];
+      let position = POSITION_STEP2;
+      for (const taskName of tasks) {
+        const trimmed = String(taskName || "").trim();
+        if (!trimmed) continue;
+        const task = {
+          id: uid("task"),
+          taskListId: taskList.id,
+          name: trimmed.slice(0, 1024),
+          isCompleted: false,
+          position
+        };
+        position += POSITION_STEP2;
+        store.tasks.push(task);
+        added.push(task);
+      }
+      return { taskList, tasks: added };
+    });
+  }
+  async addTask(taskListId, name) {
+    return mutate((store) => {
+      const taskList = store.taskLists.find((item) => item.id === String(taskListId));
+      if (!taskList) throw new PlankaError("Esa checklist ya no existe.", { kind: "not-found", status: 404 });
+      const task = {
+        id: uid("task"),
+        taskListId: taskList.id,
+        name: String(name || "").trim().slice(0, 1024),
+        isCompleted: false,
+        position: nextPosition(store.tasks.filter((item) => item.taskListId === taskList.id))
+      };
+      store.tasks.push(task);
+      return task;
+    });
+  }
+  async checkTask(taskId, isCompleted) {
+    return mutate((store) => {
+      const task = store.tasks.find((item) => item.id === String(taskId));
+      if (!task) throw new PlankaError("Esa tarea ya no existe.", { kind: "not-found", status: 404 });
+      task.isCompleted = Boolean(isCompleted);
+      return task;
+    });
+  }
+  async addLabel(cardId, labelId) {
+    return mutate((store) => {
+      const card = findCardRow(store, cardId);
+      const label = store.labels.find((item) => item.id === String(labelId));
+      if (!label) throw new PlankaError("Esa etiqueta ya no existe.", { kind: "not-found", status: 404 });
+      const existing = store.cardLabels.find((link2) => link2.cardId === card.id && link2.labelId === label.id);
+      if (existing) return existing;
+      const link = { id: uid("cardlabel"), cardId: card.id, labelId: label.id };
+      store.cardLabels.push(link);
+      return link;
+    });
+  }
+  async removeLabel(cardId, labelId, boardId) {
+    return mutate((store) => {
+      const before = store.cardLabels.length;
+      store.cardLabels = store.cardLabels.filter(
+        (link) => !(link.cardId === String(cardId) && link.labelId === String(labelId))
+      );
+      return store.cardLabels.length !== before;
+    });
+  }
+  async toggleLabel(cardId, labelId, boardId) {
+    const store = readStore();
+    const has = store.cardLabels.some(
+      (link) => link.cardId === String(cardId) && link.labelId === String(labelId)
+    );
+    if (has) {
+      await this.removeLabel(cardId, labelId, boardId);
+      return false;
+    }
+    await this.addLabel(cardId, labelId);
+    return true;
+  }
+};
+var LOCAL_BOARD_ID = BOARD_ID;
+
+// src/shared/links.js
+var import_node_fs3 = require("node:fs");
+var import_node_os = require("node:os");
+var import_node_path3 = require("node:path");
+var DIR = (0, import_node_path3.join)((0, import_node_os.homedir)(), ".kanban");
+var FILE = (0, import_node_path3.join)(DIR, "links.json");
+var empty = () => ({ version: 1, links: {} });
+var readLinks = () => {
+  try {
+    const parsed = JSON.parse((0, import_node_fs3.readFileSync)(FILE, "utf8"));
+    if (!parsed || typeof parsed !== "object" || typeof parsed.links !== "object" || !parsed.links) return empty();
+    return parsed;
+  } catch {
+    return empty();
+  }
+};
+var writeLinks = (data) => {
+  (0, import_node_fs3.mkdirSync)(DIR, { recursive: true, mode: 448 });
+  const temp = (0, import_node_path3.join)(DIR, `.links-${process.pid}.tmp`);
+  (0, import_node_fs3.writeFileSync)(temp, `${JSON.stringify(data, null, 2)}
+`, { mode: 384 });
+  (0, import_node_fs3.renameSync)(temp, FILE);
+  try {
+    (0, import_node_fs3.chmodSync)(FILE, 384);
+  } catch {
+  }
+};
+var setLink = (cardId, sessionId, meta = {}) => {
+  const id = String(cardId || "");
+  const session = String(sessionId || "").trim();
+  if (!id || !session) throw new Error("La tarjeta y la sesi\xF3n son obligatorias.");
+  const data = readLinks();
+  data.links[id] = {
+    sessionId: session,
+    boardId: String(meta.boardId || ""),
+    title: String(meta.title || "").slice(0, 200),
+    sessionTitle: String(meta.sessionTitle || meta.title || session).slice(0, 120),
+    linkedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  writeLinks(data);
+  return data.links[id];
+};
+var markClosePending = (cardId) => {
+  const id = String(cardId || "");
+  const data = readLinks();
+  if (!data.links[id]) return false;
+  data.links[id].closePending = true;
+  data.links[id].closePendingAt = (/* @__PURE__ */ new Date()).toISOString();
+  writeLinks(data);
+  return true;
+};
+var clearClosePending = (cardId) => {
+  const id = String(cardId || "");
+  const data = readLinks();
+  if (!data.links[id]?.closePending) return false;
+  delete data.links[id].closePending;
+  delete data.links[id].closePendingAt;
+  writeLinks(data);
+  return true;
+};
+var removeLink = (cardId) => {
+  const id = String(cardId || "");
+  const data = readLinks();
+  if (!data.links[id]) return false;
+  delete data.links[id];
+  writeLinks(data);
+  return true;
+};
+
 // src/mcp/main.js
 var PROTOCOL_FALLBACK = "2024-11-05";
 process.title = "kanban-mcp";
@@ -638,6 +1095,9 @@ var failResult = (message) => ({
 });
 var context = async () => {
   const config = readConfig();
+  if (config.source === "local") {
+    return { client: new LocalClient(config), boardId: LOCAL_BOARD_ID };
+  }
   if (!config.token) {
     throw new Error("Kanban is not connected to Planka yet. Sign in from the Kanban panel in OpenChamber.");
   }

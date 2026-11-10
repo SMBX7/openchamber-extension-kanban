@@ -2,3 +2,6 @@ node_modules/
 config.json
 .config.json.tmp
 *.log
+board.local.json
+board.local.json.lock
+board.local.json.tmp
