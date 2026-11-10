@@ -1246,12 +1246,32 @@ const openSettings = () => {
   /* Sesiones */
   const sesiones = el('section', 'settings-section');
   sesiones.append(el('div', 'settings-heading', 'Sesiones'));
-  sesiones.append(el('p', 'settings-note', 'Al pasar una tarjeta a HECHO, la sesión enlazada recibe el cierre, guarda el resumen en Engram y se detiene. El vínculo se borra: si vuelves a mover la tarjeta a EN PROGRESO se crea una sesión nueva, sin mezclar contexto viejo. La sesión detenida queda en la lista para que la archives.'));
+  const sesionesBox = el('div', 'settings-box');
+  const fact = (label, text) => {
+    const row = el('div', 'settings-fact');
+    row.append(el('b', '', label), el('span', '', text));
+    return row;
+  };
+  sesionesBox.append(
+    fact('EN PROGRESO', 'se abre la sesión; en automático te la ofrece antes de abrirla.'),
+    fact('HECHO', 'se cierra, guarda el resumen en Engram y se detiene.'),
+    fact('A IDEAS', 'se detiene y se borra el vínculo.'),
+  );
+  sesionesBox.append(el('p', 'settings-note', 'El vínculo se borra al cerrar: si vuelves a mover la tarjeta, se crea una sesión nueva sin mezclar el contexto viejo. La sesión detenida queda en la lista para que la archives.'));
+  sesiones.append(sesionesBox);
 
   /* Avanzado */
   const avanzado = el('section', 'settings-section');
   avanzado.append(el('div', 'settings-heading', 'Avanzado'));
-  avanzado.append(el('p', 'settings-note', 'MCP de Kanban: crear, mover, completar y enlazar tarjetas desde el agente. Tras actualizar la extensión, reinicia OpenCode para que el agente use la versión nueva.'));
+  const avanzadoBox = el('div', 'settings-box');
+  avanzadoBox.append(el('p', 'settings-note', 'Planka es la única fuente de verdad: la extensión lee y escribe ahí, sin copia local. El agente usa el MCP de Kanban para:'));
+  const toolChips = el('div', 'tool-chips');
+  for (const name of ['crear tarjetas', 'moverlas', 'completarlas', 'editarlas', 'checklist', 'buscar', 'enlazar sesión']) {
+    toolChips.append(el('span', 'tool-chip', name));
+  }
+  avanzadoBox.append(toolChips);
+  avanzadoBox.append(el('p', 'settings-note', 'El MCP solo actúa cuando el agente llama a una herramienta; no hay procesos en segundo plano tocando el tablero. Tras actualizar la extensión, reinicia OpenCode para que use la versión nueva.'));
+  avanzado.append(avanzadoBox);
 
   scroll.append(conexion, tablero, estilo, delegacion, sesiones, avanzado);
 

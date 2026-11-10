@@ -2921,10 +2921,30 @@ ${card.description}`.toLowerCase();
     estilo.append(styleGrid);
     const sesiones = el2("section", "settings-section");
     sesiones.append(el2("div", "settings-heading", "Sesiones"));
-    sesiones.append(el2("p", "settings-note", "Al pasar una tarjeta a HECHO, la sesi\xF3n enlazada recibe el cierre, guarda el resumen en Engram y se detiene. El v\xEDnculo se borra: si vuelves a mover la tarjeta a EN PROGRESO se crea una sesi\xF3n nueva, sin mezclar contexto viejo. La sesi\xF3n detenida queda en la lista para que la archives."));
+    const sesionesBox = el2("div", "settings-box");
+    const fact = (label, text) => {
+      const row = el2("div", "settings-fact");
+      row.append(el2("b", "", label), el2("span", "", text));
+      return row;
+    };
+    sesionesBox.append(
+      fact("EN PROGRESO", "se abre la sesi\xF3n; en autom\xE1tico te la ofrece antes de abrirla."),
+      fact("HECHO", "se cierra, guarda el resumen en Engram y se detiene."),
+      fact("A IDEAS", "se detiene y se borra el v\xEDnculo.")
+    );
+    sesionesBox.append(el2("p", "settings-note", "El v\xEDnculo se borra al cerrar: si vuelves a mover la tarjeta, se crea una sesi\xF3n nueva sin mezclar el contexto viejo. La sesi\xF3n detenida queda en la lista para que la archives."));
+    sesiones.append(sesionesBox);
     const avanzado = el2("section", "settings-section");
     avanzado.append(el2("div", "settings-heading", "Avanzado"));
-    avanzado.append(el2("p", "settings-note", "MCP de Kanban: crear, mover, completar y enlazar tarjetas desde el agente. Tras actualizar la extensi\xF3n, reinicia OpenCode para que el agente use la versi\xF3n nueva."));
+    const avanzadoBox = el2("div", "settings-box");
+    avanzadoBox.append(el2("p", "settings-note", "Planka es la \xFAnica fuente de verdad: la extensi\xF3n lee y escribe ah\xED, sin copia local. El agente usa el MCP de Kanban para:"));
+    const toolChips = el2("div", "tool-chips");
+    for (const name of ["crear tarjetas", "moverlas", "completarlas", "editarlas", "checklist", "buscar", "enlazar sesi\xF3n"]) {
+      toolChips.append(el2("span", "tool-chip", name));
+    }
+    avanzadoBox.append(toolChips);
+    avanzadoBox.append(el2("p", "settings-note", "El MCP solo act\xFAa cuando el agente llama a una herramienta; no hay procesos en segundo plano tocando el tablero. Tras actualizar la extensi\xF3n, reinicia OpenCode para que use la versi\xF3n nueva."));
+    avanzado.append(avanzadoBox);
     scroll.append(conexion, tablero, estilo, delegacion, sesiones, avanzado);
     const foot = el2("div", "sheet-foot settings-foot");
     const done = el2("button", "btn-mint", "Listo");
