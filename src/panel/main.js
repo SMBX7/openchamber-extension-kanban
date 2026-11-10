@@ -9,7 +9,7 @@ const ensureA11yNodes = () => {
   const live = el('div', 'sr-only');
   live.id = 'kanban-live';
   live.setAttribute('aria-live', 'polite');
-  const help = el('div', 'sr-only', 'Alt más flechas mueve la tarjeta entre columnas.');
+  const help = el('div', 'sr-only', 'Mayús más flechas mueve la tarjeta entre columnas y dentro de una.');
   help.id = 'kanban-kbd-help';
   document.body.append(live, help);
 };
@@ -1441,6 +1441,7 @@ const buildCard = (card, listIndex) => {
   node.setAttribute('role', 'button');
   node.setAttribute('aria-label', `${card.name}. Abrir tarjeta`);
   node.setAttribute('aria-describedby', 'kanban-kbd-help');
+  node.setAttribute('aria-keyshortcuts', 'Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight');
 
   const actions = el('div', 'card-actions');
   node.append(actions);
@@ -1530,7 +1531,7 @@ const buildCard = (card, listIndex) => {
   actions.append(edit, remove);
 
   const open = () => openSheet(card.id);
-  node.title = 'Abrir y editar';
+  node.title = 'Abrir y editar · Mayús + flechas para mover';
   node.addEventListener('click', open);
   node.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -1538,7 +1539,7 @@ const buildCard = (card, listIndex) => {
       open();
       return;
     }
-    if (!event.altKey) return;
+    if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
     void moveByKeyboard(card, listIndex, event.key);
