@@ -79,8 +79,10 @@ board with the three lists and three labels, stored on your machine.
   **Undo** in the bar at the top.
 - **Move**: drag the card inside a column or to another one.
 - **Complete**: the tick sends it to DONE and closes its session.
-- **Search** with the magnifier, and **Paradas** shows cards in progress with no
-  session.
+- **Search** with the magnifier.
+- **Paradas** filters cards in IN PROGRESS **with no session**. It is how you see what
+  has been parked for a long time and decide whether to pick it up or send it back to
+  ideas.
 
 ## Work Status
 
@@ -104,12 +106,24 @@ Choose the mode in **Settings → Delegación** or from the Work Status pill.
 - **Automatic**: when a card reaches IN PROGRESS, a small prompt appears next to it
   asking whether to open the session. Nothing opens until you say yes.
 
+This is how it looks in each place:
+
+| | Manual | Automatic |
+| --- | --- | --- |
+| **Work Status** | ![Manual in the Work Status](docs/session-status-manual.png) | ![Automatic in the Work Status](docs/session-status-auto.png) |
+| **Panel** | ![Manual in the panel](docs/session-panel-manual.png) | ![Automatic in the panel](docs/session-panel-auto.png) |
+
+In manual mode you have the button to open it whenever you want. In automatic mode,
+moving the card shows the prompt and you decide right there.
+
 Everything else works the same in both modes:
 
 - Moving to **DONE** asks the session to close, and it stops.
 - Moving back to **IDEAS** stops the session and releases the card.
 - Because the card is released, moving it again starts a **new** session, without the
   previous conversation.
+- If a card ends up with no session, it shows under **Paradas**: that is where you see
+  the ones parked for a long time.
 
 ## Styles
 

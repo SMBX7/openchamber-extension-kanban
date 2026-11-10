@@ -80,8 +80,9 @@ con las tres listas y tres etiquetas, guardado en tu equipo.
   segundos para **Deshacer** en la barra de arriba.
 - **Mover**: arrastra la tarjeta dentro de una columna o a otra.
 - **Completar**: el tic la manda a HECHO y cierra su sesión.
-- **Buscar** con la lupa, y **Paradas** te enseña las tarjetas en progreso que no
-  tienen sesión.
+- **Buscar** con la lupa.
+- **Paradas** filtra las tarjetas que están en EN PROGRESO **sin sesión**. Es la forma
+  de ver lo que llevas tiempo aparcado y decidir si lo retomas o lo devuelves a ideas.
 
 ## Work Status
 
@@ -106,12 +107,24 @@ Eliges el modo en **Ajustes → Delegación** o desde la etiqueta del Work Statu
 - **Automática**: al llegar a EN PROGRESO sale un aviso junto a la tarjeta preguntando
   si abrir la sesión. No se abre nada hasta que dices que sí.
 
+Así se ve en cada sitio:
+
+| | Manual | Automática |
+| --- | --- | --- |
+| **Work Status** | ![Manual en el Work Status](docs/session-status-manual.png) | ![Automática en el Work Status](docs/session-status-auto.png) |
+| **Panel** | ![Manual en el panel](docs/session-panel-manual.png) | ![Automática en el panel](docs/session-panel-auto.png) |
+
+En manual tienes el botón para abrirla cuando quieras. En automática, al mover la
+tarjeta sale el aviso y decides ahí mismo.
+
 Lo demás pasa igual en los dos modos:
 
 - Al pasar a **HECHO**, la sesión recibe el cierre y se detiene.
 - Al volver a **IDEAS**, la sesión se detiene y se suelta la tarjeta.
 - Como la tarjeta se suelta, si la vuelves a mover empieza una sesión **nueva**, sin
   arrastrar la conversación anterior.
+- Si una tarjeta se queda sin sesión, aparece en **Paradas**: ahí ves las que llevas
+  tiempo sin abrir.
 
 ## Estilos
 
