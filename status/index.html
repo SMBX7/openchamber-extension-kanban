@@ -56,9 +56,26 @@
         background: color-mix(in srgb, var(--oc-muted) 65%, transparent);
       }
       .board-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--oc-info); flex: none; }
+      .board-mode {
+        display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto;
+        padding: 0; border: 0; background: transparent; color: inherit; text-align: left;
+      }
+      .board-mode:disabled { opacity: 1; }
+      .board-mode:not(:disabled):hover .board-name { text-decoration: underline dotted; text-underline-offset: 2px; }
+      .mode-pill {
+        flex: none; padding: 1px 5px; border-radius: 999px; font-size: 9.5px; line-height: 1.4;
+        border: 1px solid var(--oc-border); color: var(--oc-muted); background: transparent;
+        transition: color .12s, border-color .12s, background .12s;
+      }
+      .mode-pill.on {
+        color: var(--mint-text, var(--oc-success));
+        border-color: color-mix(in srgb, var(--mint) 55%, var(--oc-border));
+        background: color-mix(in srgb, var(--mint) 14%, transparent);
+      }
+      .board-mode:not(:disabled):hover .mode-pill { border-color: color-mix(in srgb, var(--oc-fg) 30%, var(--oc-border)); }
       .board-name { font-weight: 600; color: var(--oc-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .bar {
-        flex: 1 1 auto; height: 4px; border-radius: 2px; overflow: hidden;
+        flex: 1 1 auto; min-width: 22px; height: 4px; border-radius: 2px; overflow: hidden;
         background: color-mix(in srgb, var(--oc-fg) 14%, transparent);
         box-shadow: var(--relief-inset);
       }

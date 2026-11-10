@@ -99,11 +99,49 @@ const act = async (id) => {
   await load(true);
 };
 
+const setAutoMode = async (enabled) => {
+  const project = state.data?.project;
+  if (!project || state.busy) return;
+  state.busy = true;
+  state.error = '';
+  render();
+  try {
+    await api('POST', '/mapping', {
+      boardId: state.data?.board?.id || '',
+      projectId: project.id,
+      directory: project.directory,
+      name: project.name,
+      autoSession: enabled,
+    });
+    project.autoSession = enabled;
+  } catch (error) {
+    state.error = error.message;
+  }
+  state.busy = false;
+  render();
+};
+
 const renderSummary = (data) => {
   const row = el('div', 'summary');
   const dot = el('span', 'board-dot');
   if (data.counts.incomplete === 0) dot.style.background = 'var(--oc-success)';
+  const project = data.project;
+  const mode = el('button', 'board-mode');
+  mode.type = 'button';
+  mode.disabled = state.busy || !project;
+  if (project) {
+    mode.title = project.autoSession
+      ? 'Delegación automática: al mover a EN PROGRESO te pedirá confirmación. Pulsa para pasar a manual.'
+      : 'Delegación manual: la sesión la abres tú. Pulsa para activar la automática.';
+    mode.setAttribute('aria-label', mode.title);
+  }
   const board = el('span', 'board-name', data.board?.name || 'Kanban');
+  mode.append(dot, board);
+  if (project) {
+    const pill = el('span', `mode-pill${project.autoSession ? ' on' : ''}`, project.autoSession ? 'Auto' : 'Manual');
+    mode.append(pill);
+    mode.addEventListener('click', () => void setAutoMode(project.autoSession !== true));
+  }
   const bar = el('span', 'bar');
   const fill = el('i');
   const total = Number(data.counts?.total) || 0;
@@ -111,7 +149,7 @@ const renderSummary = (data) => {
   fill.style.width = `${total ? Math.round((completed / total) * 100) : 0}%`;
   bar.append(fill);
   const count = el('span', 'count', `${completed}/${total}`);
-  row.append(dot, board, bar, count);
+  row.append(mode, bar, count);
   if (data.backlogId) {
     const add = el('button', 'summary-add');
     add.type = 'button';

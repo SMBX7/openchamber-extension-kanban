@@ -599,7 +599,7 @@ const routes = {
     }
     return {
       connected: true,
-      board: { name: snapshot.board.name },
+      board: { id: snapshot.board.id, name: snapshot.board.name },
       counts: { total, completed, incomplete: total - completed },
       project: project
         ? {

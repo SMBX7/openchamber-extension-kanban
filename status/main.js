@@ -1909,11 +1909,46 @@ ${GUEST_UI_LOOK_CSS}`;
     state.busy = false;
     await load(true);
   };
+  var setAutoMode = async (enabled) => {
+    const project = state.data?.project;
+    if (!project || state.busy) return;
+    state.busy = true;
+    state.error = "";
+    render();
+    try {
+      await api("POST", "/mapping", {
+        boardId: state.data?.board?.id || "",
+        projectId: project.id,
+        directory: project.directory,
+        name: project.name,
+        autoSession: enabled
+      });
+      project.autoSession = enabled;
+    } catch (error) {
+      state.error = error.message;
+    }
+    state.busy = false;
+    render();
+  };
   var renderSummary = (data) => {
     const row = el2("div", "summary");
     const dot = el2("span", "board-dot");
     if (data.counts.incomplete === 0) dot.style.background = "var(--oc-success)";
+    const project = data.project;
+    const mode = el2("button", "board-mode");
+    mode.type = "button";
+    mode.disabled = state.busy || !project;
+    if (project) {
+      mode.title = project.autoSession ? "Delegaci\xF3n autom\xE1tica: al mover a EN PROGRESO te pedir\xE1 confirmaci\xF3n. Pulsa para pasar a manual." : "Delegaci\xF3n manual: la sesi\xF3n la abres t\xFA. Pulsa para activar la autom\xE1tica.";
+      mode.setAttribute("aria-label", mode.title);
+    }
     const board = el2("span", "board-name", data.board?.name || "Kanban");
+    mode.append(dot, board);
+    if (project) {
+      const pill = el2("span", `mode-pill${project.autoSession ? " on" : ""}`, project.autoSession ? "Auto" : "Manual");
+      mode.append(pill);
+      mode.addEventListener("click", () => void setAutoMode(project.autoSession !== true));
+    }
     const bar = el2("span", "bar");
     const fill = el2("i");
     const total = Number(data.counts?.total) || 0;
@@ -1921,7 +1956,7 @@ ${GUEST_UI_LOOK_CSS}`;
     fill.style.width = `${total ? Math.round(completed / total * 100) : 0}%`;
     bar.append(fill);
     const count = el2("span", "count", `${completed}/${total}`);
-    row.append(dot, board, bar, count);
+    row.append(mode, bar, count);
     if (data.backlogId) {
       const add = el2("button", "summary-add");
       add.type = "button";
