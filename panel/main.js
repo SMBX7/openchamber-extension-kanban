@@ -1848,6 +1848,8 @@ ${GUEST_UI_LOOK_CSS}`;
   };
   var state = {
     loginSource: "",
+    features: {},
+    popoverMounted: false,
     surface: "panel",
     booted: false,
     view: "boot",
@@ -1956,10 +1958,54 @@ ${GUEST_UI_LOOK_CSS}`;
     host.toast({ kind, message }).catch(() => {
     });
   };
+  var renderPopover = (context) => {
+    if (state.popoverMounted) return;
+    state.popoverMounted = true;
+    state.view = "popover";
+    stopPolling();
+    const data = context.popover?.data || {};
+    document.body.classList.add("popover-surface");
+    const wrap = el2("div", "popover-card");
+    const head = el2("div", "popover-head");
+    head.append(el2("span", "popover-dot"), el2("span", "popover-title", "Sesi\xF3n autom\xE1tica"));
+    const text = el2("div", "popover-text", data.name || "Esta tarjeta");
+    const where = el2("div", "popover-meta", data.project || "");
+    const note = el2("div", "popover-note", "No se abre nada hasta que lo confirmes.");
+    const actions = el2("div", "popover-actions");
+    const open = el2("button", "btn-mint", "Abrir sesi\xF3n");
+    open.type = "button";
+    const skip = el2("button", "ghost-btn", "Ahora no");
+    skip.type = "button";
+    open.addEventListener("click", async () => {
+      open.disabled = true;
+      skip.disabled = true;
+      open.textContent = "Abriendo\u2026";
+      try {
+        const result = await api("POST", "/session/start", { cardId: data.cardId });
+        await host.close();
+        if (result?.sessionId) {
+          try {
+            await host.openSession(result.sessionId);
+          } catch {
+          }
+        }
+      } catch (error) {
+        note.textContent = error.message;
+        note.classList.add("error");
+        open.disabled = false;
+        skip.disabled = false;
+        open.textContent = "Abrir sesi\xF3n";
+      }
+    });
+    skip.addEventListener("click", () => host.close());
+    actions.append(open, skip);
+    wrap.append(head, text, where, note, actions);
+    root.replaceChildren(wrap);
+  };
   var closeAutoBars = () => {
     for (const node of document.querySelectorAll(".auto-bar")) node.remove();
   };
-  var offerSession = (cardId, name, project) => {
+  var showAutoBar = (cardId, name, project) => {
     closeAutoBars();
     const bar = el2("div", "undo-bar auto-bar");
     const text = el2("span", "undo-text", `\xBFAbrir sesi\xF3n para \xAB${name || "la tarjeta"}\xBB?`);
@@ -1994,6 +2040,23 @@ ${GUEST_UI_LOOK_CSS}`;
     bar.append(text, open, skip, progress);
     document.body.append(bar);
     timer = setTimeout(close, 15e3);
+  };
+  var offerSession = (cardId, name, project, node) => {
+    const rect = node?.getBoundingClientRect?.();
+    const canPopover = state.features?.popovers === true && typeof host.openPopover === "function";
+    if (!canPopover) {
+      showAutoBar(cardId, name, project);
+      return;
+    }
+    host.openPopover({
+      id: `session-${Date.now().toString(36)}`,
+      anchor: rect && rect.width ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : { x: 40, y: 40, width: 40, height: 40 },
+      width: 300,
+      height: 150,
+      side: "top",
+      focus: true,
+      data: { cardId, name: name || "", project: project || "" }
+    }).catch(() => showAutoBar(cardId, name, project));
   };
   var removeUndoBar = () => {
     state.pendingDelete?.bar?.remove();
@@ -2083,7 +2146,12 @@ ${card.description}`.toLowerCase();
   };
   var isPaused = () => state.view !== "board" || Boolean(state.sheetId) || state.dragging || Boolean(state.composerListId) || state.saving > 0;
   host.onReady((context) => {
+    state.features = context.features || {};
     applyHostReady(context, document.documentElement);
+    if (context.surface === "popover") {
+      renderPopover(context);
+      return;
+    }
     state.session = context.session || null;
     state.surface = context.surface === "page" ? "page" : "panel";
     if (state.booted) return;
@@ -3325,7 +3393,7 @@ ${card.description}`.toLowerCase();
           toast("error", "La sesi\xF3n se cre\xF3, pero no se pudo abrir.");
         }
       } else if (answer?.autoPending) {
-        offerSession(cardId, card?.name, answer.project);
+        offerSession(cardId, card?.name, answer.project, document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`));
       } else if (answer?.manual) {
         toast("info", "Delegaci\xF3n manual: abre la tarjeta y pulsa Crear sesi\xF3n.");
       } else if (answer?.needsMapping) {

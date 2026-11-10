@@ -25,6 +25,8 @@ const ICONS = {
 
 const state = {
   loginSource: '',
+  features: {},
+  popoverMounted: false,
   surface: 'panel',
   booted: false,
   view: 'boot',
@@ -145,11 +147,60 @@ const toast = (kind, message) => {
   host.toast({ kind, message }).catch(() => {});
 };
 
+const renderPopover = (context) => {
+  if (state.popoverMounted) return;
+  state.popoverMounted = true;
+  state.view = 'popover';
+  stopPolling();
+  const data = context.popover?.data || {};
+  document.body.classList.add('popover-surface');
+
+  const wrap = el('div', 'popover-card');
+  const head = el('div', 'popover-head');
+  head.append(el('span', 'popover-dot'), el('span', 'popover-title', 'Sesión automática'));
+  const text = el('div', 'popover-text', data.name || 'Esta tarjeta');
+  const where = el('div', 'popover-meta', data.project || '');
+  const note = el('div', 'popover-note', 'No se abre nada hasta que lo confirmes.');
+  const actions = el('div', 'popover-actions');
+  const open = el('button', 'btn-mint', 'Abrir sesión');
+  open.type = 'button';
+  const skip = el('button', 'ghost-btn', 'Ahora no');
+  skip.type = 'button';
+
+  open.addEventListener('click', async () => {
+    open.disabled = true;
+    skip.disabled = true;
+    open.textContent = 'Abriendo…';
+    try {
+      const result = await api('POST', '/session/start', { cardId: data.cardId });
+      await host.close();
+      if (result?.sessionId) {
+        try {
+          await host.openSession(result.sessionId);
+        } catch {
+          // The session exists; the host simply could not focus it.
+        }
+      }
+    } catch (error) {
+      note.textContent = error.message;
+      note.classList.add('error');
+      open.disabled = false;
+      skip.disabled = false;
+      open.textContent = 'Abrir sesión';
+    }
+  });
+  skip.addEventListener('click', () => host.close());
+
+  actions.append(open, skip);
+  wrap.append(head, text, where, note, actions);
+  root.replaceChildren(wrap);
+};
+
 const closeAutoBars = () => {
   for (const node of document.querySelectorAll('.auto-bar')) node.remove();
 };
 
-const offerSession = (cardId, name, project) => {
+const showAutoBar = (cardId, name, project) => {
   closeAutoBars();
   const bar = el('div', 'undo-bar auto-bar');
   const text = el('span', 'undo-text', `¿Abrir sesión para «${name || 'la tarjeta'}»?`);
@@ -184,6 +235,28 @@ const offerSession = (cardId, name, project) => {
   bar.append(text, open, skip, progress);
   document.body.append(bar);
   timer = setTimeout(close, 15000);
+};
+
+const offerSession = (cardId, name, project, node) => {
+  const rect = node?.getBoundingClientRect?.();
+  const canPopover = state.features?.popovers === true && typeof host.openPopover === 'function';
+  if (!canPopover) {
+    showAutoBar(cardId, name, project);
+    return;
+  }
+  host
+    .openPopover({
+      id: `session-${Date.now().toString(36)}`,
+      anchor: rect && rect.width
+        ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+        : { x: 40, y: 40, width: 40, height: 40 },
+      width: 300,
+      height: 150,
+      side: 'top',
+      focus: true,
+      data: { cardId, name: name || '', project: project || '' },
+    })
+    .catch(() => showAutoBar(cardId, name, project));
 };
 
 const removeUndoBar = () => {
@@ -293,7 +366,12 @@ const isPaused = () =>
 /* ------------------------------------------------------------------ */
 
 host.onReady((context) => {
+  state.features = context.features || {};
   applyHostReady(context, document.documentElement);
+  if (context.surface === 'popover') {
+    renderPopover(context);
+    return;
+  }
   state.session = context.session || null;
   state.surface = context.surface === 'page' ? 'page' : 'panel';
   if (state.booted) return;
@@ -1692,7 +1770,7 @@ const moveCard = async (cardId, listId, index) => {
         toast('error', 'La sesión se creó, pero no se pudo abrir.');
       }
     } else if (answer?.autoPending) {
-      offerSession(cardId, card?.name, answer.project);
+      offerSession(cardId, card?.name, answer.project, document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`));
     } else if (answer?.manual) {
       toast('info', 'Delegación manual: abre la tarjeta y pulsa Crear sesión.');
     } else if (answer?.needsMapping) {

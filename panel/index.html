@@ -230,6 +230,21 @@
       .color-input::-webkit-color-swatch-wrapper { padding: 2px; }
       .color-input::-webkit-color-swatch { border: 0; border-radius: 4px; }
       .color-reset { padding: 4px 8px; font-size: 10.5px; }
+      .popover-surface { background: transparent; }
+      .popover-card {
+        display: flex; flex-direction: column; gap: 6px; height: 100%;
+        padding: 11px 12px; border-radius: 12px;
+        background: var(--oc-elevated); border: 1px solid var(--oc-border);
+        box-shadow: 0 10px 26px rgba(0, 0, 0, .26);
+      }
+      .popover-head { display: flex; align-items: center; gap: 6px; flex: none; }
+      .popover-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--oc-warning); flex: none; }
+      .popover-title { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--oc-muted); }
+      .popover-text { flex: none; font-size: 12.5px; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n      .popover-meta { flex: none; font-size: 11px; color: var(--oc-muted); margin-top: -2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .popover-note { flex: none; font-size: 11px; color: var(--oc-muted); }
+      .popover-note.error { color: var(--oc-error); }
+      .popover-actions { display: flex; gap: 6px; margin-top: auto; flex: none; }
+      .popover-actions .btn-mint, .popover-actions .ghost-btn { flex: 1 1 0; padding: 6px 8px; font-size: 12px; }
       .source-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 2px 0 8px; }
       .source-btn {
         padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 500;
