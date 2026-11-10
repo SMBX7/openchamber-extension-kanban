@@ -1178,25 +1178,6 @@ const openSettings = () => {
   if (!isLocal) connActions.append(openPlanka, logout);
   conexion.append(connActions);
 
-  /* Tablero y proyecto */
-  const tablero = el('section', 'settings-section');
-  tablero.append(el('div', 'settings-heading', 'Tablero y proyecto'));
-  const projectField = el('label', 'field');
-  projectField.append(el('span', '', 'Proyecto de OpenChamber'));
-  const projectSelect = el('select', 'settings-select');
-  projectSelect.append(new Option('Sin proyecto (solo vista del tablero)', ''));
-  for (const project of state.projects) projectSelect.append(new Option(project.name, project.id));
-  if (mapping && !state.projects.some((project) => project.id === mapping.projectId)) {
-    projectSelect.append(new Option(mapping.name, mapping.projectId));
-  }
-  projectSelect.value = mapping?.projectId || '';
-  projectSelect.addEventListener('change', () => void changeBoardProject(projectSelect.value));
-  projectField.append(projectSelect);
-  tablero.append(projectField);
-  tablero.append(el('p', 'settings-note', mapping
-    ? `Las sesiones de este tablero se crean en ${mapping.name}.`
-    : 'Sin proyecto no se pueden crear sesiones desde el Kanban.'));
-
   /* Delegación */
   const delegacion = el('section', 'settings-section');
   delegacion.append(el('div', 'settings-heading', 'Delegación'));
@@ -1273,7 +1254,7 @@ const openSettings = () => {
   avanzadoBox.append(el('p', 'settings-note', 'El MCP solo actúa cuando el agente llama a una herramienta. En Planka lo ves desde cualquier dispositivo; el tablero local vive solo en este equipo. Tras actualizar la extensión, reinicia OpenCode.'));
   avanzado.append(avanzadoBox);
 
-  scroll.append(conexion, tablero, estilo, delegacion, sesiones, avanzado);
+  scroll.append(conexion, estilo, delegacion, sesiones, avanzado);
 
   const foot = el('div', 'sheet-foot settings-foot');
   const done = el('button', 'btn-mint', 'Listo');
