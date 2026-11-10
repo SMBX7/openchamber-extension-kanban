@@ -2004,7 +2004,7 @@ ${GUEST_UI_LOOK_CSS}`;
     root.replaceChildren(wrap);
   };
   var showLabelUndo = (label, cardId) => {
-    for (const node of document.querySelectorAll(".label-undo")) node.remove();
+    for (const node of document.querySelectorAll(".undo-bar")) node.remove();
     const bar = el2("div", "undo-bar label-undo");
     const text = el2("span", "undo-text");
     const dot = el2("span", "label-dot");
@@ -2120,6 +2120,7 @@ ${GUEST_UI_LOOK_CSS}`;
   };
   var queueDelete = async (card, node) => {
     if (state.pendingDelete) await commitPendingDelete();
+    for (const old of document.querySelectorAll(".undo-bar")) old.remove();
     const bar = el2("div", "undo-bar");
     const progress = el2("span", "undo-progress");
     const text = el2("span", "undo-text", `\xAB${card.name}\xBB eliminada`);

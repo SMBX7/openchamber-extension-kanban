@@ -198,7 +198,7 @@ const renderPopover = (context) => {
 };
 
 const showLabelUndo = (label, cardId) => {
-  for (const node of document.querySelectorAll('.label-undo')) node.remove();
+  for (const node of document.querySelectorAll('.undo-bar')) node.remove();
   const bar = el('div', 'undo-bar label-undo');
   const text = el('span', 'undo-text');
   const dot = el('span', 'label-dot');
@@ -325,6 +325,7 @@ const commitPendingDelete = async () => {
 
 const queueDelete = async (card, node) => {
   if (state.pendingDelete) await commitPendingDelete();
+  for (const old of document.querySelectorAll('.undo-bar')) old.remove();
   const bar = el('div', 'undo-bar');
   const progress = el('span', 'undo-progress');
   const text = el('span', 'undo-text', `«${card.name}» eliminada`);

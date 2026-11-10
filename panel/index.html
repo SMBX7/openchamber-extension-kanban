@@ -771,7 +771,7 @@
 
       /* ---------- undo delete ---------- */
       .undo-bar {
-        position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 90;
+        position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 90;
         display: flex; align-items: center; gap: 12px; max-width: calc(100% - 24px);
         padding: 10px 12px; border-radius: 12px; overflow: hidden;
         background: var(--oc-elevated); border: 1px solid var(--oc-border);
@@ -788,6 +788,7 @@
         animation: undo-countdown 5s linear forwards;
       }
       @keyframes undo-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+      .undo-bar { animation: label-undo-in .18s ease-out; }
       .label-undo {
         top: 10px; bottom: auto;
         border-color: color-mix(in srgb, var(--oc-warning) 60%, var(--oc-border));
