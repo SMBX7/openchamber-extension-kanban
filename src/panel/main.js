@@ -197,6 +197,37 @@ const renderPopover = (context) => {
   root.replaceChildren(wrap);
 };
 
+const showLabelUndo = (label, cardId) => {
+  for (const node of document.querySelectorAll('.label-undo')) node.remove();
+  const bar = el('div', 'undo-bar label-undo');
+  const text = el('span', 'undo-text');
+  const dot = el('span', 'label-dot');
+  dot.style.setProperty('--label', labelColor(label.color || label.name));
+  text.append(dot, el('b', '', 'Etiqueta quitada'), document.createTextNode(` · ${label.name}`));
+  const action = el('button', 'undo-action', 'Deshacer');
+  action.type = 'button';
+  const progress = el('span', 'undo-progress');
+  let timer = null;
+  const close = () => {
+    clearTimeout(timer);
+    bar.remove();
+  };
+  action.addEventListener('click', async () => {
+    close();
+    try {
+      await api('POST', '/label', { cardId, labelId: label.id });
+      if (state.sheet) await rereadSheet();
+      else await refresh(true);
+      toast('success', 'Etiqueta restaurada.');
+    } catch (error) {
+      toast('error', error.message);
+    }
+  });
+  bar.append(text, action, progress);
+  document.body.append(bar);
+  timer = setTimeout(close, 6000);
+};
+
 const closeAutoBars = () => {
   for (const node of document.querySelectorAll('.auto-bar')) node.remove();
 };
@@ -1933,8 +1964,12 @@ const buildSheet = (card) => {
 
   const toggleLabel = async (labelId) => {
     try {
-      await api('POST', '/label', { cardId: session.card.id, labelId });
+      const answer = await api('POST', '/label', { cardId: session.card.id, labelId });
       await rereadSheet();
+      if (answer && answer.added === false) {
+        const label = (state.snapshot?.labels || []).find((item) => item.id === labelId);
+        if (label) showLabelUndo(label, session.card.id);
+      }
     } catch (error) {
       toast('error', error.message);
     }
