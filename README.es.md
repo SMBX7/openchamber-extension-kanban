@@ -3,123 +3,137 @@
 Español · [English](README.md)
 
 **Un Kanban para [Planka](https://planka.app), y también un Kanban local sin Planka.**
-Funciona dentro de OpenChamber: un panel de tablero, una sección compacta de Work
-Status y un agente que puede leer y mover tarjetas.
+Funciona dentro de OpenChamber: un tablero con tres columnas, una sección pequeña en la
+barra lateral con lo que estás haciendo, y un agente que puede leer y mover tarjetas.
 
-Conéctalo a tu instancia de Planka, o elige el tablero local y guárdalo todo en este
-equipo: mismo tablero, mismas sesiones, sin servidor. Si buscabas un Kanban local
-dentro de OpenChamber, también vale para eso.
+Puedes conectarlo a tu Planka, o elegir el tablero local y guardarlo todo en este
+equipo: mismo tablero, mismas sesiones y ningún servidor. Si buscabas un Kanban local
+dentro de OpenChamber, también sirve para eso.
 
-![El panel del tablero](docs/panel.png)
+![El tablero](docs/panel.png)
 
-## Qué es
+## Qué te llevas
 
-- Un **panel** con tres columnas: IDEAS, EN PROGRESO y HECHO.
-- Una sección compacta de **Work Status** en la barra lateral con la tarjeta en curso.
-- **Sesiones**: enlaza una sesión de OpenChamber a una tarjeta y ábrela desde ahí.
-- Un **agente** que puede crear, mover, completar, editar y buscar tarjetas.
+- **Tres columnas**: IDEAS, EN PROGRESO y HECHO. Nada más.
+- **Tarjetas** con nombre, descripción, etiquetas, checklist y fecha.
+- **Sesiones**: cada tarjeta puede llevar una sesión de OpenChamber, y la abres desde
+  ahí.
+- **Modo automático o manual**: que el agente abra la sesión al mover la tarjeta, o
+  abrirla tú.
+- **Tres acabados visuales** para el tablero.
+- **Un agente** que puede crear, mover, completar, editar y buscar tarjetas.
 
-No es un gestor de proyectos: no hay sprints, ni estimaciones, ni informes. Un
-tablero, tres columnas, tarjetas.
+No es un gestor de proyectos: no hay sprints, ni horas, ni informes.
 
-## Requisitos
+## Antes de empezar
 
-- OpenChamber 2.7.0 o superior.
-- **O** una instancia de Planka a la que puedas llegar con una cuenta, **o** nada más:
-  el tablero local no necesita servidor.
-- Node.js 20+ solo si vas a compilar el paquete tú mismo.
+- OpenChamber **2.7.0 o superior**.
+- **O** una cuenta de Planka con su dirección, **o** nada: el tablero local funciona
+  sin servidor.
+- Solo si vas a compilar la extensión tú mismo: Node.js 20 o superior.
 
-## Instalación
+## Instalar
 
 1. Abre **Ajustes → Extensiones** en OpenChamber.
-2. Añade la carpeta que contiene este paquete.
-3. El icono de Kanban aparece en la barra lateral. Ábrelo.
+2. Pulsa para añadir una extensión y elige **la carpeta de este proyecto**.
+3. Aparece **Kanban** en la barra lateral. Ábrelo.
 
-El paquete declara su panel, su sección de Work Status, su servicio y las herramientas
-del agente en `package.json`, así que no hay nada más que conectar.
+No hay que configurar nada más: la extensión ya declara su panel, su sección y sus
+herramientas.
 
 ## Conectar con Planka
 
-La primera vez el panel pide tres cosas:
+La primera vez el panel te pide tres cosas:
 
-| Campo | Qué es |
+| Campo | Qué poner |
 | --- | --- |
 | Servidor | La dirección de tu Planka, por ejemplo `http://127.0.0.1:3040` |
 | Correo o usuario | Tu cuenta de Planka |
-| Contraseña | Se usa una vez para obtener un token; nunca se guarda en disco |
+| Contraseña | Tu contraseña de Planka |
 
-El token se guarda en `config.json` junto a la extensión, legible solo por ti. Una vez
-conectado, el panel muestra tus tableros: elige uno y asígnalo a un proyecto de
-OpenChamber. Las sesiones de ese tablero se crean en ese proyecto.
+La contraseña se usa **una vez** para pedir una llave de acceso y no se guarda. La
+llave sí queda en un archivo de configuración junto a la extensión, en tu equipo, y no
+se sube a ningún sitio.
+
+Después eliges el tablero de Planka y a qué proyecto de OpenChamber pertenece. Las
+sesiones de ese tablero se crearán en ese proyecto.
 
 ## Tablero local
 
-Si no tienes Planka, abre **Ajustes → Conexión** y elige **Local**. Aparece un tablero
-con las tres listas y tres etiquetas, guardado en `board.local.json` junto a la
-extensión.
+Si no tienes Planka, abre **Ajustes → Conexión** y elige **Local**. Tendrás un tablero
+con las tres listas y tres etiquetas, guardado en tu equipo.
 
-- Vive en este equipo: sin móvil, sin segundo ordenador.
-- Volver a Planka conserva tu token, así que no tendrás que entrar otra vez.
-- No se copia nada entre los dos: son tableros distintos.
-- **Copia**: Ajustes → Conexión ofrece Copiar tablero y Restaurar. Guarda el texto en
-  un sitio seguro; pégalo para recuperar el tablero.
+- Es solo tuyo: no se ve desde el móvil ni desde otro ordenador.
+- Puedes volver a Planka cuando quieras; no tendrás que entrar otra vez.
+- Planka y local son tableros distintos: no se copian cosas de uno a otro.
+- En **Copia del tablero** tienes **Copiar tablero** y **Restaurar** para guardar una
+  copia del texto o recuperarla.
 
 ![Conexión y apariencia](docs/settings.png)
 
 ## El panel
 
-- **Crear**: el `+` del final de cada columna abre un campo. `Enter` guarda, `Esc`
-  cierra.
-- **Editar**: pasa el ratón por una tarjeta y pulsa el lápiz. Puedes cambiar nombre,
+- **Crear**: el `+` al final de una columna. Escribes y pulsas `Enter`.
+- **Editar**: pasa el ratón por una tarjeta y pulsa el lápiz. Ahí cambias nombre,
   descripción, etiquetas, checklist y fecha.
-- **Borrar**: pasa el ratón y pulsa la papelera dos veces. La barra de arriba ofrece
-  **Deshacer** durante cinco segundos; después la tarjeta desaparece.
-- **Mover**: arrastra una tarjeta dentro de una columna o a otra. La columna en la que
-  cae decide lo que pasa después.
-- **Completar**: el tic la mueve a HECHO y cierra su sesión.
-- **Buscar** con la lupa, y **Paradas** filtra las tarjetas en progreso sin sesión.
+- **Borrar**: la papelera. Hay que pulsarla **dos veces**; después tienes cinco
+  segundos para **Deshacer** en la barra de arriba.
+- **Mover**: arrastra la tarjeta dentro de una columna o a otra.
+- **Completar**: el tic la manda a HECHO y cierra su sesión.
+- **Buscar** con la lupa, y **Paradas** te enseña las tarjetas en progreso que no
+  tienen sesión.
 
 ## Work Status
 
-La sección de la barra lateral, siempre a mano mientras trabajas:
+Es la sección de la barra lateral. Sirve para trabajar sin abrir el panel.
 
-![La sección Work Status](docs/status.png)
+![Work Status](docs/status.png)
 
-- La **tarjeta en curso** va resaltada en ámbar, con su sesión y sus controles: elegir
-  sesión, abrir una con `+`, devolverla a ideas con la flecha o completarla con el tic.
-- La **píldora de modo** junto al nombre del tablero dice `Auto` o `Manual`; púlsala
-  para cambiar la delegación sin abrir el panel.
+- Arriba, **la tarjeta en curso** en ámbar, con sus botones: elegir sesión, abrirla con
+  `+`, devolverla a ideas con la flecha o completarla con el tic.
+- Al lado del nombre del tablero, una etiqueta dice **Auto** o **Manual**; si la pulsas
+  cambias el modo sin abrir nada.
 - El **`+` de la cabecera** añade una idea sin salir del chat.
-- Las **ideas** van debajo: el tic empieza una, la papelera la borra (con deshacer).
+- Debajo, las **ideas**: el tic empieza una, la papelera la borra (también con
+  deshacer).
 
 ## Sesiones: manual y automático
 
-Hay dos modos de delegación, en **Ajustes → Delegación** o desde la píldora:
+Eliges el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status.
 
-- **Manual**: mover una tarjeta a EN PROGRESO solo cambia el tablero. La sesión la abres
-  tú con el `+` de la tarjeta.
-- **Automática**: al llegar a EN PROGRESO sale una tarjeta pequeña junto a ella
-  preguntando si abrir la sesión. No se abre nada hasta que confirmas.
+- **Manual**: mover una tarjeta a EN PROGRESO solo la mueve. La sesión la abres tú con
+  el `+` de la tarjeta.
+- **Automática**: al llegar a EN PROGRESO sale un aviso junto a la tarjeta preguntando
+  si abrir la sesión. No se abre nada hasta que dices que sí.
 
-Lo que pasa después es igual en los dos modos:
+Lo demás pasa igual en los dos modos:
 
-- **HECHO**: la sesión recibe el cierre y se detiene. El vínculo se borra.
-- **Volver a ideas**: la sesión se detiene y el vínculo se borra.
-- Como el vínculo se borra, si vuelves a mover la tarjeta empieza una sesión **nueva**,
-  sin el contexto viejo.
+- Al pasar a **HECHO**, la sesión recibe el cierre y se detiene.
+- Al volver a **IDEAS**, la sesión se detiene y se suelta la tarjeta.
+- Como la tarjeta se suelta, si la vuelves a mover empieza una sesión **nueva**, sin
+  arrastrar la conversación anterior.
 
-## Problemas
+## Estilos
 
-- **El agente no ve las herramientas**: tras actualizar la extensión, reinicia OpenCode
-  para que cargue la versión nueva.
-- **El panel y el Work Status se ven distintos**: son dos marcos separados. Recarga
-  OpenChamber después de actualizar.
-- **El tablero no cambia**: en modo Planka el panel lee de Planka; comprueba que la
-  instancia está viva y que el token no ha caducado. Ajustes → Conexión muestra la
-  cuenta o el error.
-- **Ha desaparecido una tarjeta**: el borrado es definitivo pasados los cinco segundos
-  de deshacer. Las etiquetas tienen su propia barra, también arriba.
-- **No hay sonido**: no lo hay, a propósito. La extensión nunca reproduce audio.
+El mismo tablero con tres acabados. Se cambian en **Ajustes → Apariencia**.
+
+![Los tres estilos](docs/styles.png)
+
+- **Neumorfismo**: relieve suave, sombras difusas.
+- **Brutalismo**: bordes duros, esquinas rectas, sombras sólidas.
+- **Cristal**: fondos translúcidos con desenfoque.
+
+## Problemas frecuentes
+
+- **El agente no ve las tarjetas**: después de actualizar la extensión, reinicia
+  OpenCode para que cargue la versión nueva.
+- **El panel y la barra lateral no coinciden**: son dos zonas distintas; recarga
+  OpenChamber.
+- **El tablero no cambia**: en modo Planka, comprueba que Planka está encendido y que
+  la sesión no ha caducado. En **Ajustes → Conexión** ves la cuenta o el error.
+- **He borrado una tarjeta sin querer**: tienes cinco segundos de **Deshacer**. Pasado
+  ese tiempo, no se puede recuperar.
+- **No hay sonido**: no lo hay, a propósito.
 
 ## Licencia
 

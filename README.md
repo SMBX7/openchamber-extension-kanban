@@ -3,127 +3,135 @@
 [Español](README.es.md) · English
 
 **A Kanban for [Planka](https://planka.app), and also a local Kanban without Planka.**
-It runs inside OpenChamber: a board panel, a compact Work Status section and an agent
-that can read and move cards.
+It runs inside OpenChamber: a board with three columns, a small section in the sidebar
+showing what you are working on, and an agent that can read and move cards.
 
-Point it at your Planka instance, or choose the local board and keep everything on
-this machine: same board, same sessions, no server. If you were looking for a local
-Kanban inside OpenChamber, this works that way too.
+Point it at your Planka instance, or choose the local board and keep everything on this
+machine: same board, same sessions, no server. If you were looking for a local Kanban
+inside OpenChamber, this works that way too.
 
-The interface is in Spanish.
+![The board](docs/panel.png)
 
-![The board panel](docs/panel.png)
+## What you get
 
-## What it is
+- **Three columns**: IDEAS, IN PROGRESS and DONE. Nothing else.
+- **Cards** with a name, description, labels, checklist and due date.
+- **Sessions**: each card can carry an OpenChamber session, and you open it from there.
+- **Automatic or manual**: let the agent open the session when a card moves, or open it
+  yourself.
+- **Three visual styles** for the board.
+- **An agent** that can create, move, complete, edit and search cards.
 
-- A **board panel** with three columns: IDEAS, EN PROGRESO and HECHO.
-- A compact **Work Status** section in the sidebar with the card in progress.
-- **Sessions**: link an OpenChamber session to a card and open it from there.
-- An **agent** that can create, move, complete, edit and search cards.
+It is not a project manager: no sprints, no estimates, no reports.
 
-It is not a project manager: there are no sprints, no estimates and no reports. One
-board, three columns, cards.
+## Before you start
 
-## Requirements
-
-- OpenChamber 2.7.0 or newer.
-- **Either** a Planka instance you can reach with an account on it, **or** nothing
-  else: the local board needs no server.
-- Node.js 20+ only if you are going to build the package yourself.
+- OpenChamber **2.7.0 or newer**.
+- **Either** a Planka account and its address, **or** nothing: the local board needs no
+  server.
+- Only if you are going to build the extension yourself: Node.js 20 or newer.
 
 ## Install
 
 1. Open **Settings → Extensions** in OpenChamber.
-2. Add the folder that contains this package.
-3. The Kanban icon appears in the sidebar. Open it.
+2. Add an extension and pick **this project's folder**.
+3. **Kanban** appears in the sidebar. Open it.
 
-The package declares its panel, its Work Status section, its service and its agent
-tools in `package.json`, so there is nothing else to wire.
+There is nothing else to wire: the extension already declares its panel, its section
+and its agent tools.
 
-## Connect to Planka
+## Connecting to Planka
 
-On first open the panel asks for three things:
+The first time, the panel asks for three things:
 
-| Field | What it is |
+| Field | What to put |
 | --- | --- |
 | Server | Your Planka address, for example `http://127.0.0.1:3040` |
 | Email or user | Your Planka account |
-| Password | Used once to obtain a token; never written to disk |
+| Password | Your Planka password |
 
-The token is stored in `config.json` next to the extension, readable only by you.
-Once connected, the panel shows your boards: pick one and assign it to an
-OpenChamber project. Sessions for that board are created in that project.
+The password is used **once** to request an access key and is not stored. The key does
+stay in a configuration file next to the extension, on your machine, and is never
+uploaded anywhere.
+
+Then pick the Planka board and which OpenChamber project it belongs to. Sessions for
+that board are created in that project.
 
 ## Local board
 
-If you do not have Planka, open **Settings → Conexión** and choose **Local**. A board
-with the three lists and three labels appears, saved in `board.local.json` next to the
-extension.
+If you do not have Planka, open **Settings → Conexión** and choose **Local**. You get a
+board with the three lists and three labels, stored on your machine.
 
-- It lives on this machine: no mobile, no second computer.
-- Switching back to Planka keeps your token, so you will not have to log in again.
-- Nothing is copied between the two: they are separate boards.
-- **Backup**: Settings → Conexión offers Copiar tablero and Restaurar. Copy the text
-  somewhere safe; paste it back to recover the board.
+- It is yours only: not visible from your phone or another computer.
+- You can go back to Planka whenever you want; you will not have to log in again.
+- Planka and local are separate boards: nothing is copied between them.
+- **Copiar tablero** and **Restaurar** let you keep a copy of the text and bring it
+  back.
 
-![Connection and appearance settings](docs/settings.png)
+![Connection and appearance](docs/settings.png)
 
 ## The panel
 
-- **Create**: the `+` at the bottom of a column opens an input. `Enter` saves, `Esc`
-  closes.
-- **Edit**: hover a card and press the pencil. You can change the name, description,
+- **Create**: the `+` at the end of a column. Type and press `Enter`.
+- **Edit**: hover a card and press the pencil. There you change the name, description,
   labels, checklist and due date.
-- **Delete**: hover a card and press the trash twice. The bar at the top offers
-  **Deshacer** for five seconds; after that the card is gone.
-- **Move**: drag a card inside a column or to another one. The column it lands in
-  decides what happens next.
-- **Complete**: the tick moves it to HECHO and closes its session.
-- **Search** with the magnifier, and **Paradas** filters cards in progress with no
+- **Delete**: the trash. You have to press it **twice**; then you get five seconds to
+  **Undo** in the bar at the top.
+- **Move**: drag the card inside a column or to another one.
+- **Complete**: the tick sends it to DONE and closes its session.
+- **Search** with the magnifier, and **Paradas** shows cards in progress with no
   session.
 
 ## Work Status
 
-The sidebar section, always at hand while you work:
+It is the sidebar section. It lets you work without opening the panel.
 
-![The Work Status section](docs/status.png)
+![Work Status](docs/status.png)
 
-- The **card in progress** is highlighted in amber, with its session and its controls:
-  pick a session, open one with `+`, send the card back to ideas with the arrow, or
-  complete it with the tick.
-- The **mode pill** next to the board name says `Auto` or `Manual`; press it to change
-  the delegation mode without opening the panel.
+- At the top, **the card in progress** in amber, with its buttons: pick a session, open
+  one with `+`, send it back to ideas with the arrow, or complete it with the tick.
+- Next to the board name, a pill says **Auto** or **Manual**; press it to change the
+  mode without opening anything.
 - The **`+` in the header** adds an idea without leaving the chat.
-- **Ideas** are listed below: the tick starts one, the trash deletes it (with undo).
+- Below, the **ideas**: the tick starts one, the trash deletes it (also with undo).
 
 ## Sessions: manual and automatic
 
-There are two delegation modes, chosen in **Settings → Delegación** or from the pill:
+Choose the mode in **Settings → Delegación** or from the Work Status pill.
 
-- **Manual**: moving a card to EN PROGRESO changes the board and nothing else. You open
-  the session with the `+` on the card.
-- **Automatic**: when a card reaches EN PROGRESO a small card appears next to it asking
-  whether to open the session. Nothing opens until you confirm.
+- **Manual**: moving a card to IN PROGRESS only moves it. You open the session with the
+  card's `+`.
+- **Automatic**: when a card reaches IN PROGRESS, a small prompt appears next to it
+  asking whether to open the session. Nothing opens until you say yes.
 
-What happens next is the same in both modes:
+Everything else works the same in both modes:
 
-- **HECHO**: the session receives the close request and stops. The link is removed.
-- **Back to ideas**: the session stops and the link is removed.
-- Because the link is removed, moving the card again starts a **new** session, with no
-  old context mixed in.
+- Moving to **DONE** asks the session to close, and it stops.
+- Moving back to **IDEAS** stops the session and releases the card.
+- Because the card is released, moving it again starts a **new** session, without the
+  previous conversation.
 
-## Problems
+## Styles
 
-- **The agent does not see the tools**: after updating the extension, restart OpenCode
-  so it loads the new version.
-- **The panel and the Work Status look different**: they are two separate frames.
-  Reload OpenChamber after an update.
-- **The board does not change**: in Planka mode the panel reads from Planka; check that
-  the instance is up and the token has not expired. Settings → Conexión shows the
-  account or the error.
-- **A card disappeared**: deleting is permanent after the five seconds of undo. Labels
-  have their own undo bar, also at the top.
-- **No sound**: there is none, on purpose. The extension never plays audio.
+The same board with three finishes. Change them in **Settings → Apariencia**.
+
+![The three styles](docs/styles.png)
+
+- **Neumorphism**: soft relief, blurred shadows.
+- **Brutalism**: hard borders, square corners, solid shadows.
+- **Glass**: translucent surfaces with blur.
+
+## Common problems
+
+- **The agent cannot see the cards**: after updating the extension, restart OpenCode so
+  it loads the new version.
+- **The panel and the sidebar disagree**: they are two separate areas; reload
+  OpenChamber.
+- **The board does not change**: in Planka mode, check that Planka is up and that the
+  session has not expired. **Settings → Conexión** shows the account or the error.
+- **I deleted a card by mistake**: you have five seconds of **Undo**. After that it
+  cannot be recovered.
+- **There is no sound**: there is none, on purpose.
 
 ## License
 
