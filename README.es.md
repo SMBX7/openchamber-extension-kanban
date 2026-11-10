@@ -2,10 +2,13 @@
 
 Español · [English](README.md)
 
-Un tablero Kanban dentro de OpenChamber, conectado a [Planka](https://planka.app) o a
-un tablero guardado en este equipo. Mueve tarjetas, abre una sesión del agente en la
-tarjeta que estés trabajando, y deja que el agente lea y mueva tarjetas con sus
-herramientas.
+**Un Kanban para [Planka](https://planka.app), y también un Kanban local sin Planka.**
+Funciona dentro de OpenChamber: un panel de tablero, una sección compacta de Work
+Status y un agente que puede leer y mover tarjetas.
+
+Conéctalo a tu instancia de Planka, o elige el tablero local y guárdalo todo en este
+equipo: mismo tablero, mismas sesiones, sin servidor. Si buscabas un Kanban local
+dentro de OpenChamber, también vale para eso.
 
 ![El panel del tablero](docs/panel.png)
 

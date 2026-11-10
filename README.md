@@ -2,9 +2,13 @@
 
 [Español](README.es.md) · English
 
-A Kanban board inside OpenChamber, backed by [Planka](https://planka.app) or by a
-board stored on this machine. Move cards, open an agent session on the card you are
-working on, and let the agent read and move cards through its own tools.
+**A Kanban for [Planka](https://planka.app), and also a local Kanban without Planka.**
+It runs inside OpenChamber: a board panel, a compact Work Status section and an agent
+that can read and move cards.
+
+Point it at your Planka instance, or choose the local board and keep everything on
+this machine: same board, same sessions, no server. If you were looking for a local
+Kanban inside OpenChamber, this works that way too.
 
 The interface is in Spanish.
 
