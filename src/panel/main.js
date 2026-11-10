@@ -1194,13 +1194,13 @@ const openSettings = () => {
   projectField.append(projectSelect);
   tablero.append(projectField);
   tablero.append(el('p', 'settings-note', mapping
-    ? `Las sesiones de este tablero se crean en ${mapping.name}.`
+    ? `Las sesiones se crean en ${mapping.name}.`
     : 'Sin proyecto no se pueden crear sesiones desde el Kanban.'));
 
   /* Delegación */
   const delegacion = el('section', 'settings-section');
   delegacion.append(el('div', 'settings-heading', 'Delegación'));
-  delegacion.append(el('p', 'settings-note', 'Decide si el agente abre la sesión solo o si la abres tú. No da acceso a otras personas: eso se gestiona en Planka.'));
+  delegacion.append(el('p', 'settings-note', 'Elige quién abre la sesión.'));
   const modes = el('div', 'settings-modes');
   const modeCard = (label, description, active, enabled) => {
     const button = el('button', 'mode-card');
@@ -1210,8 +1210,8 @@ const openSettings = () => {
     button.append(el('span', 'mode-card-title', label), el('span', 'mode-card-text', description));
     return button;
   };
-  const manualCard = modeCard('Manual', 'Tú decides: Empezar mueve la tarjeta; la sesión la creas desde la tarjeta.', mapping?.autoSession !== true, Boolean(mapping));
-  const autoCard = modeCard('Automática', 'Al pasar a EN PROGRESO te ofrece abrir la sesión; no la abre sola.', mapping?.autoSession === true, Boolean(mapping));
+  const manualCard = modeCard('Manual', 'Tú abres la sesión.', mapping?.autoSession !== true, Boolean(mapping));
+  const autoCard = modeCard('Automática', 'Te la ofrece al moverla.', mapping?.autoSession === true, Boolean(mapping));
   manualCard.addEventListener('click', () => { if (mapping?.autoSession === true) void changeAutoMode(false); });
   autoCard.addEventListener('click', () => { if (mapping?.autoSession !== true) void changeAutoMode(true); });
   modes.append(manualCard, autoCard);
@@ -1221,12 +1221,12 @@ const openSettings = () => {
   /* Estilo */
   const estilo = el('section', 'settings-section');
   estilo.append(el('div', 'settings-heading', 'Apariencia'));
-  estilo.append(el('p', 'settings-note', 'Acabado de las tarjetas, los botones y los paneles. Los colores se mantienen como están.'));
+  estilo.append(el('p', 'settings-note', 'Acabado visual. Los colores no cambian.'));
   const styleGrid = el('div', 'style-grid');
   const styleOptions = [
-    ['neumorphism', 'Neumorfismo', 'Relieve suave y sombras difusas.'],
-    ['brutalism', 'Brutalismo', 'Bordes duros y sombras sólidas.'],
-    ['glass', 'Cristal', 'Fondo translúcido con desenfoque.'],
+    ['neumorphism', 'Neumorfismo', 'Relieve suave.'],
+    ['brutalism', 'Brutalismo', 'Bordes y sombras duros.'],
+    ['glass', 'Cristal', 'Translúcido y difuminado.'],
   ];
   for (const [key, label, text] of styleOptions) {
     const option = el('button', 'style-card');
@@ -1246,12 +1246,12 @@ const openSettings = () => {
   /* Sesiones */
   const sesiones = el('section', 'settings-section');
   sesiones.append(el('div', 'settings-heading', 'Sesiones'));
-  sesiones.append(el('p', 'settings-note', 'Al pasar una tarjeta a HECHO, la sesión enlazada recibe el cierre, guarda el resumen en Engram y se detiene. El vínculo se borra: si vuelves a mover la tarjeta a EN PROGRESO se crea una sesión nueva, sin mezclar contexto viejo. La sesión detenida queda en la lista para que la archives.'));
+  sesiones.append(el('p', 'settings-note', 'Al pasar a HECHO: se cierra la sesión, guarda el resumen en Engram y se detiene. Si la vuelves a mover, se crea una nueva.'));
 
   /* Avanzado */
   const avanzado = el('section', 'settings-section');
   avanzado.append(el('div', 'settings-heading', 'Avanzado'));
-  avanzado.append(el('p', 'settings-note', 'MCP de Kanban: crear, mover, completar y enlazar tarjetas desde el agente. Tras actualizar la extensión, reinicia OpenCode para que el agente use la versión nueva.'));
+  avanzado.append(el('p', 'settings-note', 'El agente puede crear, mover y completar tarjetas. Tras actualizar la extensión, reinicia OpenCode.'));
 
   scroll.append(conexion, tablero, estilo, delegacion, sesiones, avanzado);
 
@@ -1259,7 +1259,7 @@ const openSettings = () => {
   const done = el('button', 'btn-mint', 'Listo');
   done.type = 'button';
   done.addEventListener('click', () => closeSettings(true));
-  foot.append(el('span', 'settings-foot-text', 'Los cambios se guardan al elegirlos.'), done);
+  foot.append(el('span', 'settings-foot-text', 'Se guarda al elegir.'), done);
 
   sheet.append(head, scroll, foot);
   close.addEventListener('click', () => closeSettings(true));
