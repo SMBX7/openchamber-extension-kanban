@@ -1838,7 +1838,7 @@ ${GUEST_UI_LOOK_CSS}`;
     trash: '<path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 12h10l1-12"/>',
     open: '<path d="M14 4h6v6M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>'
   };
-  var state = { data: null, error: "", busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: "", confirmId: "", pending: "", sessions: [], sessionsProjectId: "", sessionsAt: 0 };
+  var state = { data: null, error: "", busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: "", confirmId: "", askSession: "", pendingDelete: null, sessions: [], sessionsProjectId: "", sessionsAt: 0 };
   var confirmTimer = null;
   var poll = null;
   var inFlight = false;
@@ -2069,7 +2069,7 @@ ${GUEST_UI_LOOK_CSS}`;
     state.error = "";
     render();
     let sessionId = "";
-    state.pending = "";
+    state.askSession = "";
     try {
       const answer = await api("POST", "/session/start", { cardId: current.id });
       sessionId = answer?.sessionId || "";
@@ -2090,7 +2090,7 @@ ${GUEST_UI_LOOK_CSS}`;
   };
   var backToIdeas = async (current) => {
     if (state.busy) return;
-    state.pending = "";
+    state.askSession = "";
     state.busy = true;
     state.error = "";
     render();
@@ -2102,18 +2102,39 @@ ${GUEST_UI_LOOK_CSS}`;
     state.busy = false;
     await load(true);
   };
-  var removeCard = async (card) => {
-    if (state.busy) return;
-    state.busy = true;
-    state.error = "";
-    render();
+  var commitRemove = async (card) => {
     try {
       await api("DELETE", "/card", { id: card.id });
     } catch (error) {
       state.error = error.message;
     }
-    state.busy = false;
+    state.pendingDelete = null;
     await load(true);
+  };
+  var removeCard = (card) => {
+    if (state.busy) return;
+    if (state.pendingDelete) {
+      clearTimeout(state.pendingDelete.timer);
+      const previous = state.pendingDelete.card;
+      state.pendingDelete = null;
+      void commitRemove(previous);
+    }
+    state.pendingDelete = {
+      card,
+      timer: setTimeout(() => {
+        const pending = state.pendingDelete;
+        if (!pending) return;
+        state.pendingDelete = null;
+        void commitRemove(pending.card);
+      }, 5e3)
+    };
+    render();
+  };
+  var undoRemove = () => {
+    if (!state.pendingDelete) return;
+    clearTimeout(state.pendingDelete.timer);
+    state.pendingDelete = null;
+    render();
   };
   var deleteButton = (card) => {
     const button2 = el2("button", "card-delete");
@@ -2184,6 +2205,9 @@ ${GUEST_UI_LOOK_CSS}`;
     if (!current) {
       return el2("div", "muted", "Sin tarea en curso.");
     }
+    if (state.pendingDelete?.card.id === current.id) {
+      return el2("div", "muted", `Eliminando \xAB${current.name || "tarjeta"}\xBB\u2026`);
+    }
     const card = el2("div", "card current");
     const stopped = current.state === "parada" || current.state === "sesi\xF3n cerrada";
     card.style.setProperty("--tone", stopped ? "var(--oc-muted)" : "var(--oc-warning)");
@@ -2234,21 +2258,21 @@ ${GUEST_UI_LOOK_CSS}`;
     const body = el2("div", "card-body");
     body.append(el2("div", "card-name", current.name || "Sin t\xEDtulo"));
     card.append(head, body);
-    if (state.pending === current.id && !current.sessionId) {
+    if (state.askSession === current.id && !current.sessionId) {
       const row = el2("div", "card-pending");
       row.append(el2("span", "card-pending-text", "\xBFAbrir sesi\xF3n?"));
       const yes = el2("button", "pending-btn pending-yes", "Abrir");
       yes.type = "button";
       yes.disabled = state.busy;
       yes.addEventListener("click", () => {
-        state.pending = "";
+        state.askSession = "";
         void createSession(current);
       });
       const no = el2("button", "pending-btn", "No");
       no.type = "button";
       no.disabled = state.busy;
       no.addEventListener("click", () => {
-        state.pending = "";
+        state.askSession = "";
         render();
       });
       row.append(yes, no);
@@ -2262,7 +2286,7 @@ ${GUEST_UI_LOOK_CSS}`;
     body.append(el2("div", "card-name", idea.name || "Sin t\xEDtulo"));
     const meta = el2("span", "card-meta");
     const startIdea = () => {
-      if (state.data?.project?.autoSession) state.pending = idea.id;
+      if (state.data?.project?.autoSession) state.askSession = idea.id;
       void act(`start-${idea.id}`);
     };
     meta.append(deleteButton(idea), tickButton("Empezar idea", "Empezar", startIdea));
@@ -2286,9 +2310,21 @@ ${GUEST_UI_LOOK_CSS}`;
     }
     wrap.append(renderSummary(data));
     const scroll = el2("div", "status-scroll");
+    if (state.pendingDelete) {
+      const undo = el2("div", "status-undo");
+      undo.append(el2("span", "status-undo-text", `Eliminada: \xAB${state.pendingDelete.card.name || "Tarjeta"}\xBB`));
+      const action = el2("button", "status-undo-action", "Deshacer");
+      action.type = "button";
+      action.addEventListener("click", undoRemove);
+      undo.append(action);
+      scroll.append(undo);
+    }
     scroll.append(renderCurrent(data.current));
     if (state.adding && data.backlogId) scroll.append(renderAddRow());
-    for (const idea of data.ideas || []) scroll.append(renderIdea(idea));
+    for (const idea of data.ideas || []) {
+      if (state.pendingDelete?.card.id === idea.id) continue;
+      scroll.append(renderIdea(idea));
+    }
     if (!(data.ideas || []).length) {
       scroll.append(el2("div", "muted", `Sin ideas en ${data.backlogName || "la lista de entrada"}.`));
     }

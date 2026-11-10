@@ -14,7 +14,7 @@ const ICONS = {
   open: '<path d="M14 4h6v6M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
 };
 
-const state = { data: null, error: '', busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: '', confirmId: '', pending: '', sessions: [], sessionsProjectId: '', sessionsAt: 0 };
+const state = { data: null, error: '', busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: '', confirmId: '', askSession: '', pendingDelete: null, sessions: [], sessionsProjectId: '', sessionsAt: 0 };
 let confirmTimer = null;
 let poll = null;
 let inFlight = false;
@@ -270,7 +270,7 @@ const createSession = async (current) => {
   state.error = '';
   render();
   let sessionId = '';
-  state.pending = '';
+  state.askSession = '';
   try {
     const answer = await api('POST', '/session/start', { cardId: current.id });
     sessionId = answer?.sessionId || '';
@@ -292,7 +292,7 @@ const createSession = async (current) => {
 
 const backToIdeas = async (current) => {
   if (state.busy) return;
-  state.pending = '';
+  state.askSession = '';
   state.busy = true;
   state.error = '';
   render();
@@ -305,18 +305,41 @@ const backToIdeas = async (current) => {
   await load(true);
 };
 
-const removeCard = async (card) => {
-  if (state.busy) return;
-  state.busy = true;
-  state.error = '';
-  render();
+const commitRemove = async (card) => {
   try {
     await api('DELETE', '/card', { id: card.id });
   } catch (error) {
     state.error = error.message;
   }
-  state.busy = false;
+  state.pendingDelete = null;
   await load(true);
+};
+
+const removeCard = (card) => {
+  if (state.busy) return;
+  if (state.pendingDelete) {
+    clearTimeout(state.pendingDelete.timer);
+    const previous = state.pendingDelete.card;
+    state.pendingDelete = null;
+    void commitRemove(previous);
+  }
+  state.pendingDelete = {
+    card,
+    timer: setTimeout(() => {
+      const pending = state.pendingDelete;
+      if (!pending) return;
+      state.pendingDelete = null;
+      void commitRemove(pending.card);
+    }, 5000),
+  };
+  render();
+};
+
+const undoRemove = () => {
+  if (!state.pendingDelete) return;
+  clearTimeout(state.pendingDelete.timer);
+  state.pendingDelete = null;
+  render();
 };
 
 const deleteButton = (card) => {
@@ -390,6 +413,9 @@ const renderCurrent = (current) => {
   if (!current) {
     return el('div', 'muted', 'Sin tarea en curso.');
   }
+  if (state.pendingDelete?.card.id === current.id) {
+    return el('div', 'muted', `Eliminando «${current.name || 'tarjeta'}»…`);
+  }
   const card = el('div', 'card current');
   const stopped = current.state === 'parada' || current.state === 'sesión cerrada';
   card.style.setProperty('--tone', stopped ? 'var(--oc-muted)' : 'var(--oc-warning)');
@@ -447,21 +473,21 @@ const renderCurrent = (current) => {
   body.append(el('div', 'card-name', current.name || 'Sin título'));
   card.append(head, body);
 
-  if (state.pending === current.id && !current.sessionId) {
+  if (state.askSession === current.id && !current.sessionId) {
     const row = el('div', 'card-pending');
     row.append(el('span', 'card-pending-text', '¿Abrir sesión?'));
     const yes = el('button', 'pending-btn pending-yes', 'Abrir');
     yes.type = 'button';
     yes.disabled = state.busy;
     yes.addEventListener('click', () => {
-      state.pending = '';
+      state.askSession = '';
       void createSession(current);
     });
     const no = el('button', 'pending-btn', 'No');
     no.type = 'button';
     no.disabled = state.busy;
     no.addEventListener('click', () => {
-      state.pending = '';
+      state.askSession = '';
       render();
     });
     row.append(yes, no);
@@ -476,7 +502,7 @@ const renderIdea = (idea) => {
   body.append(el('div', 'card-name', idea.name || 'Sin título'));
   const meta = el('span', 'card-meta');
   const startIdea = () => {
-    if (state.data?.project?.autoSession) state.pending = idea.id;
+    if (state.data?.project?.autoSession) state.askSession = idea.id;
     void act(`start-${idea.id}`);
   };
   meta.append(deleteButton(idea), tickButton('Empezar idea', 'Empezar', startIdea));
@@ -501,9 +527,21 @@ const render = () => {
   }
   wrap.append(renderSummary(data));
   const scroll = el('div', 'status-scroll');
+  if (state.pendingDelete) {
+    const undo = el('div', 'status-undo');
+    undo.append(el('span', 'status-undo-text', `Eliminada: «${state.pendingDelete.card.name || 'Tarjeta'}»`));
+    const action = el('button', 'status-undo-action', 'Deshacer');
+    action.type = 'button';
+    action.addEventListener('click', undoRemove);
+    undo.append(action);
+    scroll.append(undo);
+  }
   scroll.append(renderCurrent(data.current));
   if (state.adding && data.backlogId) scroll.append(renderAddRow());
-  for (const idea of data.ideas || []) scroll.append(renderIdea(idea));
+  for (const idea of data.ideas || []) {
+    if (state.pendingDelete?.card.id === idea.id) continue;
+    scroll.append(renderIdea(idea));
+  }
   if (!(data.ideas || []).length) {
     scroll.append(el('div', 'muted', `Sin ideas en ${data.backlogName || 'la lista de entrada'}.`));
   }
