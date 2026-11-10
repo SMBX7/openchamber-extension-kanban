@@ -73,6 +73,8 @@ extensión.
   cae decide lo que pasa después.
 - **Completar**: el tic la mueve a HECHO y cierra su sesión.
 - **Buscar** con la lupa, y **Paradas** filtra las tarjetas en progreso sin sesión.
+- **Teclado**: `Enter` abre una tarjeta, `Alt` + flechas la mueve entre columnas o
+  dentro de una, y el cambio se anuncia a los lectores de pantalla.
 
 ## Work Status
 
@@ -118,4 +120,4 @@ Lo que pasa después es igual en los dos modos:
 
 ## Licencia
 
-MIT.
+MIT. Ver [LICENSE](LICENSE).

@@ -4,6 +4,16 @@ import { applyHostReady } from '@openchamber/sdk/ui';
 const host = connectHost();
 const root = document.querySelector('#root');
 
+const ensureA11yNodes = () => {
+  if (document.getElementById('kanban-live')) return;
+  const live = el('div', 'sr-only');
+  live.id = 'kanban-live';
+  live.setAttribute('aria-live', 'polite');
+  const help = el('div', 'sr-only', 'Alt más flechas mueve la tarjeta entre columnas.');
+  help.id = 'kanban-kbd-help';
+  document.body.append(live, help);
+};
+
 const COLUMN_TOKENS = ['var(--oc-info)', 'var(--oc-warning)', 'var(--oc-success)'];
 const SAVE_DEBOUNCE_MS = 650;
 const POLL_MS = 2500;
@@ -407,6 +417,7 @@ host.onReady((context) => {
   }
   state.session = context.session || null;
   state.surface = context.surface === 'page' ? 'page' : 'panel';
+  ensureA11yNodes();
   if (state.booted) return;
   state.booted = true;
   void boot();
@@ -1381,6 +1392,7 @@ const buildCard = (card, listIndex) => {
   node.dataset.cardId = card.id;
   node.setAttribute('role', 'button');
   node.setAttribute('aria-label', `${card.name}. Abrir tarjeta`);
+  node.setAttribute('aria-describedby', 'kanban-kbd-help');
 
   const actions = el('div', 'card-actions');
   node.append(actions);
@@ -1472,6 +1484,17 @@ const buildCard = (card, listIndex) => {
   const open = () => openSheet(card.id);
   node.title = 'Abrir y editar';
   node.addEventListener('click', open);
+  node.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      open();
+      return;
+    }
+    if (!event.altKey) return;
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    void moveByKeyboard(card, listIndex, event.key);
+  });
   node.addEventListener('dblclick', (event) => {
     event.preventDefault();
     open();
@@ -1564,6 +1587,7 @@ const attachDropTarget = (column, cardsEl, listId) => {
 const renderBoard = () => {
   const board = state.refs?.board;
   if (!board) return;
+  const focusedCard = document.activeElement?.closest?.('[data-card-id]')?.dataset.cardId || '';
   const snapshot = state.snapshot;
   const scrollState = new Map();
   for (const existing of board.querySelectorAll('.column')) {
@@ -1676,6 +1700,9 @@ const renderBoard = () => {
     if (!cards) continue;
     cards.scrollTop = saved.atBottom ? cards.scrollHeight : saved.top;
   }
+  if (focusedCard) {
+    board.querySelector(`[data-card-id="${CSS.escape(focusedCard)}"]`)?.focus({ preventScroll: true });
+  }
 };
 
 
@@ -1776,6 +1803,43 @@ const moveCard = async (cardId, listId, index) => {
   } catch (error) {
     toast('error', error.message);
     await refresh(true);
+  }
+};
+
+const announce = (message) => {
+  const live = document.getElementById('kanban-live');
+  if (live) live.textContent = message;
+};
+
+const moveByKeyboard = async (card, listIndex, key) => {
+  const snapshot = state.snapshot;
+  const lists = snapshot?.lists || [];
+  const source = lists[listIndex];
+  const position = source?.cards.findIndex((item) => item.id === card.id) ?? -1;
+  if (!source || position < 0) return;
+  let target = source;
+  let index = position;
+  if (key === 'ArrowUp') index = position - 1;
+  else if (key === 'ArrowDown') index = position + 1;
+  else if (key === 'ArrowLeft') {
+    target = lists[listIndex - 1] || source;
+    index = 0;
+  } else if (key === 'ArrowRight') {
+    target = lists[listIndex + 1] || source;
+    index = 0;
+  }
+  if (target === source) {
+    index = Math.max(0, Math.min(index, source.cards.length - 1));
+    if (index === position) return;
+  } else {
+    index = Math.min(index, target.cards.length);
+  }
+  try {
+    await moveCard(card.id, target.id, index);
+    announce(`«${card.name}» movida a ${target.name}.`);
+    document.querySelector(`[data-card-id="${CSS.escape(card.id)}"]`)?.focus({ preventScroll: true });
+  } catch (error) {
+    toast('error', error.message);
   }
 };
 

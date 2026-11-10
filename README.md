@@ -75,6 +75,8 @@ extension.
 - **Complete**: the tick moves it to HECHO and closes its session.
 - **Search** with the magnifier, and **Paradas** filters cards in progress with no
   session.
+- **Keyboard**: `Enter` opens a card, `Alt` + arrows move it between columns or inside
+  one, and the change is announced to screen readers.
 
 ## Work Status
 
@@ -121,4 +123,4 @@ What happens next is the same in both modes:
 
 ## License
 
-MIT.
+MIT. See [LICENSE](LICENSE).
