@@ -75,8 +75,10 @@ extensión.
   cae decide lo que pasa después.
 - **Completar**: el tic la mueve a HECHO y cierra su sesión.
 - **Buscar** con la lupa, y **Paradas** filtra las tarjetas en progreso sin sesión.
-- **Teclado**: tabula hasta una tarjeta, `Enter` la abre, `Mayús` + flechas la mueve
-  entre columnas o dentro de una, y el cambio se anuncia a los lectores de pantalla.
+- **Teclado**: apunta a una tarjeta y usa el atajo. `1`, `2` y `3` la envían a una
+  columna, las flechas la reordenan y `Enter` la abre. El modificador (Mayús, Ctrl, Alt
+  o ninguno) se elige en Ajustes → Apariencia; el panel necesita el foco, así que pulsa
+  antes dentro de él. Los movimientos se anuncian a los lectores de pantalla.
 
 ## Work Status
 

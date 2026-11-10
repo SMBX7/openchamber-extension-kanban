@@ -16,9 +16,11 @@ const clean = (value) => {
 };
 
 const STYLES = ['neumorphism', 'brutalism', 'glass'];
+const SHORTCUTS = ['shift', 'ctrl', 'alt', 'none'];
 const cleanStyle = (value) => (STYLES.includes(value) ? value : 'neumorphism');
+const cleanShortcut = (value) => (SHORTCUTS.includes(value) ? value : 'shift');
 
-const empty = () => ({ version: 1, style: 'neumorphism', columns: ['', '', ''], card: '' });
+const empty = () => ({ version: 1, style: 'neumorphism', shortcut: 'shift', columns: ['', '', ''], card: '' });
 
 export const readAppearance = () => {
   try {
@@ -26,7 +28,7 @@ export const readAppearance = () => {
     if (!parsed || typeof parsed !== 'object') return empty();
     const columns = Array.isArray(parsed.columns) ? parsed.columns.slice(0, 3).map(clean) : [];
     while (columns.length < 3) columns.push('');
-    return { version: 1, style: cleanStyle(parsed.style), columns, card: clean(parsed.card) };
+    return { version: 1, style: cleanStyle(parsed.style), shortcut: cleanShortcut(parsed.shortcut), columns, card: clean(parsed.card) };
   } catch {
     return empty();
   }
@@ -51,6 +53,7 @@ export const setAppearance = (input = {}) => {
   const next = {
     version: 1,
     style: input.style === undefined ? current.style : cleanStyle(input.style),
+    shortcut: input.shortcut === undefined ? current.shortcut : cleanShortcut(input.shortcut),
     columns,
     card: input.card === undefined ? current.card : clean(input.card),
   };

@@ -77,8 +77,10 @@ extension.
 - **Complete**: the tick moves it to HECHO and closes its session.
 - **Search** with the magnifier, and **Paradas** filters cards in progress with no
   session.
-- **Keyboard**: tab to a card, `Enter` opens it, `Shift` + arrows move it between columns
-  or inside one, and the change is announced to screen readers.
+- **Keyboard**: point at a card and use the shortcut. `1`, `2` and `3` send it to a
+  column, the arrows reorder it and `Enter` opens it. The modifier (Shift, Ctrl, Alt or
+  none) is chosen in Settings → Apariencia; the panel needs focus, so click inside it
+  first. Moves are announced to screen readers.
 
 ## Work Status
 

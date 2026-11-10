@@ -1874,7 +1874,7 @@ ${GUEST_UI_LOOK_CSS}`;
     sheet: null,
     settings: null,
     settingsDirty: false,
-    appearance: { style: "neumorphism", columns: ["", "", ""], card: "" },
+    appearance: { style: "neumorphism", shortcut: "shift", columns: ["", "", ""], card: "" },
     hiddenCards: /* @__PURE__ */ new Set(),
     pendingDelete: null,
     stoppedOnly: false,
@@ -2999,6 +2999,22 @@ ${card.description}`.toLowerCase();
       styleGrid.append(option);
     }
     estilo.append(styleGrid);
+    const shortcutField = el2("label", "field");
+    shortcutField.append(el2("span", "", "Atajo de teclado"));
+    const shortcutSelect = el2("select", "settings-select");
+    for (const [value, label] of [
+      ["shift", "May\xFAs + teclas"],
+      ["ctrl", "Ctrl + teclas"],
+      ["alt", "Alt + teclas"],
+      ["none", "Sin modificador"]
+    ]) {
+      shortcutSelect.append(new Option(label, value));
+    }
+    shortcutSelect.value = state.appearance.shortcut || "shift";
+    shortcutSelect.addEventListener("change", () => void saveAppearance({ shortcut: shortcutSelect.value }));
+    shortcutField.append(shortcutSelect);
+    estilo.append(shortcutField);
+    estilo.append(el2("p", "settings-note", "Con una tarjeta bajo el rat\xF3n: 1, 2 y 3 la env\xEDan a cada columna, las flechas la reordenan y Enter la abre."));
     const sesiones = el2("section", "settings-section");
     sesiones.append(el2("div", "settings-heading", "C\xF3mo funciona"));
     const sesionesBox = el2("div", "settings-box");
@@ -3103,6 +3119,9 @@ ${card.description}`.toLowerCase();
     node.setAttribute("aria-label", `${card.name}. Abrir tarjeta`);
     node.setAttribute("aria-describedby", "kanban-kbd-help");
     node.setAttribute("aria-keyshortcuts", "Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight");
+    node.addEventListener("pointermove", () => {
+      if (state.hoverCard !== card.id) state.hoverCard = card.id;
+    });
     const actions = el2("div", "card-actions");
     node.append(actions);
     const title = el2("div", "card-title", card.name || "Sin t\xEDtulo");
@@ -3184,15 +3203,9 @@ ${card.description}`.toLowerCase();
     node.title = "Abrir y editar \xB7 May\xFAs + flechas para mover";
     node.addEventListener("click", open);
     node.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        open();
-        return;
-      }
-      if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
-      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
-      void moveByKeyboard(card, listIndex, event.key);
+      open();
     });
     node.addEventListener("dblclick", (event) => {
       event.preventDefault();
@@ -3515,6 +3528,47 @@ ${card.description}`.toLowerCase();
       toast("error", error.message);
     }
   };
+  var modifierMatches = (event) => {
+    const mod = state.appearance?.shortcut || "shift";
+    if (mod === "none") return !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
+    if (mod === "shift") return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
+    if (mod === "alt") return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey;
+    if (mod === "ctrl") return (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+    return false;
+  };
+  var cardContext = (cardId) => {
+    const lists = state.snapshot?.lists || [];
+    for (let index = 0; index < lists.length; index += 1) {
+      const card = lists[index].cards.find((item) => item.id === cardId);
+      if (card) return { card, listIndex: index };
+    }
+    return null;
+  };
+  var shortcutTarget = () => {
+    const active2 = document.activeElement;
+    const typing = active2 && (active2.tagName === "INPUT" || active2.tagName === "TEXTAREA" || active2.tagName === "SELECT" || active2.isContentEditable);
+    if (typing || state.sheetId || state.view !== "board") return "";
+    const focused = active2?.closest?.("[data-card-id]")?.dataset.cardId;
+    return focused || state.hoverCard || "";
+  };
+  document.addEventListener("keydown", (event) => {
+    if (!modifierMatches(event)) return;
+    const id = shortcutTarget();
+    if (!id) return;
+    const context = cardContext(id);
+    if (!context) return;
+    const digit = { Digit1: 1, Digit2: 2, Digit3: 3, Numpad1: 1, Numpad2: 2, Numpad3: 3 }[event.code];
+    if (digit) {
+      event.preventDefault();
+      const target = state.snapshot.lists[digit - 1];
+      if (!target || target.id === context.card.listId) return;
+      moveCard(context.card.id, target.id, 0).then(() => announce(`\xAB${context.card.name}\xBB movida a ${target.name}.`)).catch((error) => toast("error", error.message));
+      return;
+    }
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    void moveByKeyboard(context.card, context.listIndex, event.key);
+  });
   var renderBoardOnly = () => {
     if (state.view === "board") renderBoard();
   };
