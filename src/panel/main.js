@@ -1,0 +1,2287 @@
+import { connectHost } from '@openchamber/sdk';
+import { applyHostReady } from '@openchamber/sdk/ui';
+
+const host = connectHost();
+const root = document.querySelector('#root');
+
+const COLUMN_TOKENS = ['var(--oc-info)', 'var(--oc-warning)', 'var(--oc-success)'];
+const SAVE_DEBOUNCE_MS = 650;
+const POLL_MS = 2500;
+
+const ICONS = {
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  check: '<path d="m5 12 4.5 4.5L19 7"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  external: '<path d="M14 4h6v6M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
+  calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>',
+  edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/>',
+  trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>',
+  compress: '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
+  expand: '<path d="m13 7 5 5-5 5"/><path d="m6 7 5 5-5 5"/>',
+  chevron: '<path d="m6 9 6 6 6-6"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 15a1.65 1.65 0 0 0-1.51-1H2a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 3.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6h.09A1.65 1.65 0 0 0 9.1 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09A1.65 1.65 0 0 0 21 10.1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/>',
+};
+
+const state = {
+  surface: 'panel',
+  booted: false,
+  view: 'boot',
+  config: null,
+  boards: [],
+  projects: [],
+  session: null,
+  snapshot: null,
+  sessions: {},
+  search: '',
+  labels: new Set(),
+  sheetId: '',
+  sheet: null,
+  settings: null,
+  settingsDirty: false,
+  appearance: { columns: ['', '', ''], card: '' },
+  hiddenCards: new Set(),
+  pendingDelete: null,
+  stoppedOnly: false,
+  dragId: '',
+  dragging: false,
+  composerListId: '',
+  saving: 0,
+  fetching: false,
+  poll: null,
+  refs: null,
+  bannerText: '',
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const el = (tag, className = '', text = '') => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text) node.textContent = text;
+  return node;
+};
+
+const makeIcon = (name) => {
+  const span = el('span', 'icon');
+  span.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+  return span;
+};
+
+const labelColor = (name) => {
+  const palette = String(name || 'label');
+  let hash = 0;
+  for (let index = 0; index < palette.length; index += 1) {
+    hash = (hash * 31 + palette.charCodeAt(index)) % 360;
+  }
+  return `hsl(${hash} 58% 62%)`;
+};
+
+const startOfDay = (date) => {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+};
+
+const dueInfo = (iso) => {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = startOfDay(new Date());
+  const due = startOfDay(date);
+  const diff = Math.round((due.getTime() - today.getTime()) / 86400000);
+  let label;
+  if (diff < 0) label = 'Atrasada';
+  else if (diff === 0) label = 'Hoy';
+  else if (diff === 1) label = 'Mañana';
+  else label = date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  return { label, late: diff < 0, due };
+};
+
+const toDateInput = (iso) => {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+};
+
+const parseBody = (text) => {
+  try {
+    return JSON.parse(text || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const api = async (method, path, body) => {
+  let result;
+  try {
+    result = await host.serviceRequest({
+      method,
+      path,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (error) {
+    const wrapped = new Error(
+      error?.code === 'NO_SERVICE'
+        ? 'El servicio de Kanban no está disponible.'
+        : 'No se puede hablar con el servicio de Kanban.',
+    );
+    wrapped.kind = 'service';
+    throw wrapped;
+  }
+  const data = parseBody(result.body);
+  if (result.status >= 200 && result.status < 300) return data;
+  const error = new Error(data.message || `Kanban ha respondido ${result.status}.`);
+  error.kind = data.kind || 'api';
+  error.status = result.status;
+  throw error;
+};
+
+const toast = (kind, message) => {
+  host.toast({ kind, message }).catch(() => {});
+};
+
+const removeUndoBar = () => {
+  state.pendingDelete?.bar?.remove();
+};
+
+const undoDelete = () => {
+  const pending = state.pendingDelete;
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  removeUndoBar();
+  state.pendingDelete = null;
+  state.hiddenCards.delete(pending.card.id);
+  renderBoard();
+  toast('success', 'Tarjeta restaurada.');
+};
+
+const commitPendingDelete = async () => {
+  const pending = state.pendingDelete;
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  removeUndoBar();
+  state.pendingDelete = null;
+  try {
+    await api('DELETE', '/card', { id: pending.card.id });
+    state.hiddenCards.delete(pending.card.id);
+    toast('success', `«${pending.card.name}» eliminada.`);
+  } catch (error) {
+    state.hiddenCards.delete(pending.card.id);
+    toast('error', error.message);
+  }
+  renderBoard();
+};
+
+const queueDelete = async (card, node) => {
+  if (state.pendingDelete) await commitPendingDelete();
+  const bar = el('div', 'undo-bar');
+  const progress = el('span', 'undo-progress');
+  const text = el('span', 'undo-text', `«${card.name}» eliminada`);
+  const action = el('button', 'undo-action', 'Deshacer');
+  action.type = 'button';
+  action.addEventListener('click', () => undoDelete());
+  bar.append(text, action, progress);
+  node.classList.add('leaving');
+  await sleep(140);
+  state.hiddenCards.add(card.id);
+  document.body.append(bar);
+  const timer = setTimeout(() => {
+    void commitPendingDelete();
+  }, 5000);
+  state.pendingDelete = { card, bar, timer };
+  renderBoard();
+};
+
+const findCard = (id) => {
+  const snapshot = state.snapshot;
+  if (!snapshot) return null;
+  for (const list of snapshot.lists) {
+    const card = list.cards.find((item) => item.id === id);
+    if (card) return { card, list };
+  }
+  return null;
+};
+
+const findList = (id) => state.snapshot?.lists.find((list) => list.id === id) || null;
+
+const mergeCard = (serverCard) => {
+  for (const list of state.snapshot?.lists || []) {
+    const index = list.cards.findIndex((item) => item.id === serverCard.id);
+    if (index >= 0) {
+      list.cards[index] = { ...list.cards[index], ...serverCard };
+      return;
+    }
+  }
+};
+
+const sessionActive = (cardId) => {
+  const info = state.sessions?.[cardId];
+  return Boolean(info && (info.state === 'trabajando' || info.state === 'esperando'));
+};
+
+const isStoppedCard = (card) => !sessionActive(card.id);
+
+const matchesFilters = (card) => {
+  const query = state.search.trim().toLowerCase();
+  if (query) {
+    const haystack = `${card.name}\n${card.description}`.toLowerCase();
+    if (!haystack.includes(query)) return false;
+  }
+  if (state.labels.size > 0 && !card.labels.some((label) => state.labels.has(label.id))) return false;
+  if (state.stoppedOnly) {
+    if (card.listId !== state.snapshot?.workListId) return false;
+    if (!isStoppedCard(card)) return false;
+  }
+  return true;
+};
+
+const isPaused = () =>
+  state.view !== 'board' ||
+  Boolean(state.sheetId) ||
+  state.dragging ||
+  Boolean(state.composerListId) ||
+  state.saving > 0;
+
+/* ------------------------------------------------------------------ */
+/* Boot                                                                */
+/* ------------------------------------------------------------------ */
+
+host.onReady((context) => {
+  applyHostReady(context, document.documentElement);
+  state.session = context.session || null;
+  state.surface = context.surface === 'page' ? 'page' : 'panel';
+  if (state.booted) return;
+  state.booted = true;
+  void boot();
+});
+
+const configWithRetry = async () => {
+  let lastError;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      return await api('GET', '/config');
+    } catch (error) {
+      lastError = error;
+      if (error.kind !== 'service') break;
+      await sleep(400);
+    }
+  }
+  throw lastError;
+};
+
+const loadProjects = async () => {
+  try {
+    const snapshot = await host.listProjects();
+    state.projects = Array.isArray(snapshot?.projects) ? snapshot.projects : [];
+  } catch {
+    state.projects = state.projects || [];
+  }
+  return state.projects;
+};
+
+const THEME_COLORS = ['--oc-info', '--oc-warning', '--oc-success'];
+
+const themeColorHex = (name) => {
+  const probe = document.createElement('span');
+  probe.style.color = `var(${name})`;
+  probe.style.display = 'none';
+  document.body.append(probe);
+  const value = getComputedStyle(probe).color;
+  probe.remove();
+  const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (!match) return '';
+  return `#${[1, 2, 3].map((index) => Number(match[index]).toString(16).padStart(2, '0')).join('')}`;
+};
+
+const defaultColumnHex = (index) => themeColorHex(THEME_COLORS[index % THEME_COLORS.length]);
+
+const applyAppearance = () => {
+  const rootEl = document.documentElement;
+  const appearance = state.appearance || {};
+  for (let index = 0; index < 3; index += 1) {
+    const color = appearance.columns?.[index];
+    if (color) rootEl.style.setProperty(`--col-tone-${index}`, color);
+    else rootEl.style.removeProperty(`--col-tone-${index}`);
+  }
+  if (appearance.card) rootEl.style.setProperty('--kanban-card-bg', appearance.card);
+  else rootEl.style.removeProperty('--kanban-card-bg');
+};
+
+const loadAppearance = async () => {
+  try {
+    const answer = await api('GET', '/appearance');
+    if (answer?.appearance) state.appearance = answer.appearance;
+  } catch {
+    // Theme defaults are fine when the service has no appearance yet.
+  }
+  applyAppearance();
+};
+
+const saveAppearance = async (patch) => {
+  const next = {
+    columns: state.appearance.columns.slice(),
+    card: state.appearance.card,
+    ...patch,
+  };
+  state.appearance = next;
+  applyAppearance();
+  try {
+    const answer = await api('POST', '/appearance', next);
+    if (answer?.appearance) state.appearance = answer.appearance;
+  } catch (error) {
+    toast('error', error.message);
+  }
+  applyAppearance();
+  renderBoardOnly();
+};
+
+const boot = async () => {
+  stopPolling();
+  try {
+    const config = await configWithRetry();
+    state.config = config;
+    state.boards = Array.isArray(config.boards) ? config.boards : [];
+    if (!config.connected) {
+      showLogin();
+      return;
+    }
+    await loadProjects();
+    await loadAppearance();
+    await loadSnapshot();
+    await loadSessionStates();
+    showBoard();
+    startPolling();
+  } catch (error) {
+    showFatal(error.message);
+  }
+};
+
+const loadSessionStates = async () => {
+  try {
+    const answer = await api('GET', '/sessions');
+    state.sessions = answer?.sessions || {};
+  } catch {
+    state.sessions = state.sessions || {};
+  }
+};
+
+const loadSnapshot = async () => {
+  try {
+    state.snapshot = await api('GET', '/snapshot?fresh=1');
+  } catch (error) {
+    if (error.kind === 'not-configured' || error.kind === 'auth') {
+      state.snapshot = null;
+      showLogin(error.message);
+      return;
+    }
+    throw error;
+  }
+};
+
+/* ------------------------------------------------------------------ */
+/* Login                                                               */
+/* ------------------------------------------------------------------ */
+
+const showLogin = (message = '') => {
+  state.view = 'login';
+  stopPolling();
+  closeSheet(true);
+  const config = state.config || {};
+  const wrapper = el('div', 'center');
+  const card = el('div', 'login-card');
+  const title = el('h1');
+  title.append(makeIcon('check'), el('span', '', 'Kanban'));
+  const subtitle = el('p', '', 'Planka es la única fuente de verdad. Entra con tu cuenta para leer y editar el tablero desde aquí.');
+
+  const form = el('div');
+  form.style.display = 'contents';
+  const emailField = el('label', 'field');
+  emailField.append(el('span', '', 'Correo o usuario'));
+  const email = el('input');
+  email.type = 'text';
+  email.autocomplete = 'username';
+  email.value = config.email || '';
+  email.placeholder = 'tu@correo.com';
+  email.required = true;
+  emailField.append(email);
+
+  const passwordField = el('label', 'field');
+  passwordField.append(el('span', '', 'Contraseña'));
+  const password = el('input');
+  password.type = 'password';
+  password.autocomplete = 'current-password';
+  password.placeholder = 'Contraseña de Planka';
+  password.required = true;
+  passwordField.append(password);
+
+  const urlField = el('label', 'field');
+  urlField.append(el('span', '', 'Servidor de Planka'));
+  const baseUrl = el('input');
+  baseUrl.type = 'url';
+  baseUrl.value = config.baseUrl || 'http://127.0.0.1:3040';
+  baseUrl.placeholder = 'http://127.0.0.1:3040';
+  urlField.append(baseUrl);
+
+  const errorBox = el('div', 'login-error');
+  errorBox.hidden = true;
+  if (message) {
+    errorBox.textContent = message;
+    errorBox.hidden = false;
+  }
+
+  const note = el('div', 'login-note');
+  note.hidden = true;
+  const noteText = el('span', '', '');
+  const noteButton = el('button', '', 'Abrir Planka');
+  noteButton.type = 'button';
+  note.append(noteText, noteButton);
+
+  const actions = el('div', 'login-actions');
+  const submit = el('button', 'btn-mint', 'Entrar');
+  submit.type = 'button';
+  actions.append(submit);
+
+  form.append(emailField, passwordField, urlField, errorBox, note, actions);
+  card.append(title, subtitle, form);
+
+  const submitLogin = () => {
+    void doLogin({ email: email.value, password: password.value, baseUrl: baseUrl.value.trim() }, submit, errorBox, note);
+  };
+  submit.addEventListener('click', submitLogin);
+  for (const input of [email, password, baseUrl]) {
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        submitLogin();
+      }
+    });
+  }
+
+  noteButton.addEventListener('click', () => {
+    const target = baseUrl.value.trim() || 'http://127.0.0.1:3040';
+    host.openUrl(target).catch(() => {});
+  });
+
+  wrapper.append(card);
+  root.replaceChildren(wrapper);
+  state.refs = null;
+  setTimeout(() => email.focus(), 30);
+};
+
+const doLogin = async (values, submit, errorBox, note) => {
+  submit.disabled = true;
+  submit.textContent = 'Entrando…';
+  errorBox.hidden = true;
+  note.hidden = true;
+  try {
+    const result = await api('POST', '/login', values);
+    state.boards = Array.isArray(result.boards) ? result.boards : [];
+    state.config = {
+      ...(state.config || {}),
+      connected: true,
+      email: values.email,
+      baseUrl: values.baseUrl,
+      boardId: result.boardId,
+      boards: state.boards,
+    };
+    if (result.snapshot) state.snapshot = result.snapshot;
+    else await loadSnapshot();
+    await loadProjects();
+    await loadAppearance();
+    await loadSessionStates();
+    showBoard();
+    startPolling();
+  } catch (error) {
+    if (error.kind === 'terms') {
+      noteText.textContent = error.message;
+      noteButton.onclick = () => host.openUrl(values.baseUrl || 'http://127.0.0.1:3040').catch(() => {});
+      note.hidden = false;
+    } else if (error.kind === 'service') {
+      // Writing config.json can reload the extension; the fresh frame will
+      // boot connected, so look once more before reporting a failure.
+      await sleep(1000);
+      try {
+        const config = await api('GET', '/config');
+        if (config.connected) {
+          state.config = config;
+          state.boards = config.boards || [];
+          await loadSnapshot();
+          await loadSessionStates();
+          showBoard();
+          startPolling();
+          return;
+        }
+      } catch {
+        // Fall through to the visible error.
+      }
+      errorBox.textContent = error.message;
+      errorBox.hidden = false;
+    } else {
+      errorBox.textContent = error.message;
+      errorBox.hidden = false;
+    }
+  } finally {
+    submit.disabled = false;
+    submit.textContent = 'Entrar';
+  }
+};
+
+/* ------------------------------------------------------------------ */
+/* Board shell                                                         */
+/* ------------------------------------------------------------------ */
+
+const syncBoardOptions = () => {
+  const refs = state.refs;
+  if (!refs) return;
+  const boards = state.boards.length
+    ? state.boards
+    : state.snapshot
+      ? [{ id: state.snapshot.board.id, name: state.snapshot.board.name }]
+      : [];
+  const selected = state.snapshot?.board?.id || state.config?.boardId || '';
+  const control = refs.boardSelect;
+  if (control) {
+    const options = boards.map((board) => ({ value: board.id, label: board.name }));
+    const value = boards.some((board) => board.id === selected)
+      ? selected
+      : control.value || boards[0]?.id || '';
+    control.update(options, value, boards.length < 2);
+  }
+  if (refs.openButton) refs.openButton.disabled = !state.snapshot?.board?.url;
+};
+
+const syncProjectChip = () => {
+  const refs = state.refs;
+  if (!refs?.projectChip) return;
+  const mapping = state.snapshot?.project || null;
+  const auto = mapping?.autoSession === true;
+  const mode = mapping ? (auto ? 'Automática' : 'Manual') : 'Sin proyecto';
+  refs.projectChip.textContent = mapping ? `${mapping.name} · ${mode}` : 'Sin proyecto · Asignar';
+  refs.projectChip.classList.toggle('missing', !mapping);
+  refs.projectChip.classList.toggle('auto', Boolean(mapping) && auto);
+  refs.projectChip.setAttribute('aria-pressed', auto ? 'true' : 'false');
+  refs.projectChip.title = mapping
+    ? `${mapping.name} · Delegación ${mode.toLowerCase()}. Pulsa para cambiar.`
+    : 'Asigna este tablero a un proyecto de OpenChamber';
+};
+
+const syncProjectSelect = () => {
+  const control = state.refs?.projectSelect;
+  if (!control) return;
+  const mapping = state.snapshot?.project || null;
+  const options = [{ value: '', label: 'Sin proyecto' }];
+  for (const project of state.projects) options.push({ value: project.id, label: project.name });
+  if (mapping && !state.projects.some((project) => project.id === mapping.projectId)) {
+    options.push({ value: mapping.projectId, label: mapping.name });
+  }
+  control.update(options, mapping?.projectId || '', state.projects.length === 0);
+  control.button.title = mapping
+    ? `Proyecto de las sesiones: ${mapping.name}`
+    : 'Asigna un proyecto a este tablero';
+};
+
+const labeledField = (text, control) => {
+  const wrap = el('label', 'labeled-field');
+  wrap.append(el('span', 'labeled-field-label', text), control);
+  return wrap;
+};
+
+const changeBoardProject = async (projectId) => {
+  const snapshot = state.snapshot;
+  if (!snapshot) return;
+  const project = state.projects.find((item) => item.id === projectId) || null;
+  try {
+    const answer = await api('POST', '/mapping', {
+      boardId: snapshot.board.id,
+      projectId: project?.id || '',
+      directory: project?.directory || '',
+      name: project?.name || '',
+      autoSession: snapshot.project?.autoSession === true,
+    });
+    state.snapshot.project = answer.project || null;
+    toast('success', project ? `Tablero asignado a ${project.name}.` : 'Proyecto quitado del tablero.');
+  } catch (error) {
+    toast('error', error.message);
+  }
+  renderAll();
+  reopenSettings();
+};
+
+const showBoard = () => {
+  state.view = 'board';
+  state.bannerText = '';
+  closeSheet(true);
+  if (state.surface === 'page') buildPage();
+  else buildPanel();
+  renderAll();
+};
+
+const setBanner = (message) => {
+  state.bannerText = message;
+  const banner = state.refs?.banner;
+  if (!banner) return;
+  if (!message) {
+    banner.hidden = true;
+    banner.replaceChildren();
+    return;
+  }
+  banner.hidden = false;
+  banner.replaceChildren();
+  banner.append(el('span', '', message));
+  const retry = el('button', '', 'Reintentar');
+  retry.type = 'button';
+  retry.addEventListener('click', () => void refresh(false));
+  banner.append(retry);
+};
+
+const MENU_SELECTS = new Set();
+
+const closeMenuSelects = () => {
+  for (const item of MENU_SELECTS) item.close();
+};
+
+const menuSelect = ({ ariaLabel = '', options = [], value = '', onChange = () => {} }) => {
+  const wrap = el('div', 'menu-select');
+  const button = el('button', 'menu-select-button');
+  button.type = 'button';
+  button.setAttribute('aria-haspopup', 'listbox');
+  button.setAttribute('aria-expanded', 'false');
+  button.setAttribute('aria-label', ariaLabel);
+  const label = el('span', 'menu-select-label');
+  const chevron = makeIcon('chevron');
+  chevron.classList.add('menu-select-chevron');
+  button.append(label, chevron);
+  const menu = el('div', 'menu-select-menu');
+  menu.hidden = true;
+  menu.setAttribute('role', 'listbox');
+  wrap.append(button, menu);
+
+  let currentOptions = options;
+  let currentValue = value;
+  let disabled = false;
+  let signature = '';
+
+  const render = () => {
+    const found = currentOptions.find((option) => option.value === currentValue);
+    label.textContent = found?.label || currentOptions[0]?.label || 'Selecciona…';
+    button.disabled = disabled;
+    menu.replaceChildren();
+    for (const option of currentOptions) {
+      const item = el('button', 'menu-select-option', option.label);
+      item.type = 'button';
+      item.dataset.value = option.value;
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', option.value === currentValue ? 'true' : 'false');
+      item.addEventListener('click', (event) => {
+        event.stopPropagation();
+        currentValue = option.value;
+        render();
+        close();
+        onChange(option.value);
+      });
+      menu.append(item);
+    }
+  };
+
+  const close = () => {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+  };
+
+  const open = () => {
+    if (disabled) return;
+    closeMenuSelects();
+    menu.hidden = false;
+    button.setAttribute('aria-expanded', 'true');
+  };
+
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (menu.hidden) open();
+    else close();
+  });
+  menu.addEventListener('click', (event) => event.stopPropagation());
+
+  const item = {
+    wrap,
+    button,
+    menu,
+    close,
+    get value() {
+      return currentValue;
+    },
+    update(nextOptions, nextValue, nextDisabled = false) {
+      const nextSignature = `${JSON.stringify(nextOptions)}|${nextValue}|${nextDisabled}`;
+      if (nextSignature === signature) return;
+      signature = nextSignature;
+      currentOptions = nextOptions || [];
+      currentValue = nextValue || '';
+      disabled = Boolean(nextDisabled);
+      render();
+    },
+  };
+  MENU_SELECTS.add(item);
+  render();
+  return item;
+};
+
+document.addEventListener('click', () => closeMenuSelects());
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeMenuSelects();
+});
+
+const buildPage = () => {
+  const app = el('div', 'app');
+  const topbar = el('div', 'topbar');
+  const brand = el('div', 'brand');
+  brand.append(el('span', 'brand-dot'), el('span', '', 'Kanban'), el('span', 'brand-sub', 'Planka'));
+
+  const boardSelect = menuSelect({
+    ariaLabel: 'Tablero',
+    onChange: (value) => void switchBoard(value),
+  });
+
+  const projectSelect = menuSelect({
+    ariaLabel: 'Proyecto del tablero',
+    onChange: (value) => void changeBoardProject(value),
+  });
+
+  const projectChip = el('button', 'project-chip');
+  projectChip.type = 'button';
+  projectChip.title = 'Cambiar delegación manual o automática';
+  projectChip.addEventListener('click', () => {
+    const mapping = state.snapshot?.project;
+    if (!mapping) {
+      openSettings();
+      return;
+    }
+    void changeAutoMode(mapping.autoSession !== true);
+  });
+
+  const stoppedChip = el('button', 'quick-filter');
+  stoppedChip.type = 'button';
+  stoppedChip.title = 'Ver solo tarjetas en progreso sin sesión o con la sesión parada';
+  stoppedChip.addEventListener('click', () => toggleStopped());
+
+  const settingsButton = el('button', 'icon-btn');
+  settingsButton.type = 'button';
+  settingsButton.title = 'Ajustes de Kanban';
+  settingsButton.setAttribute('aria-label', 'Ajustes de Kanban');
+  settingsButton.append(makeIcon('settings'));
+  settingsButton.addEventListener('click', () => openSettings());
+
+  const searchWrap = el('div', 'field-wrap');
+  const searchInput = el('input', 'search-input');
+  searchInput.type = 'search';
+  searchInput.placeholder = 'Buscar por título o descripción';
+  searchInput.setAttribute('aria-label', 'Buscar tarjetas');
+  searchInput.addEventListener('input', () => {
+    state.search = searchInput.value;
+    renderBoard();
+  });
+  searchWrap.append(makeIcon('search'), searchInput);
+
+  const labelFilters = el('div', 'label-filters');
+  labelFilters.setAttribute('aria-label', 'Filtrar por etiqueta');
+
+  const spacer = el('div', 'toolbar-spacer');
+
+  const openButton = el('button', 'ghost-btn');
+  openButton.type = 'button';
+  openButton.append(makeIcon('external'), el('span', '', 'Abrir en Planka'));
+  openButton.addEventListener('click', () => {
+    const url = state.snapshot?.board?.url;
+    if (url) host.openUrl(url).catch(() => {});
+  });
+
+  topbar.append(
+    brand,
+    labeledField('Proyecto', projectSelect.wrap),
+    labeledField('Tablero', boardSelect.wrap),
+    projectChip,
+    stoppedChip,
+    settingsButton,
+    searchWrap,
+    labelFilters,
+    spacer,
+    openButton,
+  );
+
+  const banner = el('div', 'banner');
+  banner.hidden = true;
+  banner.setAttribute('role', 'status');
+
+  const board = el('div', 'board');
+  app.append(topbar, banner, board);
+  root.replaceChildren(app);
+  state.refs = { board, banner, boardSelect, projectSelect, projectChip, stoppedChip, settingsButton, searchInput, labelFilters, openButton };
+  setBanner(state.bannerText);
+};
+
+const buildPanel = () => {
+  const app = el('div', 'app panel-app');
+  const topbar = el('div', 'topbar panel-topbar');
+  const brand = el('div', 'brand');
+  brand.append(el('span', 'brand-dot'), el('span', '', 'Kanban'));
+
+  const boardSelect = menuSelect({
+    ariaLabel: 'Tablero',
+    onChange: (value) => void switchBoard(value),
+  });
+
+  const projectSelect = menuSelect({
+    ariaLabel: 'Proyecto del tablero',
+    onChange: (value) => void changeBoardProject(value),
+  });
+
+  const projectChip = el('button', 'project-chip');
+  projectChip.type = 'button';
+  projectChip.title = 'Cambiar delegación manual o automática';
+  projectChip.addEventListener('click', () => {
+    const mapping = state.snapshot?.project;
+    if (!mapping) {
+      openSettings();
+      return;
+    }
+    void changeAutoMode(mapping.autoSession !== true);
+  });
+
+  const stoppedChip = el('button', 'quick-filter');
+  stoppedChip.type = 'button';
+  stoppedChip.title = 'Ver solo tarjetas en progreso sin sesión o con la sesión parada';
+  stoppedChip.addEventListener('click', () => toggleStopped());
+
+  const settingsButton = el('button', 'icon-btn');
+  settingsButton.type = 'button';
+  settingsButton.title = 'Ajustes de Kanban';
+  settingsButton.setAttribute('aria-label', 'Ajustes de Kanban');
+  settingsButton.append(makeIcon('settings'));
+  settingsButton.addEventListener('click', () => openSettings());
+
+  const spacer = el('div', 'toolbar-spacer');
+
+  const openButton = el('button', 'icon-btn');
+  openButton.type = 'button';
+  openButton.title = 'Abrir en Planka';
+  openButton.setAttribute('aria-label', 'Abrir en Planka');
+  openButton.append(makeIcon('external'));
+  openButton.addEventListener('click', () => {
+    const url = state.snapshot?.board?.url;
+    if (url) host.openUrl(url).catch(() => {});
+  });
+
+  topbar.append(brand, spacer, openButton, settingsButton);
+
+  const selectorRow = el('div', 'selector-row');
+  selectorRow.append(
+    labeledField('Proyecto', projectSelect.wrap),
+    labeledField('Tablero', boardSelect.wrap),
+  );
+
+  const delegationRow = el('div', 'delegation-row');
+  delegationRow.append(projectChip, stoppedChip);
+
+  const banner = el('div', 'banner');
+  banner.hidden = true;
+  banner.setAttribute('role', 'status');
+
+  const board = el('div', 'board panel-board');
+  app.append(topbar, selectorRow, delegationRow, banner, board);
+  root.replaceChildren(app);
+  state.refs = { board, banner, boardSelect, projectSelect, projectChip, stoppedChip, settingsButton, openButton };
+  setBanner(state.bannerText);
+};
+
+const syncStoppedChip = () => {
+  const chip = state.refs?.stoppedChip;
+  if (!chip) return;
+  const workList = state.snapshot?.lists?.find((list) => list.id === state.snapshot?.workListId);
+  const count = workList ? workList.cards.filter(isStoppedCard).length : 0;
+  chip.replaceChildren(el('span', '', 'Paradas'), el('span', 'quick-filter-count', String(count)));
+  chip.setAttribute('aria-pressed', state.stoppedOnly ? 'true' : 'false');
+  chip.title = count
+    ? `${count} tarjeta${count === 1 ? '' : 's'} en progreso sin sesión o parada${count === 1 ? '' : 's'}`
+    : 'No hay tarjetas paradas en progreso';
+};
+
+const toggleStopped = () => {
+  state.stoppedOnly = !state.stoppedOnly;
+  if (state.surface === 'page') renderFilters();
+  syncStoppedChip();
+  renderBoard();
+};
+
+const changeAutoMode = async (enabled) => {
+  const snapshot = state.snapshot;
+  const mapping = snapshot?.project;
+  if (!snapshot || !mapping) {
+    renderAll();
+    return;
+  }
+  try {
+    const answer = await api('POST', '/mapping', {
+      boardId: snapshot.board.id,
+      projectId: mapping.projectId,
+      directory: mapping.directory,
+      name: mapping.name,
+      autoSession: Boolean(enabled),
+    });
+    state.snapshot.project = answer.project || mapping;
+    toast('success', enabled ? 'Delegación automática activada.' : 'Delegación manual: usa Crear sesión en la tarjeta.');
+  } catch (error) {
+    toast('error', error.message);
+  }
+  renderAll();
+  reopenSettings();
+};
+
+const reopenSettings = () => {
+  if (!state.settings) return;
+  closeSettings(true);
+  openSettings();
+};
+
+const closeSettings = (force = false) => {
+  const settings = state.settings;
+  if (!settings) return;
+  if (!force && state.settingsDirty) state.settingsDirty = false;
+  settings.backdrop.remove();
+  settings.sheet.remove();
+  state.settings = null;
+};
+
+const openSettings = () => {
+  if (state.settings) closeSettings(true);
+  const snapshot = state.snapshot;
+  if (!snapshot) return;
+  const config = state.config || {};
+  const mapping = snapshot.project || null;
+
+  const backdrop = el('div', 'sheet-backdrop open');
+  const sheet = el('aside', 'sheet settings-sheet open');
+  sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-modal', 'true');
+  sheet.setAttribute('aria-label', 'Ajustes de Kanban');
+
+  const head = el('div', 'sheet-head');
+  const title = el('div', 'settings-title', 'Ajustes de Kanban');
+  const close = el('button', 'icon-btn');
+  close.type = 'button';
+  close.title = 'Cerrar';
+  close.setAttribute('aria-label', 'Cerrar ajustes');
+  close.append(makeIcon('close'));
+  head.append(title, close);
+
+  const scroll = el('div', 'sheet-scroll settings-scroll');
+
+  /* Conexión */
+  const conexion = el('section', 'settings-section');
+  conexion.append(el('div', 'settings-heading', 'Conexión'));
+  const connRow = el('div', 'settings-line');
+  const connDot = el('span', 'col-dot');
+  connDot.style.setProperty('--dot', config.connected ? 'var(--oc-success)' : 'var(--oc-error)');
+  connRow.append(connDot, el('span', 'settings-line-text', config.connected ? `${config.email || 'Planka'} en ${config.baseUrl || 'Planka'}` : 'Sin conexión con Planka'));
+  conexion.append(connRow);
+  const connActions = el('div', 'settings-actions');
+  const openPlanka = el('button', 'ghost-btn', 'Abrir Planka');
+  openPlanka.type = 'button';
+  openPlanka.addEventListener('click', () => {
+    const url = snapshot.board?.url || config.baseUrl || 'http://127.0.0.1:3040';
+    host.openUrl(url).catch(() => {});
+  });
+  const logout = el('button', 'ghost-btn', 'Desconectar');
+  logout.type = 'button';
+  logout.addEventListener('click', async () => {
+    try {
+      await api('POST', '/logout');
+      state.config = { ...config, connected: false };
+      toast('success', 'Kanban desconectado de Planka.');
+      closeSettings(true);
+      await boot();
+    } catch (error) {
+      toast('error', error.message);
+    }
+  });
+  connActions.append(openPlanka, logout);
+  conexion.append(connActions);
+
+  /* Tablero y proyecto */
+  const tablero = el('section', 'settings-section');
+  tablero.append(el('div', 'settings-heading', 'Tablero y proyecto'));
+  const projectField = el('label', 'field');
+  projectField.append(el('span', '', 'Proyecto de OpenChamber'));
+  const projectSelect = el('select', 'settings-select');
+  projectSelect.append(new Option('Sin proyecto (solo vista del tablero)', ''));
+  for (const project of state.projects) projectSelect.append(new Option(project.name, project.id));
+  if (mapping && !state.projects.some((project) => project.id === mapping.projectId)) {
+    projectSelect.append(new Option(mapping.name, mapping.projectId));
+  }
+  projectSelect.value = mapping?.projectId || '';
+  projectSelect.addEventListener('change', () => void changeBoardProject(projectSelect.value));
+  projectField.append(projectSelect);
+  tablero.append(projectField);
+  tablero.append(el('p', 'settings-note', mapping
+    ? `Las sesiones de este tablero se crean en ${mapping.name}.`
+    : 'Sin proyecto no se pueden crear sesiones desde el Kanban.'));
+
+  /* Delegación */
+  const delegacion = el('section', 'settings-section');
+  delegacion.append(el('div', 'settings-heading', 'Delegación'));
+  delegacion.append(el('p', 'settings-note', 'Decide si el agente abre la sesión solo o si la abres tú. No da acceso a otras personas: eso se gestiona en Planka.'));
+  const modes = el('div', 'settings-modes');
+  const modeCard = (label, description, active, enabled) => {
+    const button = el('button', 'mode-card');
+    button.type = 'button';
+    button.disabled = !enabled;
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    button.append(el('span', 'mode-card-title', label), el('span', 'mode-card-text', description));
+    return button;
+  };
+  const manualCard = modeCard('Manual', 'Tú decides: Empezar mueve la tarjeta; la sesión la creas desde la tarjeta.', mapping?.autoSession !== true, Boolean(mapping));
+  const autoCard = modeCard('Automática', 'Al pasar a EN PROGRESO se crea y abre la sesión.', mapping?.autoSession === true, Boolean(mapping));
+  manualCard.addEventListener('click', () => { if (mapping?.autoSession === true) void changeAutoMode(false); });
+  autoCard.addEventListener('click', () => { if (mapping?.autoSession !== true) void changeAutoMode(true); });
+  modes.append(manualCard, autoCard);
+  delegacion.append(modes);
+  if (!mapping) delegacion.append(el('p', 'settings-note warning', 'Asigna primero un proyecto al tablero.'));
+
+  /* Colores */
+  const colores = el('section', 'settings-section');
+  colores.append(el('div', 'settings-heading', 'Colores'));
+  colores.append(el('p', 'settings-note', 'Colores de las columnas y de las tarjetas. «Tema» vuelve al color del tema del host.'));
+  const colorList = el('div', 'color-list');
+  const addColorRow = (label, value, fallback, onChange, onReset) => {
+    const row = el('div', 'color-row');
+    row.append(el('span', 'color-label', label));
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.className = 'color-input';
+    input.value = value || fallback || '#888888';
+    input.setAttribute('aria-label', `Color de ${label}`);
+    input.addEventListener('change', () => onChange(input.value));
+    const reset = el('button', 'ghost-btn color-reset', 'Tema');
+    reset.type = 'button';
+    reset.addEventListener('click', () => {
+      onReset();
+      input.value = fallback || '#888888';
+    });
+    row.append(input, reset);
+    colorList.append(row);
+  };
+  const lists = state.snapshot?.lists || [];
+  const names = ['IDEAS', 'EN PROGRESO', 'HECHO'];
+  const currentColumns = state.appearance.columns.slice();
+  for (let index = 0; index < 3; index += 1) {
+    const fallback = defaultColumnHex(index);
+    addColorRow(
+      lists[index]?.name || names[index],
+      currentColumns[index] || '',
+      fallback,
+      (value) => {
+        const columns = state.appearance.columns.slice();
+        columns[index] = value;
+        void saveAppearance({ columns });
+      },
+      () => {
+        const columns = state.appearance.columns.slice();
+        columns[index] = '';
+        void saveAppearance({ columns });
+      },
+    );
+  }
+  addColorRow(
+    'Tarjetas',
+    state.appearance.card || '',
+    themeColorHex('--oc-elevated') || '#888888',
+    (value) => void saveAppearance({ card: value }),
+    () => void saveAppearance({ card: '' }),
+  );
+  colores.append(colorList);
+  const resetColors = el('button', 'ghost-btn', 'Restablecer colores');
+  resetColors.type = 'button';
+  resetColors.addEventListener('click', () => {
+    void saveAppearance({ columns: ['', '', ''], card: '' });
+    reopenSettings();
+  });
+  colores.append(resetColors);
+
+  /* Sesiones */
+  const sesiones = el('section', 'settings-section');
+  sesiones.append(el('div', 'settings-heading', 'Sesiones'));
+  sesiones.append(el('p', 'settings-note', 'Al pasar una tarjeta a HECHO, la sesión enlazada recibe el cierre, guarda el resumen en Engram y se detiene. El vínculo se borra: si vuelves a mover la tarjeta a EN PROGRESO se crea una sesión nueva, sin mezclar contexto viejo. La sesión detenida queda en la lista para que la archives.'));
+
+  /* Avanzado */
+  const avanzado = el('section', 'settings-section');
+  avanzado.append(el('div', 'settings-heading', 'Avanzado'));
+  avanzado.append(el('p', 'settings-note', 'MCP de Kanban: crear, mover, completar y enlazar tarjetas desde el agente. Tras actualizar la extensión, reinicia OpenCode para que el agente use la versión nueva.'));
+
+  scroll.append(conexion, tablero, delegacion, colores, sesiones, avanzado);
+
+  const foot = el('div', 'sheet-foot settings-foot');
+  const done = el('button', 'btn-mint', 'Listo');
+  done.type = 'button';
+  done.addEventListener('click', () => closeSettings(true));
+  foot.append(el('span', 'settings-foot-text', 'Los cambios se guardan al elegirlos.'), done);
+
+  sheet.append(head, scroll, foot);
+  close.addEventListener('click', () => closeSettings(true));
+  backdrop.addEventListener('click', () => closeSettings(true));
+  root.append(backdrop, sheet);
+  state.settings = { backdrop, sheet };
+};
+
+const switchBoard = async (boardId) => {
+  if (!boardId) return;
+  const previous = state.snapshot?.board?.id;
+  if (boardId === previous) return;
+  try {
+    const snapshot = await api('POST', '/board', { boardId });
+    state.snapshot = snapshot;
+    state.config = { ...state.config, boardId, boardName: snapshot.board.name };
+    renderAll();
+  } catch (error) {
+    if (error.kind === 'service') {
+      await sleep(900);
+      try {
+        const config = await api('GET', '/config');
+        state.config = config;
+        state.boards = config.boards || [];
+        state.snapshot = await api('GET', '/snapshot?fresh=1');
+        renderAll();
+        return;
+      } catch {
+        // Fall through.
+      }
+    }
+    toast('error', error.message);
+    renderAll();
+  }
+};
+
+/* ------------------------------------------------------------------ */
+/* Board rendering                                                     */
+/* ------------------------------------------------------------------ */
+
+const renderAll = () => {
+  if (state.view !== 'board') return;
+  syncBoardOptions();
+  syncProjectSelect();
+  syncProjectChip();
+  syncStoppedChip();
+  if (state.surface === 'page') renderFilters();
+  renderBoard();
+};
+
+const renderFilters = () => {
+  const holder = state.refs?.labelFilters;
+  if (!holder) return;
+  holder.replaceChildren();
+  const labels = state.snapshot?.labels || [];
+  holder.hidden = labels.length === 0;
+  for (const label of labels) {
+    const chip = el('button', 'label-chip');
+    chip.type = 'button';
+    chip.style.setProperty('--label', labelColor(label.color || label.name));
+    chip.setAttribute('aria-pressed', state.labels.has(label.id) ? 'true' : 'false');
+    const dot = el('span', 'label-dot');
+    chip.append(dot, el('span', '', label.name));
+    chip.addEventListener('click', () => {
+      if (state.labels.has(label.id)) state.labels.delete(label.id);
+      else state.labels.add(label.id);
+      renderFilters();
+      renderBoard();
+    });
+    holder.append(chip);
+  }
+};
+
+const buildCard = (card, listIndex) => {
+  const node = el('article', 'card');
+  node.tabIndex = 0;
+  node.draggable = !state.search.trim() && state.labels.size === 0;
+  node.dataset.cardId = card.id;
+  node.setAttribute('role', 'button');
+  node.setAttribute('aria-label', `${card.name}. Abrir tarjeta`);
+
+  const actions = el('div', 'card-actions');
+  node.append(actions);
+
+  const title = el('div', 'card-title', card.name || 'Sin título');
+  node.append(title);
+
+  if (card.description.trim()) node.append(el('div', 'card-desc', card.description));
+
+  const meta = el('div', 'card-meta');
+  const sessionState = state.sessions?.[card.id];
+  if (sessionState) {
+    const dot = el('span', 'session-dot');
+    const tone = sessionState.tone === 'success'
+      ? 'var(--oc-success)'
+      : sessionState.tone === 'warning'
+        ? 'var(--oc-warning)'
+        : 'var(--oc-muted)';
+    dot.style.setProperty('--session-tone', tone);
+    dot.title = `Sesión: ${sessionState.state}`;
+    dot.setAttribute('aria-label', `Sesión: ${sessionState.state}`);
+    meta.append(dot);
+  }
+  if (card.labels.length) {
+    const dots = el('div', 'card-labels');
+    for (const label of card.labels) {
+      const dot = el('span', 'label-dot');
+      dot.style.setProperty('--label', labelColor(label.color || label.name));
+      dot.title = label.name;
+      dots.append(dot);
+    }
+    meta.append(dots);
+  }
+  const due = dueInfo(card.dueDate);
+  if (due) {
+    const dueNode = el('span', `due${due.late ? ' late' : ''}`);
+    dueNode.append(makeIcon('calendar'), el('span', '', due.label));
+    meta.append(dueNode);
+  }
+  if (card.checklist.total > 0) {
+    const check = el('span', 'check-mini');
+    const bar = el('span', 'bar');
+    const fill = el('i');
+    fill.style.width = `${Math.round((card.checklist.done / card.checklist.total) * 100)}%`;
+    bar.append(fill);
+    check.append(bar, el('span', '', `${card.checklist.done}/${card.checklist.total}`));
+    meta.append(check);
+  }
+  if (meta.childNodes.length) node.append(meta);
+
+  const edit = el('button', 'card-edit');
+  edit.type = 'button';
+  edit.title = 'Editar tarjeta';
+  edit.setAttribute('aria-label', `Editar ${card.name}`);
+  edit.append(makeIcon('edit'));
+  edit.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openSheet(card.id);
+  });
+
+  const remove = el('button', 'card-delete');
+  remove.type = 'button';
+  remove.title = 'Eliminar tarjeta';
+  remove.setAttribute('aria-label', `Eliminar ${card.name}`);
+  remove.append(makeIcon('trash'));
+  let confirming = false;
+  let confirmTimer = null;
+  remove.addEventListener('click', async (event) => {
+    event.stopPropagation();
+    if (!confirming) {
+      confirming = true;
+      remove.classList.add('confirming');
+      remove.title = 'Pulsa otra vez para eliminar';
+      remove.setAttribute('aria-label', `Confirmar eliminar ${card.name}`);
+      confirmTimer = setTimeout(() => {
+        confirming = false;
+        remove.classList.remove('confirming');
+        remove.title = 'Eliminar tarjeta';
+        remove.setAttribute('aria-label', `Eliminar ${card.name}`);
+      }, 2500);
+      return;
+    }
+    clearTimeout(confirmTimer);
+    remove.disabled = true;
+    void queueDelete(card, node);
+  });
+  actions.append(edit, remove);
+
+  const open = () => openSheet(card.id);
+  node.title = 'Abrir y editar';
+  node.addEventListener('click', open);
+  node.addEventListener('dblclick', (event) => {
+    event.preventDefault();
+    open();
+  });
+  node.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      open();
+    }
+  });
+  node.addEventListener('dragstart', (event) => {
+    state.dragging = true;
+    state.dragId = card.id;
+    node.classList.add('dragging');
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', card.id);
+    }
+  });
+  node.addEventListener('dragend', () => {
+    state.dragging = false;
+    state.dragId = '';
+    node.classList.remove('dragging');
+    clearDropDecorations();
+  });
+
+  return node;
+};
+
+const clearDropDecorations = () => {
+  const board = state.refs?.board;
+  if (!board) return;
+  for (const line of board.querySelectorAll('.drop-line')) line.remove();
+  for (const column of board.querySelectorAll('.column.drop-target')) column.classList.remove('drop-target');
+};
+
+const attachDropTarget = (column, cardsEl, listId) => {
+  const showTopLine = () => {
+    for (const line of cardsEl.querySelectorAll('.drop-line')) line.remove();
+    const line = el('div', 'drop-line');
+    const first = [...cardsEl.querySelectorAll('.card')].find((card) => card.dataset.cardId !== state.dragId);
+    if (first) cardsEl.insertBefore(line, first);
+    else cardsEl.append(line);
+  };
+
+  const onDragOver = (event) => {
+    if (!state.dragId) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    column.classList.add('drop-target');
+    showTopLine();
+  };
+
+  const onDrop = (event) => {
+    if (!state.dragId) return;
+    event.preventDefault();
+    const cardId = state.dragId;
+    clearDropDecorations();
+    state.dragging = false;
+    state.dragId = '';
+    void moveCard(cardId, listId, 0);
+  };
+
+  cardsEl.addEventListener('dragover', onDragOver);
+  cardsEl.addEventListener('drop', onDrop);
+  cardsEl.addEventListener('dragleave', (event) => {
+    if (!cardsEl.contains(event.relatedTarget)) {
+      for (const line of cardsEl.querySelectorAll('.drop-line')) line.remove();
+    }
+  });
+  column.addEventListener('dragover', (event) => {
+    if (event.target.closest('.cards')) return;
+    onDragOver(event);
+  });
+  column.addEventListener('drop', (event) => {
+    if (event.target.closest('.cards')) return;
+    if (!state.dragId) return;
+    event.preventDefault();
+    const cardId = state.dragId;
+    clearDropDecorations();
+    state.dragging = false;
+    state.dragId = '';
+    void moveCard(cardId, listId, 0);
+  });
+  column.addEventListener('dragleave', (event) => {
+    if (!column.contains(event.relatedTarget)) column.classList.remove('drop-target');
+  });
+};
+
+const renderBoard = () => {
+  const board = state.refs?.board;
+  if (!board) return;
+  const snapshot = state.snapshot;
+  const scrollState = new Map();
+  for (const existing of board.querySelectorAll('.column')) {
+    const cards = existing.querySelector('.cards');
+    if (!cards) continue;
+    const overflowing = cards.scrollHeight > cards.clientHeight + 2;
+    scrollState.set(existing.dataset.listId, {
+      top: cards.scrollTop,
+      atBottom: overflowing && cards.scrollHeight - cards.scrollTop - cards.clientHeight <= 2,
+    });
+  }
+  board.replaceChildren();
+  if (!snapshot) return;
+  if (!snapshot.lists.length) {
+    board.append(el('div', 'board-empty', 'Este tablero no tiene columnas activas. Añádelas en Planka.'));
+    return;
+  }
+
+  snapshot.lists.forEach((list, listIndex) => {
+    const column = el('section', 'column');
+    column.dataset.listId = list.id;
+    if (state.composerListId === list.id) column.classList.add('composing');
+
+    const head = el('div', 'col-head');
+    const dot = el('span', 'col-dot');
+    const tone = state.appearance?.columns?.[listIndex] || COLUMN_TOKENS[listIndex % COLUMN_TOKENS.length];
+    dot.style.setProperty('--dot', tone);
+    column.style.setProperty('--column-tone', tone);
+    const name = el('button', 'col-name', list.name);
+    name.type = 'button';
+    name.title = 'Editar nombre de la columna';
+    name.setAttribute('aria-label', `Editar nombre de la columna ${list.name}`);
+    name.addEventListener('click', (event) => {
+      event.stopPropagation();
+      startListRename(column, list, name);
+    });
+    const visible = list.cards.filter((card) => !state.hiddenCards.has(card.id) && matchesFilters(card));
+    const count = el('span', 'col-count', String(visible.length));
+    head.append(dot, name, count);
+
+    const cardsEl = el('div', 'cards');
+    if (!visible.length) {
+      const hint = el('div', 'column-hint', state.search || state.labels.size ? 'Sin coincidencias' : 'Arrastra una tarjeta aquí');
+      cardsEl.append(hint);
+    }
+    for (const card of visible) cardsEl.append(buildCard(card, listIndex));
+
+    const composer = el('div', 'composer');
+    const input = el('input');
+    input.type = 'text';
+    input.placeholder = 'Título y Enter';
+    input.setAttribute('aria-label', `Nueva tarjeta en ${list.name}`);
+    const row = el('div', 'composer-row');
+    const hint = el('span', 'composer-hint', 'Enter guarda · Esc cierra');
+    const cancel = el('button', 'ghost-btn', 'Cancelar');
+    cancel.type = 'button';
+    const create = el('button', 'btn-mint', 'Crear');
+    create.type = 'button';
+    row.append(hint, cancel, create);
+    composer.append(input, row);
+
+    const submitComposer = () => {
+      const value = input.value.trim();
+      if (!value) return;
+      void createCard(list.id, value, input);
+    };
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        submitComposer();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        closeComposer();
+      }
+    });
+    input.addEventListener('input', () => {
+      state.composerListId = list.id;
+    });
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        if (state.composerListId !== list.id) return;
+        const focused = document.activeElement;
+        if (focused && composer.contains(focused)) return;
+        if (!input.value.trim()) closeComposer();
+      }, 120);
+    });
+    cancel.addEventListener('click', () => closeComposer());
+    create.addEventListener('click', submitComposer);
+
+    const addCard = el('button', 'add-card');
+    addCard.type = 'button';
+    addCard.title = `Crear tarjeta en ${list.name}`;
+    addCard.setAttribute('aria-label', `Crear tarjeta en ${list.name}`);
+    addCard.append(makeIcon('plus'));
+    addCard.addEventListener('click', () => openComposer(list.id));
+
+    column.append(head, cardsEl, addCard, composer);
+    attachDropTarget(column, cardsEl, list.id);
+    board.append(column);
+
+    if (state.composerListId === list.id) {
+      setTimeout(() => input.focus(), 0);
+    }
+  });
+
+  for (const column of board.querySelectorAll('.column')) {
+    const saved = scrollState.get(column.dataset.listId);
+    if (!saved) continue;
+    const cards = column.querySelector('.cards');
+    if (!cards) continue;
+    cards.scrollTop = saved.atBottom ? cards.scrollHeight : saved.top;
+  }
+};
+
+
+const startListRename = (column, list, nameButton) => {
+  if (column.querySelector('.col-name-input')) return;
+  const input = el('input', 'col-name-input');
+  input.value = list.name;
+  input.setAttribute('aria-label', 'Nombre de la columna');
+  let finished = false;
+  const finish = async (save) => {
+    if (finished) return;
+    finished = true;
+    const value = input.value.trim();
+    if (!save || !value || value === list.name) {
+      renderBoard();
+      return;
+    }
+    try {
+      await api('PATCH', '/list', { id: list.id, name: value });
+      await refresh(true);
+    } catch (error) {
+      toast('error', error.message);
+      renderBoard();
+    }
+  };
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void finish(true);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      void finish(false);
+    }
+  });
+  input.addEventListener('blur', () => void finish(true));
+  nameButton.replaceWith(input);
+  input.focus();
+  input.select();
+};
+
+const openComposer = (listId) => {
+  state.composerListId = listId;
+  renderBoard();
+};
+
+const closeComposer = () => {
+  state.composerListId = '';
+  renderBoard();
+};
+
+const createCard = async (listId, name, input) => {
+  try {
+    await api('POST', '/card', { listId, name });
+    if (input) input.value = '';
+    await refresh(true);
+  } catch (error) {
+    toast('error', error.message);
+  }
+};
+
+const moveCard = async (cardId, listId, index) => {
+  const found = findCard(cardId);
+  if (!found) return;
+  const target = findList(listId);
+  if (!target) return;
+  const currentIndex = found.list.cards.findIndex((card) => card.id === cardId);
+  if (found.list.id === listId) {
+    const destination = Math.max(0, Math.min(index, found.list.cards.length - 1));
+    if (destination === currentIndex) return;
+  }
+
+  const [card] = found.list.cards.splice(currentIndex, 1);
+  const bounded = Math.max(0, Math.min(index, target.cards.length));
+  target.cards.splice(bounded, 0, { ...card, listId });
+  renderBoard();
+
+  try {
+    const answer = await api('POST', '/card/move', { id: cardId, listId, index: bounded });
+    await refresh(true);
+    if (answer?.sessionId) {
+      toast('success', `Sesión creada en ${answer.project || 'el proyecto del tablero'}.`);
+      try {
+        await host.openSession(answer.sessionId);
+      } catch {
+        toast('error', 'La sesión se creó, pero no se pudo abrir.');
+      }
+    } else if (answer?.manual) {
+      toast('info', 'Delegación manual: abre la tarjeta y pulsa Crear sesión.');
+    } else if (answer?.needsMapping) {
+      toast('error', 'Asigna un proyecto a este tablero para crear la sesión.');
+    } else if (answer?.sessionError) {
+      toast('error', `No se pudo crear la sesión: ${answer.sessionError}`);
+    } else if (answer?.linked) {
+      toast('success', 'Sesión enlazada: se cerrará al guardar Engram.');
+    }
+  } catch (error) {
+    toast('error', error.message);
+    await refresh(true);
+  }
+};
+
+const completeCard = async (cardId, node) => {
+  const card = findCard(cardId)?.card;
+  if (node) node.classList.add('leaving');
+  try {
+    const result = await api('POST', '/card/complete', { id: cardId });
+    toast('success', result.already ? 'Ya estaba en HECHO.' : `«${card?.name || 'Tarjeta'}» movida a HECHO.`);
+    if (result.linked) toast('success', 'Sesión enlazada: se cerrará al guardar Engram.');
+    await refresh(true);
+  } catch (error) {
+    toast('error', error.message);
+    await refresh(true);
+  }
+};
+
+const renderBoardOnly = () => {
+  if (state.view === 'board') renderBoard();
+};
+
+/* ------------------------------------------------------------------ */
+/* Sheet                                                               */
+/* ------------------------------------------------------------------ */
+
+const buildSheet = (card) => {
+  const backdrop = el('div', 'sheet-backdrop');
+  const sheet = el('aside', 'sheet');
+  sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-modal', 'true');
+  sheet.setAttribute('aria-label', `Tarjeta ${card.name}`);
+
+  const head = el('div', 'sheet-head');
+  const title = el('input', 'sheet-title');
+  title.type = 'text';
+  title.value = card.name;
+  title.setAttribute('aria-label', 'Título');
+  const close = el('button', 'icon-btn');
+  close.type = 'button';
+  close.title = 'Cerrar';
+  close.setAttribute('aria-label', 'Cerrar');
+  close.append(makeIcon('close'));
+  head.append(title, close);
+
+  const scroll = el('div', 'sheet-scroll');
+
+  const labelsSection = el('div');
+  labelsSection.append(el('span', 'section-label', 'Etiquetas'));
+  const labels = el('div', 'sheet-labels');
+  labelsSection.append(labels);
+
+  const sessionSection = el('div', 'sheet-session-section');
+  sessionSection.append(el('span', 'section-label', 'Sesión'));
+  const sessionRow = el('div', 'sheet-session');
+  const sessionSelect = el('select', 'session-select');
+  sessionSelect.setAttribute('aria-label', 'Sesión enlazada a la tarjeta');
+  const sessionRemove = el('button', 'ghost-btn', 'Quitar');
+  sessionRemove.type = 'button';
+  sessionRemove.style.display = 'none';
+  const sessionStart = el('button', 'btn-mint session-start', 'Crear sesión');
+  sessionStart.type = 'button';
+  sessionStart.style.display = 'none';
+  const sessionOpen = el('button', 'btn-mint session-open', 'Abrir sesión');
+  sessionOpen.type = 'button';
+  sessionOpen.style.display = 'none';
+  const sessionNote = el('div', 'session-note', 'Cargando sesiones…');
+  sessionRow.append(sessionSelect, sessionRemove);
+  sessionSection.append(sessionRow, sessionStart, sessionOpen, sessionNote);
+
+  const grid = el('div', 'sheet-grid');
+  const dateField = el('label', 'field');
+  dateField.append(el('span', '', 'Fecha'));
+  const date = el('input');
+  date.type = 'date';
+  date.value = toDateInput(card.dueDate);
+  dateField.append(date);
+  const columnField = el('label', 'field');
+  columnField.append(el('span', '', 'Columna'));
+  const column = el('select');
+  for (const list of state.snapshot?.lists || []) {
+    column.append(new Option(list.name, list.id));
+  }
+  column.value = card.listId;
+  columnField.append(column);
+  grid.append(dateField, columnField);
+
+  const checklistSection = el('div', 'checklist');
+  const checklistHead = el('div', 'checklist-head');
+  checklistHead.append(el('span', 'section-label', 'Checklist'));
+  const progress = el('div', 'progress');
+  const progressFill = el('i');
+  progress.append(progressFill);
+  const countLabel = el('span', 'count', '');
+  checklistHead.append(progress, countLabel);
+  const checklistBody = el('div');
+  checklistBody.style.display = 'flex';
+  checklistBody.style.flexDirection = 'column';
+  checklistBody.style.gap = '10px';
+  const checklistAdd = el('div', 'task-add');
+  const checklistName = el('input');
+  checklistName.placeholder = 'Nueva checklist';
+  const checklistButton = el('button', '', 'Añadir');
+  checklistButton.type = 'button';
+  checklistAdd.append(checklistName, checklistButton);
+  checklistSection.append(checklistHead, checklistBody, checklistAdd);
+
+  const descriptionSection = el('div');
+  descriptionSection.append(el('span', 'section-label', 'Descripción'));
+  const description = el('textarea', 'description');
+  description.value = card.description;
+  description.placeholder = 'Añade una descripción…';
+  descriptionSection.append(description);
+
+  scroll.append(labelsSection, sessionSection, grid, checklistSection, descriptionSection);
+
+  const foot = el('div', 'sheet-foot');
+  const saveState = el('span', 'save-state', '');
+  const complete = el('button', 'btn-complete');
+  complete.type = 'button';
+  complete.append(makeIcon('check'), el('span', '', card.listId === state.snapshot?.doneListId ? 'Completada' : 'Completar'));
+  complete.disabled = card.listId === state.snapshot?.doneListId;
+  foot.append(saveState, complete);
+
+  sheet.append(head, scroll, foot);
+
+  const session = {
+    card,
+    backdrop,
+    sheet,
+    title,
+    date,
+    column,
+    labels,
+    checklistBody,
+    progressFill,
+    countLabel,
+    checklistName,
+    description,
+    saveState,
+    complete,
+    sessionSelect,
+    sessionRemove,
+    sessionStart,
+    sessionOpen,
+    sessionNote,
+    link: null,
+    sessions: [],
+    pending: new Set(),
+    timer: null,
+  };
+  state.sheet = session;
+
+  title.addEventListener('input', () => {
+    session.card.name = title.value;
+    session.pending.add('name');
+    scheduleSave();
+  });
+  title.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      title.blur();
+    }
+  });
+  title.addEventListener('blur', () => {
+    if (!title.value.trim()) {
+      title.value = session.card.name || 'Sin título';
+    }
+  });
+
+  description.addEventListener('input', () => {
+    session.card.description = description.value;
+    session.pending.add('description');
+    scheduleSave();
+  });
+
+  date.addEventListener('change', () => {
+    session.card.dueDate = date.value ? `${date.value}T12:00:00` : '';
+    session.pending.add('dueDate');
+    scheduleSave();
+  });
+
+  column.addEventListener('change', () => {
+    session.card.listId = column.value;
+    session.pending.add('listId');
+    scheduleSave();
+  });
+
+  const toggleLabel = async (labelId) => {
+    try {
+      await api('POST', '/label', { cardId: session.card.id, labelId });
+      await rereadSheet();
+    } catch (error) {
+      toast('error', error.message);
+    }
+  };
+
+  const addTask = async (taskListId, input) => {
+    const name = input.value.trim();
+    if (!name) return;
+    try {
+      await api('POST', '/task', { taskListId, name });
+      input.value = '';
+      await rereadSheet();
+    } catch (error) {
+      toast('error', error.message);
+    }
+  };
+
+  const checkTask = async (task) => {
+    try {
+      await api('PATCH', '/task', { id: task.id, isCompleted: !task.isCompleted });
+      await rereadSheet();
+    } catch (error) {
+      toast('error', error.message);
+    }
+  };
+
+  const addChecklist = async () => {
+    const name = checklistName.value.trim() || 'Checklist';
+    try {
+      await api('POST', '/checklist', { cardId: session.card.id, name });
+      checklistName.value = '';
+      await rereadSheet();
+    } catch (error) {
+      toast('error', error.message);
+    }
+  };
+
+  checklistButton.addEventListener('click', () => void addChecklist());
+  checklistName.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void addChecklist();
+    }
+  });
+
+  session.renderLabels = () => {
+    const current = new Map(session.card.labels.map((label) => [label.id, label]));
+    labels.replaceChildren();
+    for (const label of state.snapshot?.labels || []) {
+      const chip = el('button', 'label-chip');
+      chip.type = 'button';
+      chip.style.setProperty('--label', labelColor(label.color || label.name));
+      chip.setAttribute('aria-pressed', current.has(label.id) ? 'true' : 'false');
+      chip.append(el('span', 'label-dot'), el('span', '', label.name));
+      chip.addEventListener('click', () => void toggleLabel(label.id));
+      labels.append(chip);
+    }
+    if (!(state.snapshot?.labels || []).length) labels.append(el('span', 'compact-empty', 'Este tablero no tiene etiquetas.'));
+  };
+
+  session.renderChecklist = () => {
+    const taskLists = session.card.taskLists || [];
+    const total = taskLists.reduce((sum, taskList) => sum + taskList.tasks.length, 0);
+    const done = taskLists.reduce(
+      (sum, taskList) => sum + taskList.tasks.filter((task) => task.isCompleted).length,
+      0,
+    );
+    session.progressFill.style.width = `${total ? Math.round((done / total) * 100) : 0}%`;
+    session.countLabel.textContent = total ? `${done}/${total}` : '0/0';
+    checklistBody.replaceChildren();
+    if (!taskLists.length) {
+      checklistBody.append(el('div', 'compact-empty', 'Sin checklist.'));
+      return;
+    }
+    for (const taskList of taskLists) {
+      const block = el('div', 'task-list');
+      block.append(el('div', 'task-list-name', taskList.name));
+      for (const task of taskList.tasks) {
+        const row = el('div', `task-row${task.isCompleted ? ' done' : ''}`);
+        const check = el('button', 'task-check');
+        check.type = 'button';
+        check.setAttribute('role', 'checkbox');
+        check.setAttribute('aria-checked', task.isCompleted ? 'true' : 'false');
+        check.setAttribute('aria-label', task.name);
+        check.append(makeIcon('check'));
+        check.addEventListener('click', () => void checkTask(task));
+        row.append(check, el('span', 'task-name', task.name));
+        block.append(row);
+      }
+      const add = el('div', 'task-add');
+      const input = el('input');
+      input.placeholder = 'Añadir tarea';
+      input.setAttribute('aria-label', `Añadir tarea a ${taskList.name}`);
+      const button = el('button', '', 'Añadir');
+      button.type = 'button';
+      button.addEventListener('click', () => void addTask(taskList.id, input));
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          void addTask(taskList.id, input);
+        }
+      });
+      add.append(input, button);
+      block.append(add);
+      checklistBody.append(block);
+    }
+  };
+
+  session.renderLabels();
+  session.renderChecklist();
+
+  close.addEventListener('click', () => void closeSheet());
+  backdrop.addEventListener('click', () => void closeSheet());
+  complete.addEventListener('click', () => void completeFromSheet());
+
+  root.append(backdrop, sheet);
+  void loadSessionBlock(session);
+  requestAnimationFrame(() => {
+    backdrop.classList.add('open');
+    sheet.classList.add('open');
+    title.focus();
+    title.setSelectionRange(title.value.length, title.value.length);
+  });
+
+  return session;
+};
+
+const loadSessionBlock = async (session) => {
+  if (!session) return;
+  let link = null;
+  try {
+    const answer = await api('GET', `/link?cardId=${encodeURIComponent(session.card.id)}`);
+    link = answer.link || null;
+  } catch {
+    link = null;
+  }
+  if (state.sheet !== session) return;
+  session.link = link;
+
+  const mapping = state.snapshot?.project || null;
+  const options = [{ id: '', title: 'Sin sesión', activity: '' }];
+  const add = (id, title, activity = '') => {
+    if (!id || options.some((option) => option.id === id)) return;
+    options.push({ id, title: title || id, activity });
+  };
+
+  if (state.session?.id) add(state.session.id, state.session.title || 'Esta sesión', '');
+  if (mapping?.projectId) {
+    try {
+      const snapshot = await host.listSessions(mapping.projectId);
+      const sessions = (snapshot?.sessions || [])
+        .filter((entry) => !entry.archivedAt)
+        .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))
+        .slice(0, 30);
+      for (const entry of sessions) add(entry.id, entry.title || entry.id, entry.activity || '');
+    } catch {
+      // The current session is still offered.
+    }
+  }
+  if (link?.sessionId) add(link.sessionId, link.sessionTitle || link.title || link.sessionId, '');
+  if (state.sheet !== session) return;
+
+  session.sessions = options;
+  session.sessionSelect.replaceChildren();
+  for (const option of options) {
+    const label = option.title.length > 60 ? `${option.title.slice(0, 59)}…` : option.title;
+    const suffix = option.activity === 'running' ? ' · trabajando' : '';
+    session.sessionSelect.append(new Option(`${label}${suffix}`, option.id));
+  }
+  const isDone = session.card.listId === state.snapshot?.doneListId;
+  session.sessionSelect.value = link?.sessionId || '';
+  session.sessionRemove.style.display = link ? '' : 'none';
+  session.sessionStart.style.display = !link && mapping && !isDone ? '' : 'none';
+  session.sessionStart.textContent = mapping ? `Crear sesión en ${mapping.name}` : 'Crear sesión';
+  session.sessionOpen.style.display = link ? '' : 'none';
+  session.sessionStart.onclick = async () => {
+    try {
+      const answer = await api('POST', '/session/start', { cardId: session.card.id });
+      toast('success', `Sesión creada en ${answer.project || mapping?.name || 'el proyecto'}.`);
+      if (answer.sessionId) {
+        try {
+          await host.openSession(answer.sessionId);
+        } catch {
+          toast('error', 'La sesión se creó, pero no se pudo abrir.');
+        }
+      }
+    } catch (error) {
+      toast('error', error.message);
+    }
+  };
+  session.sessionOpen.onclick = async () => {
+    if (!link?.sessionId) return;
+    try {
+      await host.openSession(link.sessionId);
+      await closeSheet(true);
+    } catch {
+      toast('error', 'No se pudo abrir la sesión enlazada.');
+    }
+  };
+  session.sessionNote.textContent = link
+    ? 'Sesión enlazada. Al pasar la tarjeta a HECHO se cerrará esta sesión.'
+    : isDone
+      ? 'Tarjeta completada. Sin sesión enlazada.'
+      : mapping
+        ? 'Sin sesión enlazada. Si ya tienes una abierta para esta tarjeta, selecciónala aquí.'
+        : 'Sin proyecto asignado al tablero. Puedes enlazar la sesión actual.';
+
+  session.sessionSelect.onchange = async () => {
+    const value = session.sessionSelect.value;
+    try {
+      if (!value) {
+        await api('DELETE', '/link', { cardId: session.card.id });
+        toast('success', 'Sesión desvinculada.');
+      } else {
+        const chosen = session.sessions.find((option) => option.id === value);
+        const answer = await api('POST', '/link', {
+          cardId: session.card.id,
+          sessionId: value,
+          sessionTitle: chosen?.title || '',
+        });
+        session.link = answer.link || null;
+        toast('success', 'Sesión vinculada a la tarjeta.');
+      }
+    } catch (error) {
+      toast('error', error.message);
+    }
+    await loadSessionBlock(session);
+  };
+
+  session.sessionRemove.onclick = async () => {
+    try {
+      await api('DELETE', '/link', { cardId: session.card.id });
+      toast('success', 'Sesión desvinculada.');
+    } catch (error) {
+      toast('error', error.message);
+    }
+    await loadSessionBlock(session);
+  };
+};
+
+const openSheet = (cardId) => {
+  const found = findCard(cardId);
+  if (!found) return;
+  if (state.sheet) {
+    removeSheetNodes();
+    state.sheet = null;
+  }
+  state.sheetId = cardId;
+  buildSheet(found.card);
+};
+
+const removeSheetNodes = () => {
+  const session = state.sheet;
+  if (!session) return;
+  session.backdrop.remove();
+  session.sheet.remove();
+};
+
+const closeSheet = async (force = false) => {
+  const session = state.sheet;
+  if (!session) {
+    state.sheetId = '';
+    return;
+  }
+  if (session.timer) clearTimeout(session.timer);
+  if (!force && session.pending.size) {
+    try {
+      await saveSheet();
+    } catch {
+      // The visible error already told the user.
+    }
+  }
+  removeSheetNodes();
+  state.sheet = null;
+  state.sheetId = '';
+  renderBoardOnly();
+};
+
+const scheduleSave = () => {
+  const session = state.sheet;
+  if (!session) return;
+  if (session.timer) clearTimeout(session.timer);
+  session.timer = setTimeout(() => {
+    session.timer = null;
+    void saveSheet();
+  }, SAVE_DEBOUNCE_MS);
+};
+
+const setSaveState = (text, kind = '') => {
+  const node = state.sheet?.saveState;
+  if (!node) return;
+  node.textContent = text;
+  node.className = `save-state${kind ? ` ${kind}` : ''}`;
+};
+
+const saveSheet = async () => {
+  const session = state.sheet;
+  if (!session) return;
+  const fields = [...session.pending];
+  if (!fields.length) return;
+  session.pending.clear();
+  const card = session.card;
+  const payload = { id: card.id };
+  if (fields.includes('name')) payload.name = session.title.value;
+  if (fields.includes('description')) payload.description = session.description.value;
+  if (fields.includes('dueDate')) payload.dueDate = session.date.value;
+  if (fields.includes('listId')) payload.listId = session.column.value;
+
+  state.saving += 1;
+  setSaveState('Guardando…');
+  try {
+    await api('PATCH', '/card', payload);
+    const answer = await api('GET', `/card?id=${encodeURIComponent(card.id)}`);
+    applyServerCard(answer.card);
+    setSaveState('Guardado');
+    await refreshBoardOnly();
+  } catch (error) {
+    setSaveState(error.message, 'error');
+    toast('error', error.message);
+    try {
+      const answer = await api('GET', `/card?id=${encodeURIComponent(card.id)}`);
+      applyServerCard(answer.card);
+    } catch {
+      await closeSheet(true);
+    }
+  } finally {
+    state.saving -= 1;
+    if (state.sheet?.pending.size) scheduleSave();
+  }
+};
+
+const rereadSheet = async (silent = false) => {
+  const session = state.sheet;
+  if (!session) return;
+  try {
+    const answer = await api('GET', `/card?id=${encodeURIComponent(session.card.id)}`);
+    applyServerCard(answer.card);
+    if (!silent) setSaveState('Guardado');
+    await refreshBoardOnly();
+  } catch (error) {
+    if (!silent) {
+      setSaveState(error.message, 'error');
+      toast('error', error.message);
+    }
+    if (error.kind === 'not-found') await closeSheet(true);
+  }
+};
+
+const applyServerCard = (server) => {
+  const session = state.sheet;
+  if (!session || server.id !== session.card.id) return;
+  session.card = server;
+  mergeCard(server);
+
+  const pending = session.pending;
+  if (!pending.has('name') && document.activeElement !== session.title) {
+    session.title.value = server.name;
+  }
+  if (!pending.has('description') && document.activeElement !== session.description) {
+    session.description.value = server.description;
+  }
+  if (!pending.has('dueDate')) session.date.value = toDateInput(server.dueDate);
+  if (!pending.has('listId')) session.column.value = server.listId;
+  session.renderLabels();
+  session.renderChecklist();
+
+  const done = server.listId === state.snapshot?.doneListId;
+  session.complete.disabled = done;
+  session.complete.lastChild.textContent = done ? 'Completada' : 'Completar';
+};
+
+const completeFromSheet = async () => {
+  const session = state.sheet;
+  if (!session) return;
+  const id = session.card.id;
+  const cardNode = state.refs?.board?.querySelector(`[data-card-id="${CSS.escape(id)}"]`);
+  if (cardNode) cardNode.classList.add('leaving');
+  session.sheet.classList.add('closing');
+  session.backdrop.classList.remove('open');
+  const name = session.card.name;
+  const backdrop = session.backdrop;
+  const sheetNode = session.sheet;
+  setTimeout(() => {
+    backdrop.remove();
+    sheetNode.remove();
+  }, 220);
+  state.sheet = null;
+  state.sheetId = '';
+  try {
+    const result = await api('POST', '/card/complete', { id });
+    toast('success', result.already ? 'Ya estaba en HECHO.' : `«${name}» movida a HECHO.`);
+  } catch (error) {
+    toast('error', error.message);
+  }
+  await refresh(true);
+};
+
+/* ------------------------------------------------------------------ */
+/* Refresh loop                                                        */
+/* ------------------------------------------------------------------ */
+
+const refresh = async (silent = false) => {
+  if (state.fetching || state.view !== 'board') return;
+  state.fetching = true;
+  try {
+    const [snapshot] = await Promise.all([
+      api('GET', '/snapshot'),
+      loadSessionStates(),
+    ]);
+    state.snapshot = snapshot;
+    setBanner('');
+    renderAll();
+  } catch (error) {
+    if (error.kind === 'not-configured' || error.kind === 'auth') {
+      showLogin(error.message);
+      return;
+    }
+    if (!silent) toast('error', error.message);
+    setBanner(error.message);
+  } finally {
+    state.fetching = false;
+  }
+};
+
+const refreshBoardOnly = async () => {
+  if (state.view !== 'board') return;
+  try {
+    const [snapshot] = await Promise.all([
+      api('GET', '/snapshot'),
+      loadSessionStates(),
+    ]);
+    state.snapshot = snapshot;
+    setBanner('');
+    renderAll();
+  } catch {
+    // The sheet keeps working from the last read.
+  }
+};
+
+const startPolling = () => {
+  stopPolling();
+  state.poll = setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    if (isPaused()) return;
+    void refresh(true);
+  }, POLL_MS);
+};
+
+const stopPolling = () => {
+  if (state.poll) clearInterval(state.poll);
+  state.poll = null;
+};
+
+window.addEventListener('pagehide', () => {
+  const pending = state.pendingDelete;
+  if (!pending) return;
+  api('DELETE', '/card', { id: pending.card.id }).catch(() => {});
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !isPaused()) void refresh(true);
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  if (state.sheet) {
+    event.preventDefault();
+    void closeSheet();
+  } else if (state.settings) {
+    event.preventDefault();
+    closeSettings(true);
+  } else if (state.composerListId) {
+    event.preventDefault();
+    closeComposer();
+  }
+});
+
+const showFatal = (message) => {
+  state.view = 'error';
+  stopPolling();
+  const wrapper = el('div', 'center');
+  const box = el('div', 'empty-state');
+  box.append(
+    el('h2', '', 'No se puede abrir Kanban'),
+    el('p', '', message || 'Inténtalo de nuevo en unos segundos.'),
+  );
+  const retry = el('button', 'btn-mint', 'Reintentar');
+  retry.type = 'button';
+  retry.addEventListener('click', () => void boot());
+  box.append(retry);
+  wrapper.append(box);
+  root.replaceChildren(wrapper);
+  state.refs = null;
+};

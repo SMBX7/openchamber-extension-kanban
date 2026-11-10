@@ -1,0 +1,51 @@
+{
+  "name": "kanban",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Kanban en OpenChamber sobre Planka: tablero, tarjetas, checklist y agente, con Planka como única fuente de verdad.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "openchamber": {
+    "apiVersion": 1,
+    "engines": {
+      "openchamber": ">=2.7.0"
+    },
+    "id": "kanban",
+    "name": "Kanban",
+    "icon": "icon.svg",
+    "contributes": {
+      "panel": {
+        "entry": "panel/index.html"
+      },
+      "page": true,
+      "statusSection": {
+        "entry": "status/index.html",
+        "title": "Kanban",
+        "height": 190
+      },
+      "service": {
+        "entry": "service/main.js",
+        "runtime": "host"
+      },
+      "sessionControl": {},
+      "sessionEvents": {
+        "events": [
+          "turn-finished",
+          "turn-failed"
+        ]
+      },
+      "capabilities": [
+        "sessions"
+      ]
+    }
+  },
+  "dependencies": {
+    "@openchamber/sdk": "2.7.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  }
+}

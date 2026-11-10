@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="es-ES">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kanban</title>
+    <style>
+      :root {
+        --relief-card: 4px 4px 10px rgba(0, 0, 0, .22), -3px -3px 8px rgba(255, 255, 255, .035);
+        --relief-btn: 3px 3px 7px rgba(0, 0, 0, .20), -2px -2px 6px rgba(255, 255, 255, .03);
+        --relief-inset: inset 2px 2px 5px rgba(0, 0, 0, .22), inset -2px -2px 5px rgba(255, 255, 255, .03);
+      }
+      html[data-oc-theme="light"] {
+        --relief-card: 4px 4px 10px rgba(54, 70, 94, .14), -4px -4px 10px rgba(255, 255, 255, .90);
+        --relief-btn: 3px 3px 7px rgba(54, 70, 94, .13), -3px -3px 7px rgba(255, 255, 255, .90);
+        --relief-inset: inset 2px 2px 5px rgba(54, 70, 94, .14), inset -2px -2px 5px rgba(255, 255, 255, .90);
+      }
+      html, body, #root { height: 100%; margin: 0; }
+      body {
+        background: transparent;
+        color: var(--oc-fg);
+        font-family: var(--oc-font);
+        font-size: 12px;
+        line-height: 1.35;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+      * { box-sizing: border-box; }
+      button { font: inherit; color: inherit; cursor: pointer; }
+      button:disabled { cursor: default; opacity: .5; }
+      :focus-visible { outline: 2px solid var(--oc-focus, var(--oc-primary)); outline-offset: 1px; }
+      .icon { width: 14px; height: 14px; display: block; }
+      .icon svg {
+        width: 100%; height: 100%; display: block; fill: none; stroke: currentColor;
+        stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+      }
+      .status {
+        height: 100%; overflow: hidden;
+        display: flex; flex-direction: column; gap: 6px;
+        padding: 7px 8px 9px 10px;
+      }
+      .summary { display: flex; align-items: center; gap: 8px; min-height: 18px; flex: none; padding-right: 4px; }
+      .status-scroll {
+        flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+        display: flex; flex-direction: column; gap: 6px; padding-right: 4px;
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--oc-muted) 45%, transparent) transparent;
+      }
+      .status-scroll::-webkit-scrollbar { width: 6px; }
+      .status-scroll::-webkit-scrollbar-track { background: transparent; }
+      .status-scroll::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--oc-muted) 45%, transparent);
+        border-radius: 999px;
+      }
+      .status-scroll::-webkit-scrollbar-thumb:hover {
+        background: color-mix(in srgb, var(--oc-muted) 65%, transparent);
+      }
+      .board-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--oc-info); flex: none; }
+      .board-name { font-weight: 600; color: var(--oc-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .bar {
+        flex: 1 1 auto; height: 4px; border-radius: 2px; overflow: hidden;
+        background: color-mix(in srgb, var(--oc-fg) 14%, transparent);
+        box-shadow: var(--relief-inset);
+      }
+      .bar i { display: block; height: 100%; background: var(--oc-success); width: 0; }
+      .count { color: var(--oc-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .muted { color: var(--oc-muted); }
+      .card {
+        display: flex; align-items: flex-start; gap: 8px;
+        padding: 6px 7px 6px 9px; border-radius: 9px;
+        background: color-mix(in srgb, var(--oc-info) 9%, transparent);
+        border: 1px solid color-mix(in srgb, var(--oc-info) 24%, var(--oc-border));
+        box-shadow: 3px 3px 8px rgba(0, 0, 0, .22), -2px -2px 6px rgba(255, 255, 255, .035), inset 0 1px 0 rgba(255, 255, 255, .04);
+      }
+      html[data-oc-theme="light"] .card {
+        box-shadow: 3px 3px 8px rgba(54, 70, 94, .12), -3px -3px 6px rgba(255, 255, 255, .8), inset 0 1px 0 rgba(255, 255, 255, .9);
+      }
+      .card.current { flex-direction: column; align-items: stretch; gap: 5px; padding: 6px; }
+      .card-head {
+        display: flex; align-items: center; gap: 4px; min-width: 0;
+        padding: 3px 4px; border-radius: 7px;
+        background: color-mix(in srgb, var(--card-tint) 18%, transparent);
+        border: 1px solid color-mix(in srgb, var(--card-tint) 34%, var(--oc-border));
+        box-shadow:
+          inset 0 0 0 999px rgba(0, 0, 0, .055),
+          inset 1px 1px 3px rgba(0, 0, 0, .12),
+          inset -1px -1px 2px rgba(255, 255, 255, .04);
+      }
+      html[data-oc-theme="light"] .card-head {
+        box-shadow: inset 1px 1px 3px rgba(54, 70, 94, .10), inset -1px -1px 2px rgba(255, 255, 255, .85);
+      }
+      .card-head-spacer { flex: 1 1 auto; min-width: 0; }
+      .card-body {
+        flex: 1 1 auto; min-width: 0;
+        padding: 5px 7px 6px; border-radius: 7px;
+        background: color-mix(in srgb, var(--card-tint) 20%, transparent);
+        border: 1px solid color-mix(in srgb, var(--card-tint) 36%, var(--oc-border));
+        box-shadow: inset 0 0 0 999px rgba(0, 0, 0, .065);
+      }
+      .card.current .card-body { flex: none; }
+      .card > .card-meta { align-self: flex-start; }
+      .card.current .card-name { flex: none; width: 100%; }
+      .card-delete { color: var(--oc-muted); }
+      .card-delete:hover {
+        color: var(--oc-danger, #f87171);
+        border-color: color-mix(in srgb, var(--oc-danger, #f87171) 55%, var(--oc-border));
+        background: color-mix(in srgb, var(--oc-danger, #f87171) 12%, transparent);
+      }
+      .card-delete.confirming {
+        color: var(--oc-danger, #f87171);
+        border-color: color-mix(in srgb, var(--oc-danger, #f87171) 70%, var(--oc-border));
+        background: color-mix(in srgb, var(--oc-danger, #f87171) 18%, transparent);
+      }
+      .card-delete .icon { width: 12px; height: 12px; }
+      .summary-add {
+        width: 18px; height: 18px; flex: none; display: grid; place-items: center;
+        border: 1px solid var(--oc-border); border-radius: 6px;
+        background: var(--oc-elevated); color: var(--oc-muted);
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, .18), -1px -1px 4px rgba(255, 255, 255, .03);
+        transition: color .12s, border-color .12s, background .12s;
+      }
+      .summary-add:hover {
+        color: var(--oc-fg);
+        border-color: color-mix(in srgb, var(--oc-fg) 25%, var(--oc-border));
+        background: var(--oc-hover);
+      }
+      .summary-add .icon { width: 11px; height: 11px; }
+      .idea-add { flex: none; }
+      .idea-input {
+        width: 100%; padding: 5px 8px; font-size: 12px; font-family: inherit;
+        color: var(--oc-fg); background: var(--oc-elevated);
+        border: 1px solid color-mix(in srgb, var(--oc-info) 45%, var(--oc-border));
+        border-radius: 7px; outline: none;
+        box-shadow: var(--relief-inset);
+      }
+      .idea-input::placeholder { color: var(--oc-muted); }
+      .idea-input:focus {
+        border-color: var(--oc-info);
+        box-shadow: var(--relief-inset), 0 0 0 1px color-mix(in srgb, var(--oc-info) 55%, transparent);
+      }
+
+      .session-create {
+        width: 22px; height: 22px; flex: none; display: grid; place-items: center;
+        border: 1px solid color-mix(in srgb, var(--mint) 55%, var(--oc-border));
+        border-radius: 7px; background: color-mix(in srgb, var(--mint) 12%, transparent);
+        color: var(--mint-text, var(--oc-success));
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, .2), -1px -1px 4px rgba(255, 255, 255, .035);
+        transition: background .12s, border-color .12s, box-shadow .12s;
+      }
+      .session-create:hover {
+        background: color-mix(in srgb, var(--mint) 22%, transparent);
+        border-color: var(--mint);
+      }
+      .session-create .icon { width: 13px; height: 13px; }
+      .card.current {
+        background: color-mix(in srgb, var(--tone, var(--oc-warning)) 9%, transparent);
+        border-color: color-mix(in srgb, var(--tone, var(--oc-warning)) 30%, var(--oc-border));
+      }
+      .card-name {
+        flex: 1 1 auto; min-width: 0; color: var(--oc-fg);
+        white-space: normal; overflow-wrap: anywhere; hyphens: auto;
+        font-size: 12px; line-height: 1.35;
+      }
+      .card-meta { flex: none; display: flex; align-items: center; gap: 3px; }
+      .state {
+        color: var(--oc-muted); font-size: 10px; white-space: nowrap;
+        margin-right: 2px;
+      }
+      .tick, .open, .card-delete {
+        width: 22px; height: 22px; flex: none; display: grid; place-items: center;
+        border: 1px solid var(--oc-border); border-radius: 7px;
+        background: var(--oc-elevated); color: var(--oc-muted);
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, .2), -1px -1px 4px rgba(255, 255, 255, .035);
+        transition: color .12s, background .12s, border-color .12s, box-shadow .12s;
+      }
+      html[data-oc-theme="light"] .tick,
+      html[data-oc-theme="light"] .card-delete,
+      html[data-oc-theme="light"] .open,
+      html[data-oc-theme="light"] .session-pick,
+      html[data-oc-theme="light"] .session-create {
+        box-shadow: 2px 2px 5px rgba(54, 70, 94, .12), -2px -2px 5px rgba(255, 255, 255, .8);
+      }
+      .tick:active, .open:active, .card-delete:active, .session-pick:active, .session-create:active {
+        box-shadow: inset 2px 2px 4px rgba(0, 0, 0, .24), inset -1px -1px 3px rgba(255, 255, 255, .03);
+      }
+      .tick:hover, .open:hover {
+        color: var(--mint-text, var(--oc-success));
+        border-color: color-mix(in srgb, var(--mint) 55%, var(--oc-border));
+        background: color-mix(in srgb, var(--mint) 14%, transparent);
+      }
+      .session-pick {
+        max-width: 132px; height: 22px; display: inline-flex; align-items: center; gap: 3px;
+        border: 1px solid var(--oc-border); border-radius: 6px;
+        background: var(--oc-elevated); color: var(--oc-muted);
+        font-size: 10.5px; padding: 1px 5px; min-width: 0;
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, .2), -1px -1px 4px rgba(255, 255, 255, .035);
+        transition: color .12s, background .12s, border-color .12s, box-shadow .12s;
+      }
+      .session-pick:hover { color: var(--oc-fg); background: var(--oc-hover); }
+      .session-pick-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .session-chevron { width: 11px; height: 11px; flex: none; color: var(--oc-muted); }
+      .session-menu {
+        position: fixed; z-index: 1000; max-height: 220px; overflow-y: auto;
+        background: var(--oc-elevated); color: var(--oc-fg);
+        border: 1px solid var(--oc-border); border-radius: 9px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, .26); padding: 4px;
+      }
+      .session-menu-list { display: flex; flex-direction: column; gap: 1px; }
+      .session-menu button {
+        display: block; width: 100%; text-align: left;
+        border: 0; border-radius: 5px; background: transparent; color: var(--oc-fg);
+        padding: 5px 7px; font-size: 11px; line-height: 1.3;
+        white-space: normal; overflow-wrap: anywhere;
+      }
+      .session-menu button:hover { background: var(--oc-hover); }
+      .session-menu button[aria-pressed="true"] {
+        background: color-mix(in srgb, var(--mint) 16%, transparent);
+        color: var(--mint-text, var(--oc-success));
+      }
+      .session-select {
+        max-width: 118px; min-width: 0; height: 22px;
+        background: transparent; color: var(--oc-muted);
+        border: 1px solid var(--oc-border); border-radius: 6px;
+        font-size: 10.5px; padding: 1px 3px;
+      }
+      .session-select:hover { color: var(--oc-fg); background: var(--oc-hover); }
+      .tick .icon, .open .icon { width: 13px; height: 13px; }
+      .tick, .open, .session-create, .session-pick, .session-back {
+        box-shadow: var(--relief-btn);
+        transition: box-shadow .12s ease, background .12s ease, color .12s ease, border-color .12s ease;
+      }
+      .tick:active, .open:active, .session-create:active, .session-pick:active, .session-back:active {
+        box-shadow: var(--relief-inset);
+      }
+      .session-back {
+        width: 22px; height: 22px; flex: none; display: grid; place-items: center;
+        border: 1px solid var(--oc-border); border-radius: 7px;
+        background: var(--oc-elevated); color: var(--oc-muted);
+      }
+      .session-back:hover {
+        color: var(--oc-fg);
+        border-color: color-mix(in srgb, var(--oc-fg) 25%, var(--oc-border));
+        background: var(--oc-hover);
+      }
+      .session-back .icon { width: 13px; height: 13px; }
+      .warning {
+        color: var(--oc-warning-text, var(--oc-warning));
+        font-size: 11px; line-height: 1.4;
+      }
+      .error { color: var(--oc-error-text, var(--oc-error)); font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="./main.js"></script>
+  </body>
+</html>
