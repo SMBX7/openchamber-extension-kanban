@@ -2920,7 +2920,7 @@ ${card.description}`.toLowerCase();
     }
     estilo.append(styleGrid);
     const sesiones = el2("section", "settings-section");
-    sesiones.append(el2("div", "settings-heading", "Sesiones"));
+    sesiones.append(el2("div", "settings-heading", "C\xF3mo funciona"));
     const sesionesBox = el2("div", "settings-box");
     const fact = (label, text) => {
       const row = el2("div", "settings-fact");
@@ -2928,11 +2928,11 @@ ${card.description}`.toLowerCase();
       return row;
     };
     sesionesBox.append(
-      fact("EN PROGRESO", "la tarjeta pasa a ser la actual. La sesi\xF3n la abres con el +; en autom\xE1tico te la ofrece antes."),
-      fact("HECHO", "se cierra la sesi\xF3n, guarda el resumen en Engram y se detiene."),
-      fact("A IDEAS", "se detiene la sesi\xF3n y se borra el v\xEDnculo.")
+      fact("IDEAS", "el + de la columna crea una tarjeta, el l\xE1piz la edita y la papelera la borra con dos toques. El tic la pasa a EN PROGRESO."),
+      fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el +; en autom\xE1tico te pregunta antes de abrirla."),
+      fact("HECHO", "la sesi\xF3n recibe el cierre, guarda el resumen en Engram y se detiene. Igual en manual y en autom\xE1tico.")
     );
-    sesionesBox.append(el2("p", "settings-note", "El v\xEDnculo se borra al cerrar: si vuelves a mover la tarjeta, se crea una sesi\xF3n nueva sin mezclar el contexto viejo. La sesi\xF3n detenida queda en la lista para que la archives."));
+    sesionesBox.append(el2("p", "settings-note", "Al cerrar se borra el v\xEDnculo: si vuelves a mover la tarjeta, empieza una sesi\xF3n nueva. La sesi\xF3n detenida sigue en la lista para que la archives."));
     sesiones.append(sesionesBox);
     const avanzado = el2("section", "settings-section");
     avanzado.append(el2("div", "settings-heading", "Avanzado"));
@@ -2943,7 +2943,7 @@ ${card.description}`.toLowerCase();
       toolChips.append(el2("span", "tool-chip", name));
     }
     avanzadoBox.append(toolChips);
-    avanzadoBox.append(el2("p", "settings-note", "El MCP solo act\xFAa cuando el agente llama a una herramienta: no hay nada tocando el tablero por su cuenta. Tras actualizar la extensi\xF3n, reinicia OpenCode para que use la versi\xF3n nueva."));
+    avanzadoBox.append(el2("p", "settings-note", "El MCP solo act\xFAa cuando el agente llama a una herramienta. En Planka lo ves desde cualquier dispositivo; el tablero local vive solo en este equipo. Tras actualizar la extensi\xF3n, reinicia OpenCode."));
     avanzado.append(avanzadoBox);
     scroll.append(conexion, tablero, estilo, delegacion, sesiones, avanzado);
     const foot = el2("div", "sheet-foot settings-foot");

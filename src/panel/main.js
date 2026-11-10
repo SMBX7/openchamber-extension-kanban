@@ -1245,7 +1245,7 @@ const openSettings = () => {
 
   /* Sesiones */
   const sesiones = el('section', 'settings-section');
-  sesiones.append(el('div', 'settings-heading', 'Sesiones'));
+  sesiones.append(el('div', 'settings-heading', 'Cómo funciona'));
   const sesionesBox = el('div', 'settings-box');
   const fact = (label, text) => {
     const row = el('div', 'settings-fact');
@@ -1253,11 +1253,11 @@ const openSettings = () => {
     return row;
   };
   sesionesBox.append(
-    fact('EN PROGRESO', 'la tarjeta pasa a ser la actual. La sesión la abres con el +; en automático te la ofrece antes.'),
-    fact('HECHO', 'se cierra la sesión, guarda el resumen en Engram y se detiene.'),
-    fact('A IDEAS', 'se detiene la sesión y se borra el vínculo.'),
+    fact('IDEAS', 'el + de la columna crea una tarjeta, el lápiz la edita y la papelera la borra con dos toques. El tic la pasa a EN PROGRESO.'),
+    fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el +; en automático te pregunta antes de abrirla.'),
+    fact('HECHO', 'la sesión recibe el cierre, guarda el resumen en Engram y se detiene. Igual en manual y en automático.'),
   );
-  sesionesBox.append(el('p', 'settings-note', 'El vínculo se borra al cerrar: si vuelves a mover la tarjeta, se crea una sesión nueva sin mezclar el contexto viejo. La sesión detenida queda en la lista para que la archives.'));
+  sesionesBox.append(el('p', 'settings-note', 'Al cerrar se borra el vínculo: si vuelves a mover la tarjeta, empieza una sesión nueva. La sesión detenida sigue en la lista para que la archives.'));
   sesiones.append(sesionesBox);
 
   /* Avanzado */
@@ -1270,7 +1270,7 @@ const openSettings = () => {
     toolChips.append(el('span', 'tool-chip', name));
   }
   avanzadoBox.append(toolChips);
-  avanzadoBox.append(el('p', 'settings-note', 'El MCP solo actúa cuando el agente llama a una herramienta: no hay nada tocando el tablero por su cuenta. Tras actualizar la extensión, reinicia OpenCode para que use la versión nueva.'));
+  avanzadoBox.append(el('p', 'settings-note', 'El MCP solo actúa cuando el agente llama a una herramienta. En Planka lo ves desde cualquier dispositivo; el tablero local vive solo en este equipo. Tras actualizar la extensión, reinicia OpenCode.'));
   avanzado.append(avanzadoBox);
 
   scroll.append(conexion, tablero, estilo, delegacion, sesiones, avanzado);
