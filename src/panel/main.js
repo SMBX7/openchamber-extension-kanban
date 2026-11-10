@@ -1253,7 +1253,7 @@ const openSettings = () => {
   avanzado.append(el('div', 'settings-heading', 'Avanzado'));
   avanzado.append(el('p', 'settings-note', 'MCP de Kanban: crear, mover, completar y enlazar tarjetas desde el agente. Tras actualizar la extensión, reinicia OpenCode para que el agente use la versión nueva.'));
 
-  scroll.append(conexion, tablero, delegacion, estilo, sesiones, avanzado);
+  scroll.append(conexion, tablero, estilo, delegacion, sesiones, avanzado);
 
   const foot = el('div', 'sheet-foot settings-foot');
   const done = el('button', 'btn-mint', 'Listo');

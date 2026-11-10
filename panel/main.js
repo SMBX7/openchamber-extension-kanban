@@ -2925,7 +2925,7 @@ ${card.description}`.toLowerCase();
     const avanzado = el2("section", "settings-section");
     avanzado.append(el2("div", "settings-heading", "Avanzado"));
     avanzado.append(el2("p", "settings-note", "MCP de Kanban: crear, mover, completar y enlazar tarjetas desde el agente. Tras actualizar la extensi\xF3n, reinicia OpenCode para que el agente use la versi\xF3n nueva."));
-    scroll.append(conexion, tablero, delegacion, estilo, sesiones, avanzado);
+    scroll.append(conexion, tablero, estilo, delegacion, sesiones, avanzado);
     const foot = el2("div", "sheet-foot settings-foot");
     const done = el2("button", "btn-mint", "Listo");
     done.type = "button";
