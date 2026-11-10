@@ -1236,7 +1236,7 @@ const openSettings = () => {
   sesionesBox.append(
     fact('IDEAS', 'el + de la columna crea una tarjeta, el lápiz la edita y la papelera la borra con dos toques. El tic la pasa a EN PROGRESO.'),
     fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el +; en automático te pregunta antes de abrirla.'),
-    fact('HECHO', 'la sesión recibe el cierre, guarda el resumen en Engram y se detiene. Igual en manual y en automático.'),
+    fact('HECHO', 'la sesión recibe el cierre y se detiene. Igual en manual y en automático.'),
   );
   sesionesBox.append(el('p', 'settings-note', 'Al cerrar se borra el vínculo: si vuelves a mover la tarjeta, empieza una sesión nueva. La sesión detenida sigue en la lista para que la archives.'));
   sesiones.append(sesionesBox);

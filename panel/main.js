@@ -2915,7 +2915,7 @@ ${card.description}`.toLowerCase();
     sesionesBox.append(
       fact("IDEAS", "el + de la columna crea una tarjeta, el l\xE1piz la edita y la papelera la borra con dos toques. El tic la pasa a EN PROGRESO."),
       fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el +; en autom\xE1tico te pregunta antes de abrirla."),
-      fact("HECHO", "la sesi\xF3n recibe el cierre, guarda el resumen en Engram y se detiene. Igual en manual y en autom\xE1tico.")
+      fact("HECHO", "la sesi\xF3n recibe el cierre y se detiene. Igual en manual y en autom\xE1tico.")
     );
     sesionesBox.append(el2("p", "settings-note", "Al cerrar se borra el v\xEDnculo: si vuelves a mover la tarjeta, empieza una sesi\xF3n nueva. La sesi\xF3n detenida sigue en la lista para que la archives."));
     sesiones.append(sesionesBox);
