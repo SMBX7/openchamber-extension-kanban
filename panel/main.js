@@ -2872,10 +2872,10 @@ ${card.description}`.toLowerCase();
     projectSelect.addEventListener("change", () => void changeBoardProject(projectSelect.value));
     projectField.append(projectSelect);
     tablero.append(projectField);
-    tablero.append(el2("p", "settings-note", mapping ? `Las sesiones se crean en ${mapping.name}.` : "Sin proyecto no se pueden crear sesiones desde el Kanban."));
+    tablero.append(el2("p", "settings-note", mapping ? `Las sesiones de este tablero se crean en ${mapping.name}.` : "Sin proyecto no se pueden crear sesiones desde el Kanban."));
     const delegacion = el2("section", "settings-section");
     delegacion.append(el2("div", "settings-heading", "Delegaci\xF3n"));
-    delegacion.append(el2("p", "settings-note", "Elige qui\xE9n abre la sesi\xF3n."));
+    delegacion.append(el2("p", "settings-note", "Decide si el agente abre la sesi\xF3n solo o si la abres t\xFA. No da acceso a otras personas: eso se gestiona en Planka."));
     const modes = el2("div", "settings-modes");
     const modeCard = (label, description, active2, enabled) => {
       const button2 = el2("button", "mode-card");
@@ -2885,8 +2885,8 @@ ${card.description}`.toLowerCase();
       button2.append(el2("span", "mode-card-title", label), el2("span", "mode-card-text", description));
       return button2;
     };
-    const manualCard = modeCard("Manual", "T\xFA abres la sesi\xF3n.", mapping?.autoSession !== true, Boolean(mapping));
-    const autoCard = modeCard("Autom\xE1tica", "Te la ofrece al moverla.", mapping?.autoSession === true, Boolean(mapping));
+    const manualCard = modeCard("Manual", "T\xFA decides: Empezar mueve la tarjeta; la sesi\xF3n la creas desde la tarjeta.", mapping?.autoSession !== true, Boolean(mapping));
+    const autoCard = modeCard("Autom\xE1tica", "Al pasar a EN PROGRESO te ofrece abrir la sesi\xF3n; no la abre sola.", mapping?.autoSession === true, Boolean(mapping));
     manualCard.addEventListener("click", () => {
       if (mapping?.autoSession === true) void changeAutoMode(false);
     });
@@ -2898,12 +2898,12 @@ ${card.description}`.toLowerCase();
     if (!mapping) delegacion.append(el2("p", "settings-note warning", "Asigna primero un proyecto al tablero."));
     const estilo = el2("section", "settings-section");
     estilo.append(el2("div", "settings-heading", "Apariencia"));
-    estilo.append(el2("p", "settings-note", "Acabado visual. Los colores no cambian."));
+    estilo.append(el2("p", "settings-note", "Acabado de las tarjetas, los botones y los paneles. Los colores se mantienen como est\xE1n."));
     const styleGrid = el2("div", "style-grid");
     const styleOptions = [
-      ["neumorphism", "Neumorfismo", "Relieve suave."],
-      ["brutalism", "Brutalismo", "Bordes y sombras duros."],
-      ["glass", "Cristal", "Transl\xFAcido y difuminado."]
+      ["neumorphism", "Neumorfismo", "Relieve suave y sombras difusas."],
+      ["brutalism", "Brutalismo", "Bordes duros y sombras s\xF3lidas."],
+      ["glass", "Cristal", "Fondo transl\xFAcido con desenfoque."]
     ];
     for (const [key, label, text] of styleOptions) {
       const option = el2("button", "style-card");
@@ -2921,16 +2921,16 @@ ${card.description}`.toLowerCase();
     estilo.append(styleGrid);
     const sesiones = el2("section", "settings-section");
     sesiones.append(el2("div", "settings-heading", "Sesiones"));
-    sesiones.append(el2("p", "settings-note", "Al pasar a HECHO: se cierra la sesi\xF3n, guarda el resumen en Engram y se detiene. Si la vuelves a mover, se crea una nueva."));
+    sesiones.append(el2("p", "settings-note", "Al pasar una tarjeta a HECHO, la sesi\xF3n enlazada recibe el cierre, guarda el resumen en Engram y se detiene. El v\xEDnculo se borra: si vuelves a mover la tarjeta a EN PROGRESO se crea una sesi\xF3n nueva, sin mezclar contexto viejo. La sesi\xF3n detenida queda en la lista para que la archives."));
     const avanzado = el2("section", "settings-section");
     avanzado.append(el2("div", "settings-heading", "Avanzado"));
-    avanzado.append(el2("p", "settings-note", "El agente puede crear, mover y completar tarjetas. Tras actualizar la extensi\xF3n, reinicia OpenCode."));
+    avanzado.append(el2("p", "settings-note", "MCP de Kanban: crear, mover, completar y enlazar tarjetas desde el agente. Tras actualizar la extensi\xF3n, reinicia OpenCode para que el agente use la versi\xF3n nueva."));
     scroll.append(conexion, tablero, estilo, delegacion, sesiones, avanzado);
     const foot = el2("div", "sheet-foot settings-foot");
     const done = el2("button", "btn-mint", "Listo");
     done.type = "button";
     done.addEventListener("click", () => closeSettings(true));
-    foot.append(el2("span", "settings-foot-text", "Se guarda al elegir."), done);
+    foot.append(el2("span", "settings-foot-text", "Los cambios se guardan al elegirlos."), done);
     sheet.append(head, scroll, foot);
     close.addEventListener("click", () => closeSettings(true));
     backdrop.addEventListener("click", () => closeSettings(true));
