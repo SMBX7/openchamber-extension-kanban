@@ -1,173 +1,124 @@
 # Kanban for OpenChamber
 
-An OpenChamber extension that turns a [Planka](https://planka.app) board — or a board
-stored on this machine — into a working Kanban inside the app. It ships four pieces:
+[Español](README.es.md) · English
 
-- a **board panel** for planning,
-- a compact **Work Status** section in the sidebar for day-to-day work,
-- a **host service** that owns the Planka connection and the session links,
-- an **MCP server** so the agent can read and move cards.
+A Kanban board inside OpenChamber, backed by [Planka](https://planka.app) or by a
+board stored on this machine. Move cards, open an agent session on the card you are
+working on, and let the agent read and move cards through its own tools.
 
-Planka is the single source of truth in Planka mode, and the extension keeps no local
-copy of the board: it caches a snapshot for 1.5 s to render and invalidates it on every
-write. Local mode swaps the backend for a single JSON file with the same shape, so the
-panel, the Work Status section, the service and the MCP server do not change.
+The interface is in Spanish.
 
-## Data sources
+![The board panel](docs/panel.png)
 
-Choose where the board lives under **Settings → Conexión**:
+## What it is
 
-- **Planka** (default): a Planka instance stores the board, so it is visible from any
-  device that can reach it.
-- **Local**: the board lives in `board.local.json` next to the package, mode `600`, on
-  this machine only.
+- A **board panel** with three columns: IDEAS, EN PROGRESO and HECHO.
+- A compact **Work Status** section in the sidebar with the card in progress.
+- **Sessions**: link an OpenChamber session to a card and open it from there.
+- An **agent** that can create, move, complete, edit and search cards.
 
-Sessions, the session picker and manual or automatic delegation behave the same in both
-modes: they belong to OpenChamber, not to the storage. Switching to local keeps the
-Planka token, so going back does not ask for the password again. Local mode starts with
-three lists (IDEAS, EN PROGRESO, HECHO) and three labels.
-
-## What you can do
-
-### Board panel
-
-- Columns, cards and full drag and drop between lists and positions.
-- Create, edit and delete cards. Deleting is a two-step confirmation and shows an
-  undo bar for five seconds before it reaches Planka.
-- Card sheet with description, labels, checklist items, due date and the linked
-  session.
-- Search across the board, filter stopped work, and switch between boards.
-- Settings sheet: board ↔ OpenChamber project mapping, delegation mode, style presets
-  (neumorphism, brutalism, glass), colours and the data source.
-
-### Work Status section
-
-- The card in progress, highlighted, with its state and session.
-- Session picker per card: link an existing session or start a new one explicitly.
-- Add an idea straight into the backlog list with the `+` in the header.
-- Delete any card from the section, with the same two-step confirmation as the panel.
-- Complete the current card, or send it back to the ideas list.
-
-### Sessions
-
-- A card moved to the work list **never** starts a session by itself. Automatic mode
-  asks first (a bar in the panel, a row inside the status card); the `+` button and the
-  picker always start one explicitly.
-- **Manual** delegation links sessions by hand; **automatic** delegation offers to start
-  one when a card reaches the work list and waits for a confirmation. Nothing starts on
-  its own, so an accidental drag costs nothing.
-- Completing a card, sending it back to ideas or deleting it **stops and unlinks** its
-  session, so no agent keeps working on something that is no longer in progress.
-- Opening the linked session from the card puts the card's title on that session.
-
-### Agent (MCP)
-
-Eleven tools: `kanban_boards`, `kanban_board`, `kanban_search`, `kanban_create_card`,
-`kanban_update_card`, `kanban_move_card`, `kanban_complete_card`, `kanban_delete_card`,
-`kanban_checklist_add`, `kanban_checklist_check`, `kanban_link_session`.
-
-## How it works
-
-```
-panel/index.html  ─┐
-status/index.html ─┼─ iframes ─> service/main.js ─> Planka REST API
-                   │                  │
-                   │                  └─> OpenChamber sessions (link, start, stop)
-                   └─ MCP: mcp/main.js ─> shared/planka.js ─> Planka REST API
-```
-
-- `src/shared/planka.js` is the only Planka client. The service and the MCP server both
-  import it, and both read the same `config.json`.
-- The service exposes `/work`, `/snapshot`, `/card`, `/card/move`, `/card/back`,
-  `/session/*`, `/mapping`, `/appearance` and friends over the host bridge.
-- The snapshot is cached for 1.5 s; writes call `invalidate()` so the next read is fresh.
-- Session links live in `src/shared/links.js`; they are the bridge between a Planka card
-  and an OpenChamber session.
+It is not a project manager: there are no sprints, no estimates and no reports. One
+board, three columns, cards.
 
 ## Requirements
 
-- OpenChamber `>= 2.7.0`, with the host service capability.
-- **Either** a reachable Planka instance with an account on it, **or** the local board,
-  which needs nothing else.
-- Node.js 20+ to build the bundles.
-- A Planka account is asked once for base URL, email and password. The password is used
-  to obtain a token and is never written to disk; the token is stored in `config.json`
-  next to the package with mode `600`.
-
-`config.json` is machine-local and git-ignored. Its shape (`source` is `planka` or
-`local`):
-
-```json
-{
-  "source": "planka",
-  "baseUrl": "http://127.0.0.1:3040",
-  "email": "",
-  "token": "",
-  "boardId": "",
-  "boardName": ""
-}
-```
-
-## Things to know
-
-- **Local mode is single-device.** The board is one JSON file on this machine: no
-  mobile, no second computer, no sharing. Switching modes does not migrate cards between
-  Planka and the local file.
-- **One board at a time** for the Work Status; the panel can switch between boards.
-- **Mobile** needs both OpenChamber and the Planka instance reachable from the phone,
-  which usually means a private network (Tailscale, WireGuard) or a tunnel.
-- **Deleting is permanent** in Planka. The undo bar only delays the request for five
-  seconds; once it fires, the card is gone.
-- **Snapshot latency**: up to 1.5 s behind Planka for changes made outside the extension.
-- **MCP cost**: one server process per workspace, about 40 MB each. It exits when its
-  transport closes.
-- The panel and the Work Status are two separate iframes, so a visual change needs the
-  app reloaded to be picked up.
+- OpenChamber 2.7.0 or newer.
+- **Either** a Planka instance you can reach with an account on it, **or** nothing
+  else: the local board needs no server.
+- Node.js 20+ only if you are going to build the package yourself.
 
 ## Install
 
-1. Build the package:
+1. Open **Settings → Extensions** in OpenChamber.
+2. Add the folder that contains this package.
+3. The Kanban icon appears in the sidebar. Open it.
 
-   ```bash
-   npm ci
-   npm run build
-   ```
+The package declares its panel, its Work Status section, its service and its agent
+tools in `package.json`, so there is nothing else to wire.
 
-2. Add the folder in OpenChamber under **Settings → Extensions**. The package declares
-   its panel, status section, host service and MCP server in `openchamber.contributes`,
-   so no extra wiring is needed.
+## Connect to Planka
 
-3. Open the Kanban panel and connect it to Planka with base URL, email and password.
+On first open the panel asks for three things:
 
-The bundles under `panel/`, `status/`, `service/` and `mcp/` are committed so the folder
-can be installed as-is; run `npm run build` after changing anything in `src/`.
-
-## Layout
-
-| Path | What it is |
+| Field | What it is |
 | --- | --- |
-| `src/panel/main.js` | Board panel: lists, drag and drop, card sheet, settings |
-| `src/status/main.js` | Compact Work Status section: current card, ideas, session picker |
-| `src/service/main.js` | Host service: Planka client usage, routes, session link, caching |
-| `src/mcp/main.js` | MCP server exposing the board to the agent |
-| `src/shared/planka.js` | Planka REST client and snapshot builders |
-| `src/shared/local.js` | Local board client with the same surface, JSON storage |
-| `src/shared/config.js` | `config.json` read/write with mode 600 |
-| `src/shared/links.js` | Card ↔ session links |
-| `src/shared/board-projects.js` | Board ↔ project mapping |
-| `src/shared/appearance.js` | Colours and relief tokens |
-| `scripts/build.mjs` | esbuild bundling into `panel/`, `status/`, `service/`, `mcp/` |
-| `scripts/check.mjs` | Package validation |
-| `scripts/test-local.mjs` | Local board client tests, run with `npm test` |
+| Server | Your Planka address, for example `http://127.0.0.1:3040` |
+| Email or user | Your Planka account |
+| Password | Used once to obtain a token; never written to disk |
 
-## Build
+The token is stored in `config.json` next to the extension, readable only by you.
+Once connected, the panel shows your boards: pick one and assign it to an
+OpenChamber project. Sessions for that board are created in that project.
 
-```bash
-npm run build   # bundle every entry point
-npm run check   # validate the package manifest and outputs
-npm test        # exercise the local board client in a temp file
-```
+## Local board
+
+If you do not have Planka, open **Settings → Conexión** and choose **Local**. A board
+with the three lists and three labels appears, saved in `board.local.json` next to the
+extension.
+
+- It lives on this machine: no mobile, no second computer.
+- Switching back to Planka keeps your token, so you will not have to log in again.
+- Nothing is copied between the two: they are separate boards.
+
+![Connection and appearance settings](docs/settings.png)
+
+## The panel
+
+- **Create**: the `+` at the bottom of a column opens an input. `Enter` saves, `Esc`
+  closes.
+- **Edit**: hover a card and press the pencil. You can change the name, description,
+  labels, checklist and due date.
+- **Delete**: hover a card and press the trash twice. The bar at the top offers
+  **Deshacer** for five seconds; after that the card is gone.
+- **Move**: drag a card inside a column or to another one. The column it lands in
+  decides what happens next.
+- **Complete**: the tick moves it to HECHO and closes its session.
+- **Search** with the magnifier, and **Paradas** filters cards in progress with no
+  session.
+
+## Work Status
+
+The sidebar section, always at hand while you work:
+
+![The Work Status section](docs/status.png)
+
+- The **card in progress** is highlighted in amber, with its session and its controls:
+  pick a session, open one with `+`, send the card back to ideas with the arrow, or
+  complete it with the tick.
+- The **mode pill** next to the board name says `Auto` or `Manual`; press it to change
+  the delegation mode without opening the panel.
+- The **`+` in the header** adds an idea without leaving the chat.
+- **Ideas** are listed below: the tick starts one, the trash deletes it (with undo).
+
+## Sessions: manual and automatic
+
+There are two delegation modes, chosen in **Settings → Delegación** or from the pill:
+
+- **Manual**: moving a card to EN PROGRESO changes the board and nothing else. You open
+  the session with the `+` on the card.
+- **Automatic**: when a card reaches EN PROGRESO a small card appears next to it asking
+  whether to open the session. Nothing opens until you confirm.
+
+What happens next is the same in both modes:
+
+- **HECHO**: the session receives the close request and stops. The link is removed.
+- **Back to ideas**: the session stops and the link is removed.
+- Because the link is removed, moving the card again starts a **new** session, with no
+  old context mixed in.
+
+## Problems
+
+- **The agent does not see the tools**: after updating the extension, restart OpenCode
+  so it loads the new version.
+- **The panel and the Work Status look different**: they are two separate frames.
+  Reload OpenChamber after an update.
+- **The board does not change**: in Planka mode the panel reads from Planka; check that
+  the instance is up and the token has not expired. Settings → Conexión shows the
+  account or the error.
+- **A card disappeared**: deleting is permanent after the five seconds of undo. Labels
+  have their own undo bar, also at the top.
+- **No sound**: there is none, on purpose. The extension never plays audio.
 
 ## License
 
-MIT
+MIT.
