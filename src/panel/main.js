@@ -1127,13 +1127,6 @@ const openSettings = () => {
   const conexion = el('section', 'settings-section');
   conexion.append(el('div', 'settings-heading', 'Conexión'));
   const isLocal = (config.source || 'planka') === 'local';
-  const connRow = el('div', 'settings-line');
-  const connDot = el('span', 'col-dot');
-  connDot.style.setProperty('--dot', config.connected ? 'var(--oc-success)' : 'var(--oc-error)');
-  connRow.append(connDot, el('span', 'settings-line-text', isLocal
-    ? 'Tablero local en este equipo'
-    : (config.connected ? `${config.email || 'Planka'} en ${config.baseUrl || 'Planka'}` : 'Sin conexión con Planka')));
-  conexion.append(connRow);
 
   const sourceRow = el('div', 'source-toggle');
   const switchSource = async (target) => {
@@ -1155,28 +1148,43 @@ const openSettings = () => {
   };
   sourceRow.append(sourcePick('planka', 'Planka'), sourcePick('local', 'Local'));
   conexion.append(sourceRow);
-  const connActions = el('div', 'settings-actions');
-  const openPlanka = el('button', 'ghost-btn', 'Abrir Planka');
-  openPlanka.type = 'button';
-  openPlanka.addEventListener('click', () => {
-    const url = snapshot.board?.url || config.baseUrl || 'http://127.0.0.1:3040';
-    host.openUrl(url).catch(() => {});
-  });
-  const logout = el('button', 'ghost-btn', 'Desconectar');
-  logout.type = 'button';
-  logout.addEventListener('click', async () => {
-    try {
-      await api('POST', '/logout');
-      state.config = { ...config, connected: false };
-      toast('success', 'Kanban desconectado de Planka.');
-      closeSettings(true);
-      await boot();
-    } catch (error) {
-      toast('error', error.message);
-    }
-  });
-  if (!isLocal) connActions.append(openPlanka, logout);
-  conexion.append(connActions);
+
+  const sourceBox = el('div', 'settings-box');
+  const connRow = el('div', 'settings-line');
+  const connDot = el('span', 'col-dot');
+  connDot.style.setProperty('--dot', config.connected ? 'var(--oc-success)' : 'var(--oc-error)');
+  connRow.append(connDot, el('span', 'settings-line-text', isLocal
+    ? 'Tablero local en este equipo'
+    : (config.connected ? `${config.email || 'Planka'} en ${config.baseUrl || 'Planka'}` : 'Sin conexión con Planka')));
+  sourceBox.append(connRow);
+
+  if (isLocal) {
+    sourceBox.append(el('p', 'settings-note', 'Guardado en board.local.json, junto a la extensión. Solo se ve en este equipo.'));
+  } else {
+    const connActions = el('div', 'settings-actions');
+    const openPlanka = el('button', 'ghost-btn', 'Abrir Planka');
+    openPlanka.type = 'button';
+    openPlanka.addEventListener('click', () => {
+      const url = snapshot.board?.url || config.baseUrl || 'http://127.0.0.1:3040';
+      host.openUrl(url).catch(() => {});
+    });
+    const logout = el('button', 'ghost-btn danger', 'Desconectar Planka');
+    logout.type = 'button';
+    logout.addEventListener('click', async () => {
+      try {
+        await api('POST', '/logout');
+        state.config = { ...config, connected: false };
+        toast('success', 'Kanban desconectado de Planka.');
+        closeSettings(true);
+        await boot();
+      } catch (error) {
+        toast('error', error.message);
+      }
+    });
+    connActions.append(openPlanka, logout);
+    sourceBox.append(connActions);
+  }
+  conexion.append(sourceBox);
 
   /* Delegación */
   const delegacion = el('section', 'settings-section');

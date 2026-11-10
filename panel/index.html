@@ -365,6 +365,10 @@
       .settings-note { margin: 0; font-size: 12.5px; line-height: 1.55; color: color-mix(in srgb, var(--oc-muted) 72%, var(--oc-fg)); }
       .settings-note.warning { color: var(--oc-warning-text, var(--oc-warning)); }
       .settings-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+      .ghost-btn.danger:hover {
+        color: var(--oc-error);
+        border-color: color-mix(in srgb, var(--oc-error) 55%, var(--oc-border));
+      }
       .settings-select { width: 100%; }
       .color-list { display: flex; flex-direction: column; gap: 6px; }
       .color-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; }

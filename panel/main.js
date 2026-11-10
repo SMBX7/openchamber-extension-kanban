@@ -2810,11 +2810,6 @@ ${card.description}`.toLowerCase();
     const conexion = el2("section", "settings-section");
     conexion.append(el2("div", "settings-heading", "Conexi\xF3n"));
     const isLocal = (config.source || "planka") === "local";
-    const connRow = el2("div", "settings-line");
-    const connDot = el2("span", "col-dot");
-    connDot.style.setProperty("--dot", config.connected ? "var(--oc-success)" : "var(--oc-error)");
-    connRow.append(connDot, el2("span", "settings-line-text", isLocal ? "Tablero local en este equipo" : config.connected ? `${config.email || "Planka"} en ${config.baseUrl || "Planka"}` : "Sin conexi\xF3n con Planka"));
-    conexion.append(connRow);
     const sourceRow = el2("div", "source-toggle");
     const switchSource = async (target) => {
       try {
@@ -2835,29 +2830,40 @@ ${card.description}`.toLowerCase();
     };
     sourceRow.append(sourcePick("planka", "Planka"), sourcePick("local", "Local"));
     conexion.append(sourceRow);
-    const connActions = el2("div", "settings-actions");
-    const openPlanka = el2("button", "ghost-btn", "Abrir Planka");
-    openPlanka.type = "button";
-    openPlanka.addEventListener("click", () => {
-      const url = snapshot.board?.url || config.baseUrl || "http://127.0.0.1:3040";
-      host.openUrl(url).catch(() => {
+    const sourceBox = el2("div", "settings-box");
+    const connRow = el2("div", "settings-line");
+    const connDot = el2("span", "col-dot");
+    connDot.style.setProperty("--dot", config.connected ? "var(--oc-success)" : "var(--oc-error)");
+    connRow.append(connDot, el2("span", "settings-line-text", isLocal ? "Tablero local en este equipo" : config.connected ? `${config.email || "Planka"} en ${config.baseUrl || "Planka"}` : "Sin conexi\xF3n con Planka"));
+    sourceBox.append(connRow);
+    if (isLocal) {
+      sourceBox.append(el2("p", "settings-note", "Guardado en board.local.json, junto a la extensi\xF3n. Solo se ve en este equipo."));
+    } else {
+      const connActions = el2("div", "settings-actions");
+      const openPlanka = el2("button", "ghost-btn", "Abrir Planka");
+      openPlanka.type = "button";
+      openPlanka.addEventListener("click", () => {
+        const url = snapshot.board?.url || config.baseUrl || "http://127.0.0.1:3040";
+        host.openUrl(url).catch(() => {
+        });
       });
-    });
-    const logout = el2("button", "ghost-btn", "Desconectar");
-    logout.type = "button";
-    logout.addEventListener("click", async () => {
-      try {
-        await api("POST", "/logout");
-        state.config = { ...config, connected: false };
-        toast("success", "Kanban desconectado de Planka.");
-        closeSettings(true);
-        await boot();
-      } catch (error) {
-        toast("error", error.message);
-      }
-    });
-    if (!isLocal) connActions.append(openPlanka, logout);
-    conexion.append(connActions);
+      const logout = el2("button", "ghost-btn danger", "Desconectar Planka");
+      logout.type = "button";
+      logout.addEventListener("click", async () => {
+        try {
+          await api("POST", "/logout");
+          state.config = { ...config, connected: false };
+          toast("success", "Kanban desconectado de Planka.");
+          closeSettings(true);
+          await boot();
+        } catch (error) {
+          toast("error", error.message);
+        }
+      });
+      connActions.append(openPlanka, logout);
+      sourceBox.append(connActions);
+    }
+    conexion.append(sourceBox);
     const delegacion = el2("section", "settings-section");
     delegacion.append(el2("div", "settings-heading", "Delegaci\xF3n"));
     delegacion.append(el2("p", "settings-note", "Solo cambia qui\xE9n abre la sesi\xF3n."));
