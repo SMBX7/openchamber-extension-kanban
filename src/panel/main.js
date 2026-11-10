@@ -1200,7 +1200,7 @@ const openSettings = () => {
   /* Delegación */
   const delegacion = el('section', 'settings-section');
   delegacion.append(el('div', 'settings-heading', 'Delegación'));
-  delegacion.append(el('p', 'settings-note', 'Decide si el agente abre la sesión solo o si la abres tú. No da acceso a otras personas: eso se gestiona en Planka.'));
+  delegacion.append(el('p', 'settings-note', 'Solo cambia quién abre la sesión.'));
   const modes = el('div', 'settings-modes');
   const modeCard = (label, description, active, enabled) => {
     const button = el('button', 'mode-card');
@@ -1210,8 +1210,8 @@ const openSettings = () => {
     button.append(el('span', 'mode-card-title', label), el('span', 'mode-card-text', description));
     return button;
   };
-  const manualCard = modeCard('Manual', 'Tú decides: Empezar mueve la tarjeta; la sesión la creas desde la tarjeta.', mapping?.autoSession !== true, Boolean(mapping));
-  const autoCard = modeCard('Automática', 'Al pasar a EN PROGRESO te ofrece abrir la sesión; no la abre sola.', mapping?.autoSession === true, Boolean(mapping));
+  const manualCard = modeCard('Manual', 'Tú abres la sesión con el + de la tarjeta.', mapping?.autoSession !== true, Boolean(mapping));
+  const autoCard = modeCard('Automática', 'Al mover a EN PROGRESO te pregunta antes de abrirla.', mapping?.autoSession === true, Boolean(mapping));
   manualCard.addEventListener('click', () => { if (mapping?.autoSession === true) void changeAutoMode(false); });
   autoCard.addEventListener('click', () => { if (mapping?.autoSession !== true) void changeAutoMode(true); });
   modes.append(manualCard, autoCard);
@@ -1253,9 +1253,9 @@ const openSettings = () => {
     return row;
   };
   sesionesBox.append(
-    fact('EN PROGRESO', 'se abre la sesión; en automático te la ofrece antes de abrirla.'),
-    fact('HECHO', 'se cierra, guarda el resumen en Engram y se detiene.'),
-    fact('A IDEAS', 'se detiene y se borra el vínculo.'),
+    fact('EN PROGRESO', 'la tarjeta pasa a ser la actual. La sesión la abres con el +; en automático te la ofrece antes.'),
+    fact('HECHO', 'se cierra la sesión, guarda el resumen en Engram y se detiene.'),
+    fact('A IDEAS', 'se detiene la sesión y se borra el vínculo.'),
   );
   sesionesBox.append(el('p', 'settings-note', 'El vínculo se borra al cerrar: si vuelves a mover la tarjeta, se crea una sesión nueva sin mezclar el contexto viejo. La sesión detenida queda en la lista para que la archives.'));
   sesiones.append(sesionesBox);
@@ -1264,13 +1264,13 @@ const openSettings = () => {
   const avanzado = el('section', 'settings-section');
   avanzado.append(el('div', 'settings-heading', 'Avanzado'));
   const avanzadoBox = el('div', 'settings-box');
-  avanzadoBox.append(el('p', 'settings-note', 'Planka es la única fuente de verdad: la extensión lee y escribe ahí, sin copia local. El agente usa el MCP de Kanban para:'));
+  avanzadoBox.append(el('p', 'settings-note', 'La extensión lee y escribe en la fuente que elijas: tu Planka o un tablero local guardado en este equipo. El agente usa el MCP de Kanban para:'));
   const toolChips = el('div', 'tool-chips');
   for (const name of ['crear tarjetas', 'moverlas', 'completarlas', 'editarlas', 'checklist', 'buscar', 'enlazar sesión']) {
     toolChips.append(el('span', 'tool-chip', name));
   }
   avanzadoBox.append(toolChips);
-  avanzadoBox.append(el('p', 'settings-note', 'El MCP solo actúa cuando el agente llama a una herramienta; no hay procesos en segundo plano tocando el tablero. Tras actualizar la extensión, reinicia OpenCode para que use la versión nueva.'));
+  avanzadoBox.append(el('p', 'settings-note', 'El MCP solo actúa cuando el agente llama a una herramienta: no hay nada tocando el tablero por su cuenta. Tras actualizar la extensión, reinicia OpenCode para que use la versión nueva.'));
   avanzado.append(avanzadoBox);
 
   scroll.append(conexion, tablero, estilo, delegacion, sesiones, avanzado);

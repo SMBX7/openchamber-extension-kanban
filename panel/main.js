@@ -2875,7 +2875,7 @@ ${card.description}`.toLowerCase();
     tablero.append(el2("p", "settings-note", mapping ? `Las sesiones de este tablero se crean en ${mapping.name}.` : "Sin proyecto no se pueden crear sesiones desde el Kanban."));
     const delegacion = el2("section", "settings-section");
     delegacion.append(el2("div", "settings-heading", "Delegaci\xF3n"));
-    delegacion.append(el2("p", "settings-note", "Decide si el agente abre la sesi\xF3n solo o si la abres t\xFA. No da acceso a otras personas: eso se gestiona en Planka."));
+    delegacion.append(el2("p", "settings-note", "Solo cambia qui\xE9n abre la sesi\xF3n."));
     const modes = el2("div", "settings-modes");
     const modeCard = (label, description, active2, enabled) => {
       const button2 = el2("button", "mode-card");
@@ -2885,8 +2885,8 @@ ${card.description}`.toLowerCase();
       button2.append(el2("span", "mode-card-title", label), el2("span", "mode-card-text", description));
       return button2;
     };
-    const manualCard = modeCard("Manual", "T\xFA decides: Empezar mueve la tarjeta; la sesi\xF3n la creas desde la tarjeta.", mapping?.autoSession !== true, Boolean(mapping));
-    const autoCard = modeCard("Autom\xE1tica", "Al pasar a EN PROGRESO te ofrece abrir la sesi\xF3n; no la abre sola.", mapping?.autoSession === true, Boolean(mapping));
+    const manualCard = modeCard("Manual", "T\xFA abres la sesi\xF3n con el + de la tarjeta.", mapping?.autoSession !== true, Boolean(mapping));
+    const autoCard = modeCard("Autom\xE1tica", "Al mover a EN PROGRESO te pregunta antes de abrirla.", mapping?.autoSession === true, Boolean(mapping));
     manualCard.addEventListener("click", () => {
       if (mapping?.autoSession === true) void changeAutoMode(false);
     });
@@ -2928,22 +2928,22 @@ ${card.description}`.toLowerCase();
       return row;
     };
     sesionesBox.append(
-      fact("EN PROGRESO", "se abre la sesi\xF3n; en autom\xE1tico te la ofrece antes de abrirla."),
-      fact("HECHO", "se cierra, guarda el resumen en Engram y se detiene."),
-      fact("A IDEAS", "se detiene y se borra el v\xEDnculo.")
+      fact("EN PROGRESO", "la tarjeta pasa a ser la actual. La sesi\xF3n la abres con el +; en autom\xE1tico te la ofrece antes."),
+      fact("HECHO", "se cierra la sesi\xF3n, guarda el resumen en Engram y se detiene."),
+      fact("A IDEAS", "se detiene la sesi\xF3n y se borra el v\xEDnculo.")
     );
     sesionesBox.append(el2("p", "settings-note", "El v\xEDnculo se borra al cerrar: si vuelves a mover la tarjeta, se crea una sesi\xF3n nueva sin mezclar el contexto viejo. La sesi\xF3n detenida queda en la lista para que la archives."));
     sesiones.append(sesionesBox);
     const avanzado = el2("section", "settings-section");
     avanzado.append(el2("div", "settings-heading", "Avanzado"));
     const avanzadoBox = el2("div", "settings-box");
-    avanzadoBox.append(el2("p", "settings-note", "Planka es la \xFAnica fuente de verdad: la extensi\xF3n lee y escribe ah\xED, sin copia local. El agente usa el MCP de Kanban para:"));
+    avanzadoBox.append(el2("p", "settings-note", "La extensi\xF3n lee y escribe en la fuente que elijas: tu Planka o un tablero local guardado en este equipo. El agente usa el MCP de Kanban para:"));
     const toolChips = el2("div", "tool-chips");
     for (const name of ["crear tarjetas", "moverlas", "completarlas", "editarlas", "checklist", "buscar", "enlazar sesi\xF3n"]) {
       toolChips.append(el2("span", "tool-chip", name));
     }
     avanzadoBox.append(toolChips);
-    avanzadoBox.append(el2("p", "settings-note", "El MCP solo act\xFAa cuando el agente llama a una herramienta; no hay procesos en segundo plano tocando el tablero. Tras actualizar la extensi\xF3n, reinicia OpenCode para que use la versi\xF3n nueva."));
+    avanzadoBox.append(el2("p", "settings-note", "El MCP solo act\xFAa cuando el agente llama a una herramienta: no hay nada tocando el tablero por su cuenta. Tras actualizar la extensi\xF3n, reinicia OpenCode para que use la versi\xF3n nueva."));
     avanzado.append(avanzadoBox);
     scroll.append(conexion, tablero, estilo, delegacion, sesiones, avanzado);
     const foot = el2("div", "sheet-foot settings-foot");
