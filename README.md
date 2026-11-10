@@ -3,12 +3,15 @@
 [Español](README.es.md) · English
 
 **A Kanban for [Planka](https://planka.app), and also a local Kanban without Planka.**
-It runs inside OpenChamber: a board with three columns, a small section in the sidebar
-showing what you are working on, and an agent that can read and move cards.
+It runs inside OpenChamber: a board with three columns, a small sidebar section showing
+what you are working on, and an agent that can read and move cards.
 
 Point it at your Planka instance, or choose the local board and keep everything on this
 machine: same board, same sessions, no server. If you were looking for a local Kanban
 inside OpenChamber, this works that way too.
+
+The interface is in Spanish. Every control mentioned below gives its English name and,
+in brackets, the label you will actually see on screen.
 
 ![The board](docs/panel.png)
 
@@ -33,7 +36,7 @@ It is not a project manager: no sprints, no estimates, no reports.
 
 ## Install
 
-1. Open **Settings → Extensions** in OpenChamber.
+1. Open **Settings → Extensions**.
 2. Add an extension and pick **this project's folder**.
 3. **Kanban** appears in the sidebar. Open it.
 
@@ -59,15 +62,25 @@ that board are created in that project.
 
 ## Local board
 
-If you do not have Planka, open **Settings → Conexión** and choose **Local**. You get a
-board with the three lists and three labels, stored on your machine.
+If you do not have Planka, open **Settings → Connection** (Conexión) and choose
+**Local**. You get a board with the three lists and three labels, stored on your
+machine.
 
 - It is yours only: not visible from your phone or another computer.
 - You can go back to Planka whenever you want; you will not have to log in again.
 - Planka and local are separate boards: nothing is copied between them.
-- **Descargar MD** and **Descargar CSV** save the board to your Downloads folder, to
-  read or share it. **Copia JSON** saves a complete copy and **Importar copia…**
-  restores it.
+
+The local board can be exported:
+
+- **Download MD** (Descargar MD) and **Download CSV** (Descargar CSV) write the board
+  into your Downloads folder as `kanban-YYYY-MM-DD.md` or `.csv`. They are meant for
+  reading and sharing.
+- **JSON copy** (Copia JSON) writes the complete board. It is the only format that can
+  be loaded back.
+- **Import a copy…** (Importar copia…) opens a file picker and restores that JSON file.
+
+The file is written by the extension on the machine where OpenChamber runs, not by the
+browser. If you use OpenChamber remotely, the file lands on that machine.
 
 ![Connection and appearance](docs/settings.png)
 
@@ -77,13 +90,13 @@ board with the three lists and three labels, stored on your machine.
 - **Edit**: hover a card and press the pencil. There you change the name, description,
   labels, checklist and due date.
 - **Delete**: the trash. You have to press it **twice**; then you get five seconds to
-  **Undo** in the bar at the top.
+  **Undo** (Deshacer) in the bar at the top.
 - **Move**: drag the card inside a column or to another one.
 - **Complete**: the tick sends it to DONE and closes its session.
 - **Search** with the magnifier.
-- **Paradas** filters cards in IN PROGRESS **with no session**. It is how you see what
-  has been parked for a long time and decide whether to pick it up or send it back to
-  ideas.
+- **Stopped** (Paradas) filters cards in IN PROGRESS **with no session**. It is how you
+  see what has been parked for a long time and decide whether to pick it up or send it
+  back to ideas.
 
 ## Work Status
 
@@ -100,7 +113,7 @@ It is the sidebar section. It lets you work without opening the panel.
 
 ## Sessions: manual and automatic
 
-Choose the mode in **Settings → Delegación** or from the Work Status pill.
+Choose the mode in **Settings → Delegation** (Delegación) or from the Work Status pill.
 
 - **Manual**: moving a card to IN PROGRESS only moves it. You open the session with the
   card's `+`.
@@ -123,12 +136,13 @@ Everything else works the same in both modes:
 - Moving back to **IDEAS** stops the session and releases the card.
 - Because the card is released, moving it again starts a **new** session, without the
   previous conversation.
-- If a card ends up with no session, it shows under **Paradas**: that is where you see
-  the ones parked for a long time.
+- If a card ends up with no session, it shows under **Stopped** (Paradas): that is where
+  you see the ones parked for a long time.
 
 ## Styles
 
-The same board with three finishes. Change them in **Settings → Apariencia**.
+The same board with three finishes. Change them in **Settings → Appearance**
+(Apariencia).
 
 ![The three styles](docs/styles.png)
 
@@ -143,9 +157,10 @@ The same board with three finishes. Change them in **Settings → Apariencia**.
 - **The panel and the sidebar disagree**: they are two separate areas; reload
   OpenChamber.
 - **The board does not change**: in Planka mode, check that Planka is up and that the
-  session has not expired. **Settings → Conexión** shows the account or the error.
-- **I deleted a card by mistake**: you have five seconds of **Undo**. After that it
-  cannot be recovered.
+  session has not expired. **Settings → Connection** (Conexión) shows the account or
+  the error.
+- **I deleted a card by mistake**: you have five seconds of **Undo** (Deshacer). After
+  that it cannot be recovered.
 - **There is no sound**: there is none, on purpose.
 
 ## License

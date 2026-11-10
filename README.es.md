@@ -66,9 +66,14 @@ con las tres listas y tres etiquetas, guardado en tu equipo.
 - Es solo tuyo: no se ve desde el móvil ni desde otro ordenador.
 - Puedes volver a Planka cuando quieras; no tendrás que entrar otra vez.
 - Planka y local son tableros distintos: no se copian cosas de uno a otro.
-- **Descargar MD** y **Descargar CSV** guardan el tablero en tu carpeta de Descargas,
-  para leerlo o compartirlo. **Copia JSON** guarda una copia completa y **Importar
-  copia…** la recupera.
+- **Descargar MD** y **Descargar CSV** escriben el tablero en tu carpeta de Descargas
+  como `kanban-AAAA-MM-DD.md` o `.csv`, para leerlo o compartirlo.
+- **Copia JSON** escribe el tablero completo. Es el único formato que se puede volver a
+  cargar.
+- **Importar copia…** abre el selector de archivos y restaura ese JSON.
+
+El archivo lo escribe la extensión en el equipo donde corre OpenChamber, no el
+navegador. Si usas OpenChamber en remoto, el archivo aparece en ese equipo.
 
 ![Conexión y apariencia](docs/settings.png)
 
