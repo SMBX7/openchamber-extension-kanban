@@ -1452,6 +1452,28 @@ var LocalClient = class {
     return true;
   }
 };
+var exportBoard = () => {
+  try {
+    return (0, import_node_fs5.readFileSync)(boardPath(), "utf8");
+  } catch {
+    return `${JSON.stringify(emptyStore(), null, 2)}
+`;
+  }
+};
+var importBoard = (raw) => {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(raw || ""));
+  } catch {
+    throw new PlankaError("Ese texto no es un tablero v\xE1lido.", { kind: "validation" });
+  }
+  if (!parsed || !Array.isArray(parsed.lists) || !parsed.lists.length) {
+    throw new PlankaError("Ese tablero no tiene columnas.", { kind: "validation" });
+  }
+  const store = normaliseStore(parsed);
+  writeStore(store);
+  return view(store);
+};
 var LOCAL_BOARD_ID = BOARD_ID;
 
 // src/service/main.js
@@ -1952,13 +1974,23 @@ var routes = {
   },
   "POST /config": async (body) => {
     const source = body?.source === "local" ? "local" : "planka";
-    if (source === "local") {
-      saveConfig({ source: "local", boardId: LOCAL_BOARD_ID, boardName: "Kanban local" });
-    } else {
-      saveConfig({ source: "planka", boardId: "", boardName: "" });
-    }
+    saveConfig({ source });
     invalidate();
     return { source };
+  },
+  "GET /local/export": async () => {
+    if (readConfig().source !== "local") {
+      throw new PlankaError("La copia solo existe en el tablero local.", { kind: "validation" });
+    }
+    return { data: exportBoard() };
+  },
+  "POST /local/import": async (body) => {
+    if (readConfig().source !== "local") {
+      throw new PlankaError("Restaurar solo vale en el tablero local.", { kind: "validation" });
+    }
+    importBoard(body?.data);
+    invalidate();
+    return { ok: true };
   },
   "GET /appearance": async () => ({ appearance: readAppearance() }),
   "POST /appearance": async (body) => ({ appearance: setAppearance(body || {}) }),
@@ -1998,7 +2030,7 @@ var routes = {
         autoSession: project.autoSession === true
       } : null,
       current,
-      ideas: (backlog?.cards || []).slice(0, 3).map((card) => ({ id: card.id, name: card.name })),
+      ideas: (backlog?.cards || []).slice(0, 50).map((card) => ({ id: card.id, name: card.name })),
       backlogId: backlog?.id || "",
       backlogName: backlog?.name || ""
     };

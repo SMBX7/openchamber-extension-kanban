@@ -534,4 +534,27 @@ export class LocalClient {
   }
 }
 
+export const exportBoard = () => {
+  try {
+    return readFileSync(boardPath(), 'utf8');
+  } catch {
+    return `${JSON.stringify(emptyStore(), null, 2)}\n`;
+  }
+};
+
+export const importBoard = (raw) => {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(raw || ''));
+  } catch {
+    throw new PlankaError('Ese texto no es un tablero válido.', { kind: 'validation' });
+  }
+  if (!parsed || !Array.isArray(parsed.lists) || !parsed.lists.length) {
+    throw new PlankaError('Ese tablero no tiene columnas.', { kind: 'validation' });
+  }
+  const store = normaliseStore(parsed);
+  writeStore(store);
+  return view(store);
+};
+
 export const LOCAL_BOARD_ID = BOARD_ID;

@@ -7,7 +7,7 @@ import { clearConfig, isConnected, readConfig, saveConfig } from '../shared/conf
 import { clearClosePending, getLink, linksForSession, listLinks, pendingCloseForSession, removeLink, setLink } from '../shared/links.js';
 import { getBoardProject, setBoardProject } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
-import { LOCAL_BOARD_ID, LocalClient } from '../shared/local.js';
+import { LOCAL_BOARD_ID, LocalClient, exportBoard, importBoard } from '../shared/local.js';
 import { PlankaClient, PlankaError, flattenCards, searchCards } from '../shared/planka.js';
 
 const PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
@@ -559,13 +559,25 @@ const routes = {
 
   'POST /config': async (body) => {
     const source = body?.source === 'local' ? 'local' : 'planka';
-    if (source === 'local') {
-      saveConfig({ source: 'local', boardId: LOCAL_BOARD_ID, boardName: 'Kanban local' });
-    } else {
-      saveConfig({ source: 'planka', boardId: '', boardName: '' });
-    }
+    saveConfig({ source });
     invalidate();
     return { source };
+  },
+
+  'GET /local/export': async () => {
+    if (readConfig().source !== 'local') {
+      throw new PlankaError('La copia solo existe en el tablero local.', { kind: 'validation' });
+    }
+    return { data: exportBoard() };
+  },
+
+  'POST /local/import': async (body) => {
+    if (readConfig().source !== 'local') {
+      throw new PlankaError('Restaurar solo vale en el tablero local.', { kind: 'validation' });
+    }
+    importBoard(body?.data);
+    invalidate();
+    return { ok: true };
   },
 
   'GET /appearance': async () => ({ appearance: readAppearance() }),
@@ -610,7 +622,7 @@ const routes = {
           }
         : null,
       current,
-      ideas: (backlog?.cards || []).slice(0, 3).map((card) => ({ id: card.id, name: card.name })),
+      ideas: (backlog?.cards || []).slice(0, 50).map((card) => ({ id: card.id, name: card.name })),
       backlogId: backlog?.id || '',
       backlogName: backlog?.name || '',
     };

@@ -1203,6 +1203,54 @@ const openSettings = () => {
 
   if (isLocal) {
     sourceBox.append(el('p', 'settings-note', 'Guardado en board.local.json, junto a la extensión. Solo se ve en este equipo.'));
+    const backup = el('div', 'settings-actions');
+    const copy = el('button', 'ghost-btn', 'Copiar tablero');
+    copy.type = 'button';
+    const restore = el('button', 'ghost-btn', 'Restaurar');
+    restore.type = 'button';
+    const area = el('textarea', 'settings-textarea');
+    area.hidden = true;
+    area.spellcheck = false;
+    area.setAttribute('aria-label', 'Contenido del tablero local');
+    const apply = el('button', 'btn-mint', 'Restaurar ahora');
+    apply.type = 'button';
+    apply.hidden = true;
+    copy.addEventListener('click', async () => {
+      try {
+        const answer = await api('GET', '/local/export');
+        area.value = answer.data || '';
+        area.hidden = false;
+        area.readOnly = true;
+        apply.hidden = true;
+        area.focus();
+        area.select();
+        document.execCommand('copy');
+        toast('success', 'Tablero copiado. Guárdalo donde quieras.');
+      } catch (error) {
+        toast('error', error.message);
+      }
+    });
+    restore.addEventListener('click', () => {
+      area.value = '';
+      area.hidden = false;
+      area.readOnly = false;
+      apply.hidden = false;
+      area.focus();
+    });
+    apply.addEventListener('click', async () => {
+      apply.disabled = true;
+      try {
+        await api('POST', '/local/import', { data: area.value });
+        toast('success', 'Tablero restaurado.');
+        closeSettings(true);
+        await boot();
+      } catch (error) {
+        toast('error', error.message);
+        apply.disabled = false;
+      }
+    });
+    backup.append(copy, restore);
+    sourceBox.append(backup, area, apply);
   } else {
     const connActions = el('div', 'settings-actions');
     const openPlanka = el('button', 'ghost-btn', 'Abrir Planka');

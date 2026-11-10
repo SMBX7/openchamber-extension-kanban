@@ -59,6 +59,8 @@ extension.
 - It lives on this machine: no mobile, no second computer.
 - Switching back to Planka keeps your token, so you will not have to log in again.
 - Nothing is copied between the two: they are separate boards.
+- **Backup**: Settings → Conexión offers Copiar tablero and Restaurar. Copy the text
+  somewhere safe; paste it back to recover the board.
 
 ![Connection and appearance settings](docs/settings.png)
 

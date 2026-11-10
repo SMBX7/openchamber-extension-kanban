@@ -58,6 +58,8 @@ extensión.
 - Vive en este equipo: sin móvil, sin segundo ordenador.
 - Volver a Planka conserva tu token, así que no tendrás que entrar otra vez.
 - No se copia nada entre los dos: son tableros distintos.
+- **Copia**: Ajustes → Conexión ofrece Copiar tablero y Restaurar. Guarda el texto en
+  un sitio seguro; pégalo para recuperar el tablero.
 
 ![Conexión y apariencia](docs/settings.png)
 
