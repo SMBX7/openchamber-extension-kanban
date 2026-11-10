@@ -294,7 +294,7 @@
       }
       .ghost-btn:hover { color: var(--oc-fg); background: var(--oc-hover); }
       .icon-btn {
-        width: 24px; height: 24px; display: inline-grid; place-items: center;
+        width: 24px; height: 24px; padding: 0; line-height: 0; display: inline-grid; place-items: center;
         border: 0; background: transparent; color: var(--oc-muted); border-radius: 6px;
       }
       .icon-btn:hover { background: var(--oc-hover); color: var(--oc-fg); }
@@ -513,7 +513,7 @@
       }
       .col-count { margin-left: auto; font-size: 10.5px; color: var(--oc-muted); font-variant-numeric: tabular-nums; }
       .col-add {
-        width: 20px; height: 20px; border: 0; border-radius: 6px; background: transparent;
+        width: 20px; height: 20px; padding: 0; line-height: 0; border: 0; border-radius: 6px; background: transparent;
         color: var(--oc-muted); display: grid; place-items: center; opacity: 0;
         transition: opacity .12s ease, background-color .12s ease;
       }
@@ -579,7 +579,7 @@
       .card:hover .card-actions, .card:focus-within .card-actions { opacity: 1; pointer-events: auto; }
       .card::after { content: ''; display: block; clear: both; }
       .card-delete {
-        width: 20px; height: 20px;
+        width: 20px; height: 20px; padding: 0; line-height: 0;
         border: 0; border-radius: 6px; background: transparent; color: var(--oc-muted);
         display: grid; place-items: center; opacity: .35; transition: opacity .12s, color .12s, background .12s;
       }
@@ -588,7 +588,7 @@
       .card-delete .icon { width: 12px; height: 12px; }
       .card:hover .card-delete { opacity: .9; }
       .card-edit {
-        width: 20px; height: 20px;
+        width: 20px; height: 20px; padding: 0; line-height: 0;
         border: 0; border-radius: 6px; background: transparent; color: var(--oc-muted);
         display: grid; place-items: center; opacity: .45; transition: opacity .12s, color .12s, background .12s;
       }
@@ -596,7 +596,7 @@
       .card-edit .icon { width: 12px; height: 12px; }
       .card:hover .card-edit { opacity: .9; }
       .card-done {
-        position: absolute; top: 6px; right: 5px; width: 20px; height: 20px;
+        position: absolute; top: 6px; right: 5px; width: 20px; height: 20px; padding: 0; line-height: 0;
         border: 0; border-radius: 6px; background: var(--oc-elevated); color: var(--oc-muted);
         display: grid; place-items: center; opacity: 0; transition: opacity .12s, color .12s;
       }
@@ -607,7 +607,7 @@
       .drop-line { height: 2px; border-radius: 2px; background: var(--mint); margin: -1px 2px; flex: none; }
 
       .add-card {
-        align-self: center; width: 24px; height: 24px; margin: 2px 0 4px;
+        align-self: center; width: 24px; height: 24px; padding: 0; line-height: 0; margin: 2px 0 4px;
         border: 0; border-radius: 7px; background: transparent; color: var(--oc-muted);
         display: grid; place-items: center; opacity: .55; transition: opacity .12s, color .12s, background .12s;
       }
