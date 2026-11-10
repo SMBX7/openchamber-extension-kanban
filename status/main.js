@@ -1838,7 +1838,7 @@ ${GUEST_UI_LOOK_CSS}`;
     trash: '<path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 12h10l1-12"/>',
     open: '<path d="M14 4h6v6M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>'
   };
-  var state = { data: null, error: "", busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: "", confirmId: "", sessions: [], sessionsProjectId: "", sessionsAt: 0 };
+  var state = { data: null, error: "", busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: "", confirmId: "", pending: "", sessions: [], sessionsProjectId: "", sessionsAt: 0 };
   var confirmTimer = null;
   var poll = null;
   var inFlight = false;
@@ -2034,6 +2034,7 @@ ${GUEST_UI_LOOK_CSS}`;
     state.error = "";
     render();
     let sessionId = "";
+    state.pending = "";
     try {
       const answer = await api("POST", "/session/start", { cardId: current.id });
       sessionId = answer?.sessionId || "";
@@ -2054,6 +2055,7 @@ ${GUEST_UI_LOOK_CSS}`;
   };
   var backToIdeas = async (current) => {
     if (state.busy) return;
+    state.pending = "";
     state.busy = true;
     state.error = "";
     render();
@@ -2170,10 +2172,10 @@ ${GUEST_UI_LOOK_CSS}`;
       head.append(el2("span", "state", current.state || ""));
     }
     const project = state.data?.project;
-    if (!current.sessionId && project && project.autoSession !== true) {
+    if (!current.sessionId && project) {
       const create = el2("button", "session-create");
       create.type = "button";
-      create.title = `Crear sesi\xF3n en ${project.name || "el proyecto"}`;
+      create.title = `Abrir sesi\xF3n en ${project.name || "el proyecto"}`;
       create.setAttribute("aria-label", create.title);
       create.disabled = state.busy;
       create.append(icon2("plus"));
@@ -2197,6 +2199,26 @@ ${GUEST_UI_LOOK_CSS}`;
     const body = el2("div", "card-body");
     body.append(el2("div", "card-name", current.name || "Sin t\xEDtulo"));
     card.append(head, body);
+    if (state.pending === current.id && !current.sessionId) {
+      const row = el2("div", "card-pending");
+      row.append(el2("span", "card-pending-text", "\xBFAbrir sesi\xF3n?"));
+      const yes = el2("button", "pending-btn pending-yes", "Abrir");
+      yes.type = "button";
+      yes.disabled = state.busy;
+      yes.addEventListener("click", () => {
+        state.pending = "";
+        void createSession(current);
+      });
+      const no = el2("button", "pending-btn", "No");
+      no.type = "button";
+      no.disabled = state.busy;
+      no.addEventListener("click", () => {
+        state.pending = "";
+        render();
+      });
+      row.append(yes, no);
+      card.append(row);
+    }
     return card;
   };
   var renderIdea = (idea) => {
@@ -2204,7 +2226,11 @@ ${GUEST_UI_LOOK_CSS}`;
     const body = el2("div", "card-body");
     body.append(el2("div", "card-name", idea.name || "Sin t\xEDtulo"));
     const meta = el2("span", "card-meta");
-    meta.append(deleteButton(idea), tickButton("Empezar idea", "Empezar", () => act(`start-${idea.id}`)));
+    const startIdea = () => {
+      if (state.data?.project?.autoSession) state.pending = idea.id;
+      void act(`start-${idea.id}`);
+    };
+    meta.append(deleteButton(idea), tickButton("Empezar idea", "Empezar", startIdea));
     card.append(body, meta);
     return card;
   };

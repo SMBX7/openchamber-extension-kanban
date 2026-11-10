@@ -599,6 +599,12 @@
         animation: undo-countdown 5s linear forwards;
       }
       @keyframes undo-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+      .auto-bar .undo-progress { animation-duration: 15s; background: var(--oc-info, var(--mint)); }
+      .undo-cancel {
+        border: 0; background: transparent; padding: 2px 4px; font-size: 12px;
+        color: var(--oc-muted);
+      }
+      .undo-cancel:hover { color: var(--oc-fg); }
 
       /* ---------- compact rail ---------- */
       .compact { height: 100%; display: flex; flex-direction: column; gap: 12px; padding: 12px; background: var(--oc-bg); }

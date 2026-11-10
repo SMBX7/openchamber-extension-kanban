@@ -1956,6 +1956,45 @@ ${GUEST_UI_LOOK_CSS}`;
     host.toast({ kind, message }).catch(() => {
     });
   };
+  var closeAutoBars = () => {
+    for (const node of document.querySelectorAll(".auto-bar")) node.remove();
+  };
+  var offerSession = (cardId, name, project) => {
+    closeAutoBars();
+    const bar = el2("div", "undo-bar auto-bar");
+    const text = el2("span", "undo-text", `\xBFAbrir sesi\xF3n para \xAB${name || "la tarjeta"}\xBB?`);
+    const open = el2("button", "undo-action", "Abrir sesi\xF3n");
+    open.type = "button";
+    const skip = el2("button", "undo-cancel", "Ahora no");
+    skip.type = "button";
+    const progress = el2("span", "undo-progress");
+    let timer = null;
+    const close = () => {
+      clearTimeout(timer);
+      bar.remove();
+    };
+    open.addEventListener("click", async () => {
+      close();
+      try {
+        const result = await api("POST", "/session/start", { cardId });
+        await refresh(true);
+        if (result?.sessionId) {
+          toast("success", `Sesi\xF3n creada en ${result.project || project || "el proyecto"}.`);
+          try {
+            await host.openSession(result.sessionId);
+          } catch {
+            toast("error", "La sesi\xF3n se cre\xF3, pero no se pudo abrir.");
+          }
+        }
+      } catch (error) {
+        toast("error", error.message);
+      }
+    });
+    skip.addEventListener("click", close);
+    bar.append(text, open, skip, progress);
+    document.body.append(bar);
+    timer = setTimeout(close, 15e3);
+  };
   var removeUndoBar = () => {
     state.pendingDelete?.bar?.remove();
   };
@@ -2670,7 +2709,7 @@ ${card.description}`.toLowerCase();
         autoSession: Boolean(enabled)
       });
       state.snapshot.project = answer.project || mapping;
-      toast("success", enabled ? "Delegaci\xF3n autom\xE1tica activada." : "Delegaci\xF3n manual: usa Crear sesi\xF3n en la tarjeta.");
+      toast("success", enabled ? "Delegaci\xF3n autom\xE1tica: te pedir\xE1 confirmaci\xF3n al mover una tarjeta." : "Delegaci\xF3n manual: usa Crear sesi\xF3n en la tarjeta.");
     } catch (error) {
       toast("error", error.message);
     }
@@ -2789,7 +2828,7 @@ ${card.description}`.toLowerCase();
       return button2;
     };
     const manualCard = modeCard("Manual", "T\xFA decides: Empezar mueve la tarjeta; la sesi\xF3n la creas desde la tarjeta.", mapping?.autoSession !== true, Boolean(mapping));
-    const autoCard = modeCard("Autom\xE1tica", "Al pasar a EN PROGRESO se crea y abre la sesi\xF3n.", mapping?.autoSession === true, Boolean(mapping));
+    const autoCard = modeCard("Autom\xE1tica", "Al pasar a EN PROGRESO te ofrece abrir la sesi\xF3n; no la abre sola.", mapping?.autoSession === true, Boolean(mapping));
     manualCard.addEventListener("click", () => {
       if (mapping?.autoSession === true) void changeAutoMode(false);
     });
@@ -3285,6 +3324,8 @@ ${card.description}`.toLowerCase();
         } catch {
           toast("error", "La sesi\xF3n se cre\xF3, pero no se pudo abrir.");
         }
+      } else if (answer?.autoPending) {
+        offerSession(cardId, card?.name, answer.project);
       } else if (answer?.manual) {
         toast("info", "Delegaci\xF3n manual: abre la tarjeta y pulsa Crear sesi\xF3n.");
       } else if (answer?.needsMapping) {

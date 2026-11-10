@@ -140,6 +140,23 @@
         box-shadow: var(--relief-inset), 0 0 0 1px color-mix(in srgb, var(--oc-info) 55%, transparent);
       }
 
+      .card-pending {
+        display: flex; align-items: center; gap: 6px; margin-top: 2px;
+        padding: 4px 6px; border-radius: 7px;
+        background: color-mix(in srgb, var(--oc-info) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--oc-info) 40%, var(--oc-border));
+      }
+      .card-pending-text { flex: 1 1 auto; font-size: 11px; color: var(--oc-fg); }
+      .pending-btn {
+        padding: 2px 8px; border-radius: 6px; font-size: 11px;
+        border: 1px solid var(--oc-border); background: var(--oc-elevated); color: var(--oc-muted);
+      }
+      .pending-btn:hover { color: var(--oc-fg); }
+      .pending-yes {
+        color: var(--mint-text, var(--oc-success));
+        border-color: color-mix(in srgb, var(--mint) 55%, var(--oc-border));
+        background: color-mix(in srgb, var(--mint) 14%, transparent);
+      }
       .session-create {
         width: 22px; height: 22px; flex: none; display: grid; place-items: center;
         padding: 0; line-height: 0;

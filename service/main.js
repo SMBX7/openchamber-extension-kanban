@@ -1656,7 +1656,9 @@ var startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
     await client().moveCard(card.id, workList.id, void 0, boardId);
     invalidate();
   }
-  if (!forceSession && project.autoSession !== true) return { moved: true, project: project.name };
+  if (!forceSession) {
+    return { moved: true, autoPending: project.autoSession === true, project: project.name };
+  }
   const started = await startWorkSession(card, snapshot.board, project, boardId);
   return { sessionId: started.sessionId, project: project.name };
 };
@@ -2128,6 +2130,7 @@ var routes = {
     let sessionId = "";
     let needsMapping = false;
     let manual = false;
+    let autoPending = false;
     let sessionError = "";
     if (snapshot?.doneListId === listId) {
       linked = await triggerClose(id);
@@ -2142,13 +2145,7 @@ var routes = {
         } else if (project.autoSession !== true) {
           manual = true;
         } else {
-          try {
-            const card = snapshot ? flattenCards(snapshot).find((entry) => entry.id === id) : beforeCard;
-            const started = await startWorkSession(card, snapshot?.board || before?.board, project, boardId);
-            sessionId = started.sessionId;
-          } catch (error) {
-            sessionError = error instanceof Error ? error.message : "No se pudo crear la sesi\xF3n.";
-          }
+          autoPending = true;
         }
       }
     }
@@ -2158,6 +2155,7 @@ var routes = {
       sessionId,
       needsMapping,
       manual,
+      autoPending,
       sessionError,
       project: getBoardProject(boardId)?.name || ""
     };

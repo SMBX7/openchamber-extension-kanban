@@ -50,10 +50,12 @@ three lists (IDEAS, EN PROGRESO, HECHO) and three labels.
 
 ### Sessions
 
-- A card moved to the work list **does not** start a session. Starting one is always
-  explicit: the `+` button on the card, or the picker.
-- **Manual** delegation links sessions by hand; **automatic** delegation starts one
-  when a card reaches the work list.
+- A card moved to the work list **never** starts a session by itself. Automatic mode
+  asks first (a bar in the panel, a row inside the status card); the `+` button and the
+  picker always start one explicitly.
+- **Manual** delegation links sessions by hand; **automatic** delegation offers to start
+  one when a card reaches the work list and waits for a confirmation. Nothing starts on
+  its own, so an accidental drag costs nothing.
 - Completing a card, sending it back to ideas or deleting it **stops and unlinks** its
   session, so no agent keeps working on something that is no longer in progress.
 - Opening the linked session from the card puts the card's title on that session.

@@ -145,6 +145,47 @@ const toast = (kind, message) => {
   host.toast({ kind, message }).catch(() => {});
 };
 
+const closeAutoBars = () => {
+  for (const node of document.querySelectorAll('.auto-bar')) node.remove();
+};
+
+const offerSession = (cardId, name, project) => {
+  closeAutoBars();
+  const bar = el('div', 'undo-bar auto-bar');
+  const text = el('span', 'undo-text', `¿Abrir sesión para «${name || 'la tarjeta'}»?`);
+  const open = el('button', 'undo-action', 'Abrir sesión');
+  open.type = 'button';
+  const skip = el('button', 'undo-cancel', 'Ahora no');
+  skip.type = 'button';
+  const progress = el('span', 'undo-progress');
+  let timer = null;
+  const close = () => {
+    clearTimeout(timer);
+    bar.remove();
+  };
+  open.addEventListener('click', async () => {
+    close();
+    try {
+      const result = await api('POST', '/session/start', { cardId });
+      await refresh(true);
+      if (result?.sessionId) {
+        toast('success', `Sesión creada en ${result.project || project || 'el proyecto'}.`);
+        try {
+          await host.openSession(result.sessionId);
+        } catch {
+          toast('error', 'La sesión se creó, pero no se pudo abrir.');
+        }
+      }
+    } catch (error) {
+      toast('error', error.message);
+    }
+  });
+  skip.addEventListener('click', close);
+  bar.append(text, open, skip, progress);
+  document.body.append(bar);
+  timer = setTimeout(close, 15000);
+};
+
 const removeUndoBar = () => {
   state.pendingDelete?.bar?.remove();
 };
@@ -970,7 +1011,7 @@ const changeAutoMode = async (enabled) => {
       autoSession: Boolean(enabled),
     });
     state.snapshot.project = answer.project || mapping;
-    toast('success', enabled ? 'Delegación automática activada.' : 'Delegación manual: usa Crear sesión en la tarjeta.');
+    toast('success', enabled ? 'Delegación automática: te pedirá confirmación al mover una tarjeta.' : 'Delegación manual: usa Crear sesión en la tarjeta.');
   } catch (error) {
     toast('error', error.message);
   }
@@ -1105,7 +1146,7 @@ const openSettings = () => {
     return button;
   };
   const manualCard = modeCard('Manual', 'Tú decides: Empezar mueve la tarjeta; la sesión la creas desde la tarjeta.', mapping?.autoSession !== true, Boolean(mapping));
-  const autoCard = modeCard('Automática', 'Al pasar a EN PROGRESO se crea y abre la sesión.', mapping?.autoSession === true, Boolean(mapping));
+  const autoCard = modeCard('Automática', 'Al pasar a EN PROGRESO te ofrece abrir la sesión; no la abre sola.', mapping?.autoSession === true, Boolean(mapping));
   manualCard.addEventListener('click', () => { if (mapping?.autoSession === true) void changeAutoMode(false); });
   autoCard.addEventListener('click', () => { if (mapping?.autoSession !== true) void changeAutoMode(true); });
   modes.append(manualCard, autoCard);
@@ -1650,6 +1691,8 @@ const moveCard = async (cardId, listId, index) => {
       } catch {
         toast('error', 'La sesión se creó, pero no se pudo abrir.');
       }
+    } else if (answer?.autoPending) {
+      offerSession(cardId, card?.name, answer.project);
     } else if (answer?.manual) {
       toast('info', 'Delegación manual: abre la tarjeta y pulsa Crear sesión.');
     } else if (answer?.needsMapping) {

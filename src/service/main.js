@@ -243,7 +243,9 @@ const startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
     await client().moveCard(card.id, workList.id, undefined, boardId);
     invalidate();
   }
-  if (!forceSession && project.autoSession !== true) return { moved: true, project: project.name };
+  if (!forceSession) {
+    return { moved: true, autoPending: project.autoSession === true, project: project.name };
+  }
   const started = await startWorkSession(card, snapshot.board, project, boardId);
   return { sessionId: started.sessionId, project: project.name };
 };
@@ -758,6 +760,7 @@ const routes = {
     let sessionId = '';
     let needsMapping = false;
     let manual = false;
+    let autoPending = false;
     let sessionError = '';
 
     if (snapshot?.doneListId === listId) {
@@ -773,13 +776,7 @@ const routes = {
         } else if (project.autoSession !== true) {
           manual = true;
         } else {
-          try {
-            const card = snapshot ? flattenCards(snapshot).find((entry) => entry.id === id) : beforeCard;
-            const started = await startWorkSession(card, snapshot?.board || before?.board, project, boardId);
-            sessionId = started.sessionId;
-          } catch (error) {
-            sessionError = error instanceof Error ? error.message : 'No se pudo crear la sesión.';
-          }
+          autoPending = true;
         }
       }
     }
@@ -790,6 +787,7 @@ const routes = {
       sessionId,
       needsMapping,
       manual,
+      autoPending,
       sessionError,
       project: getBoardProject(boardId)?.name || '',
     };
