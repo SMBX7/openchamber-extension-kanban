@@ -487,17 +487,34 @@ var clean = (value) => {
   return HEX.test(text) ? text.toLowerCase() : "";
 };
 var STYLES = ["neumorphism", "brutalism", "glass"];
-var SHORTCUTS = ["shift", "ctrl", "alt", "none"];
 var cleanStyle = (value) => STYLES.includes(value) ? value : "neumorphism";
-var cleanShortcut = (value) => SHORTCUTS.includes(value) ? value : "shift";
-var empty3 = () => ({ version: 1, style: "neumorphism", shortcut: "shift", columns: ["", "", ""], card: "" });
+var DEFAULT_KEYS = {
+  ideas: "Shift+Digit1",
+  work: "Shift+Digit2",
+  done: "Shift+Digit3",
+  up: "Shift+ArrowUp",
+  down: "Shift+ArrowDown"
+};
+var KEY_ACTIONS = Object.keys(DEFAULT_KEYS);
+var COMBO = /^([A-Za-z]+\+)*(Digit\d|Key[A-Z]|Numpad\d|Arrow(Up|Down|Left|Right)|F\d{1,2})$/;
+var cleanKeys = (value) => {
+  const next = { ...DEFAULT_KEYS };
+  if (value && typeof value === "object") {
+    for (const action of KEY_ACTIONS) {
+      const combo = String(value[action] || "");
+      if (COMBO.test(combo)) next[action] = combo;
+    }
+  }
+  return next;
+};
+var empty3 = () => ({ version: 1, style: "neumorphism", keys: { ...DEFAULT_KEYS }, columns: ["", "", ""], card: "" });
 var readAppearance = () => {
   try {
     const parsed = JSON.parse((0, import_node_fs4.readFileSync)(FILE3, "utf8"));
     if (!parsed || typeof parsed !== "object") return empty3();
     const columns = Array.isArray(parsed.columns) ? parsed.columns.slice(0, 3).map(clean) : [];
     while (columns.length < 3) columns.push("");
-    return { version: 1, style: cleanStyle(parsed.style), shortcut: cleanShortcut(parsed.shortcut), columns, card: clean(parsed.card) };
+    return { version: 1, style: cleanStyle(parsed.style), keys: cleanKeys(parsed.keys), columns, card: clean(parsed.card) };
   } catch {
     return empty3();
   }
@@ -520,7 +537,7 @@ var setAppearance = (input = {}) => {
   const next = {
     version: 1,
     style: input.style === void 0 ? current.style : cleanStyle(input.style),
-    shortcut: input.shortcut === void 0 ? current.shortcut : cleanShortcut(input.shortcut),
+    keys: input.keys === void 0 ? current.keys : cleanKeys(input.keys),
     columns,
     card: input.card === void 0 ? current.card : clean(input.card)
   };

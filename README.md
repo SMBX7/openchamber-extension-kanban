@@ -77,10 +77,10 @@ extension.
 - **Complete**: the tick moves it to HECHO and closes its session.
 - **Search** with the magnifier, and **Paradas** filters cards in progress with no
   session.
-- **Keyboard**: point at a card and use the shortcut. `1`, `2` and `3` send it to a
-  column, the arrows reorder it and `Enter` opens it. The modifier (Shift, Ctrl, Alt or
-  none) is chosen in Settings → Apariencia; the panel needs focus, so click inside it
-  first. Moves are announced to screen readers.
+- **Keyboard**: `Tab` reaches the board, the arrows move the selection and `Enter`
+  opens a card. The move keys are yours: Settings → Atajos records whichever
+  combination you press. By default `Shift`+`1`, `2`, `3` send the selected card to a
+  column and `Shift`+`↑`/`↓` reorder it. Moves are announced to screen readers.
 
 ## Work Status
 

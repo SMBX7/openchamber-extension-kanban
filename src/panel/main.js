@@ -37,6 +37,8 @@ const state = {
   loginSource: '',
   features: {},
   popoverMounted: false,
+  selectedId: '',
+  capturing: '',
   surface: 'panel',
   booted: false,
   view: 'boot',
@@ -1277,6 +1279,32 @@ const openSettings = () => {
   }
   conexion.append(sourceBox);
 
+  /* Atajos */
+  const atajos = el('section', 'settings-section');
+  atajos.append(el('div', 'settings-heading', 'Atajos'));
+  atajos.append(el('p', 'settings-note', 'Pulsa una combinación para cambiarla. Las flechas solas mueven la selección y Enter abre la tarjeta.'));
+  const keyRows = el('div', 'keybindings');
+  const currentKeys = { ...defaultKeys, ...(state.appearance.keys || {}) };
+  for (const [action, label] of [
+    ['ideas', 'Enviar a IDEAS'],
+    ['work', 'Enviar a EN PROGRESO'],
+    ['done', 'Enviar a HECHO'],
+    ['up', 'Subir'],
+    ['down', 'Bajar'],
+  ]) {
+    const row = el('div', 'keybinding');
+    row.append(el('span', 'keybinding-label', label));
+    const button = el('button', 'ghost-btn key-btn', prettyCombo(currentKeys[action]));
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      state.capturing = action;
+      button.textContent = 'Pulsa una tecla…';
+    });
+    row.append(button);
+    keyRows.append(row);
+  }
+  atajos.append(keyRows);
+
   /* Delegación */
   const delegacion = el('section', 'settings-section');
   delegacion.append(el('div', 'settings-heading', 'Delegación'));
@@ -1323,22 +1351,6 @@ const openSettings = () => {
   }
   estilo.append(styleGrid);
 
-  const shortcutField = el('label', 'field');
-  shortcutField.append(el('span', '', 'Atajo de teclado'));
-  const shortcutSelect = el('select', 'settings-select');
-  for (const [value, label] of [
-    ['shift', 'Mayús + teclas'],
-    ['ctrl', 'Ctrl + teclas'],
-    ['alt', 'Alt + teclas'],
-    ['none', 'Sin modificador'],
-  ]) {
-    shortcutSelect.append(new Option(label, value));
-  }
-  shortcutSelect.value = state.appearance.shortcut || 'shift';
-  shortcutSelect.addEventListener('change', () => void saveAppearance({ shortcut: shortcutSelect.value }));
-  shortcutField.append(shortcutSelect);
-  estilo.append(shortcutField);
-  estilo.append(el('p', 'settings-note', 'Con una tarjeta bajo el ratón: 1, 2 y 3 la envían a cada columna, las flechas la reordenan y Enter la abre.'));
 
   /* Sesiones */
   const sesiones = el('section', 'settings-section');
@@ -1370,7 +1382,7 @@ const openSettings = () => {
   avanzadoBox.append(el('p', 'settings-note', 'El MCP solo actúa cuando el agente llama a una herramienta. En Planka lo ves desde cualquier dispositivo; el tablero local vive solo en este equipo. Tras actualizar la extensión, reinicia OpenCode.'));
   avanzado.append(avanzadoBox);
 
-  scroll.append(conexion, estilo, delegacion, sesiones, avanzado);
+  scroll.append(conexion, estilo, atajos, delegacion, sesiones, avanzado);
 
   const foot = el('div', 'sheet-foot settings-foot');
   const done = el('button', 'btn-mint', 'Listo');
@@ -1452,7 +1464,7 @@ const renderFilters = () => {
 
 const buildCard = (card, listIndex) => {
   const node = el('article', 'card');
-  node.tabIndex = 0;
+  node.tabIndex = card.id === state.selectedId ? 0 : -1;
   node.draggable = !state.search.trim() && state.labels.size === 0;
   node.dataset.cardId = card.id;
   node.setAttribute('role', 'button');
@@ -1460,8 +1472,8 @@ const buildCard = (card, listIndex) => {
   node.setAttribute('aria-describedby', 'kanban-kbd-help');
   node.setAttribute('aria-keyshortcuts', 'Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight');
 
-  node.addEventListener('pointermove', () => {
-    if (state.hoverCard !== card.id) state.hoverCard = card.id;
+  node.addEventListener('focus', () => {
+    state.selectedId = card.id;
   });
 
   const actions = el('div', 'card-actions');
@@ -1653,6 +1665,9 @@ const renderBoard = () => {
   if (!board) return;
   const focusedCard = document.activeElement?.closest?.('[data-card-id]')?.dataset.cardId || '';
   const snapshot = state.snapshot;
+  if (snapshot && !snapshot.lists.some((list) => list.cards.some((card) => card.id === state.selectedId))) {
+    state.selectedId = snapshot.lists.flatMap((list) => list.cards)[0]?.id || '';
+  }
   const scrollState = new Map();
   for (const existing of board.querySelectorAll('.column')) {
     const cards = existing.querySelector('.cards');
@@ -1907,13 +1922,31 @@ const moveByKeyboard = async (card, listIndex, key) => {
   }
 };
 
-const modifierMatches = (event) => {
-  const mod = state.appearance?.shortcut || 'shift';
-  if (mod === 'none') return !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
-  if (mod === 'shift') return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
-  if (mod === 'alt') return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey;
-  if (mod === 'ctrl') return (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
-  return false;
+const prettyCombo = (combo) => String(combo || '')
+  .replace(/Digit/g, '')
+  .replace(/Key/g, '')
+  .replace(/ArrowUp/g, '↑')
+  .replace(/ArrowDown/g, '↓')
+  .replace(/ArrowLeft/g, '←')
+  .replace(/ArrowRight/g, '→')
+  .replace(/Shift/g, 'Mayús')
+  .replace(/Meta/g, 'Cmd');
+
+const comboOf = (event) => {
+  const mods = [];
+  if (event.ctrlKey) mods.push('Ctrl');
+  if (event.altKey) mods.push('Alt');
+  if (event.shiftKey) mods.push('Shift');
+  if (event.metaKey) mods.push('Meta');
+  return [...mods, event.code].join('+');
+};
+
+const defaultKeys = {
+  ideas: 'Shift+Digit1',
+  work: 'Shift+Digit2',
+  done: 'Shift+Digit3',
+  up: 'Shift+ArrowUp',
+  down: 'Shift+ArrowDown',
 };
 
 const cardContext = (cardId) => {
@@ -1925,34 +1958,100 @@ const cardContext = (cardId) => {
   return null;
 };
 
-const shortcutTarget = () => {
-  const active = document.activeElement;
-  const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA'
-    || active.tagName === 'SELECT' || active.isContentEditable);
-  if (typing || state.sheetId || state.view !== 'board') return '';
-  const focused = active?.closest?.('[data-card-id]')?.dataset.cardId;
-  return focused || state.hoverCard || '';
+const selectCard = (cardId, focus = false) => {
+  state.selectedId = cardId;
+  for (const node of document.querySelectorAll('[data-card-id]')) {
+    node.tabIndex = node.dataset.cardId === cardId ? 0 : -1;
+  }
+  if (focus) document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`)?.focus({ preventScroll: true });
+};
+
+const navigateCards = (key) => {
+  const lists = state.snapshot?.lists || [];
+  if (!lists.length) return;
+  let column = -1;
+  let index = -1;
+  lists.forEach((list, listIndex) => {
+    const position = list.cards.findIndex((card) => card.id === state.selectedId);
+    if (position >= 0) {
+      column = listIndex;
+      index = position;
+    }
+  });
+  if (column < 0) {
+    const first = lists.find((list) => list.cards.length);
+    if (first) selectCard(first.cards[0].id, true);
+    return;
+  }
+  if (key === 'ArrowLeft' && column > 0) {
+    column -= 1;
+    index = Math.min(index, lists[column].cards.length - 1);
+  } else if (key === 'ArrowRight' && column < lists.length - 1) {
+    column += 1;
+    index = Math.min(index, lists[column].cards.length - 1);
+  } else if (key === 'ArrowUp') {
+    index = Math.max(0, index - 1);
+  } else if (key === 'ArrowDown') {
+    index = Math.min(lists[column].cards.length - 1, index + 1);
+  }
+  if (!lists[column]?.cards.length) return;
+  const next = lists[column].cards[Math.max(0, Math.min(index, lists[column].cards.length - 1))];
+  if (next) selectCard(next.id, true);
 };
 
 document.addEventListener('keydown', (event) => {
-  if (!modifierMatches(event)) return;
-  const id = shortcutTarget();
-  if (!id) return;
-  const context = cardContext(id);
-  if (!context) return;
-  const digit = { Digit1: 1, Digit2: 2, Digit3: 3, Numpad1: 1, Numpad2: 2, Numpad3: 3 }[event.code];
-  if (digit) {
+  if (state.capturing) {
     event.preventDefault();
-    const target = state.snapshot.lists[digit - 1];
-    if (!target || target.id === context.card.listId) return;
-    moveCard(context.card.id, target.id, 0)
-      .then(() => announce(`«${context.card.name}» movida a ${target.name}.`))
-      .catch((error) => toast('error', error.message));
+    event.stopPropagation();
+    if (event.key === 'Escape') {
+      state.capturing = '';
+      reopenSettings();
+      return;
+    }
+    if (['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) return;
+    const combo = comboOf(event);
+    if (/Arrow/.test(combo) && !/Ctrl|Alt|Shift|Meta/.test(combo)) {
+      toast('error', 'Añade Mayús, Ctrl o Alt a las flechas.');
+      return;
+    }
+    const keys = { ...defaultKeys, ...(state.appearance?.keys || {}), [state.capturing]: combo };
+    state.capturing = '';
+    void saveAppearance({ keys });
+    reopenSettings();
     return;
   }
+  if (state.view !== 'board' || state.sheetId) return;
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA'
+    || active.tagName === 'SELECT' || active.isContentEditable)) return;
+
+  const keys = { ...defaultKeys, ...(state.appearance?.keys || {}) };
+  const combo = comboOf(event);
+  const action = Object.keys(keys).find((name) => keys[name] === combo);
+  if (action) {
+    event.preventDefault();
+    const context = cardContext(state.selectedId);
+    if (!context) return;
+    if (action === 'ideas' || action === 'work' || action === 'done') {
+      const targetIndex = { ideas: 0, work: 1, done: 2 }[action];
+      const target = state.snapshot.lists[targetIndex];
+      if (!target || target.id === context.card.listId) return;
+      moveCard(context.card.id, target.id, 0)
+        .then(() => {
+          selectCard(context.card.id, true);
+          announce(`«${context.card.name}» movida a ${target.name}.`);
+        })
+        .catch((error) => toast('error', error.message));
+      return;
+    }
+    if (action === 'up') void moveByKeyboard(context.card, context.listIndex, 'ArrowUp');
+    if (action === 'down') void moveByKeyboard(context.card, context.listIndex, 'ArrowDown');
+    return;
+  }
+  if (event.ctrlKey || event.altKey || event.metaKey) return;
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
   event.preventDefault();
-  void moveByKeyboard(context.card, context.listIndex, event.key);
+  navigateCards(event.key);
 });
 
 const completeCard = async (cardId, node) => {
