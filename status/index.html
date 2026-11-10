@@ -19,19 +19,48 @@
         --relief-btn: 3px 3px 7px rgba(54, 70, 94, .13), -3px -3px 7px rgba(255, 255, 255, .90);
         --relief-inset: inset 2px 2px 5px rgba(54, 70, 94, .14), inset -2px -2px 5px rgba(255, 255, 255, .90);
       }
+      /* Neumorfismo: relieve más profundo */
+      html[data-style="neumorphism"] .card {
+        background:
+          linear-gradient(145deg, rgba(255, 255, 255, .04), rgba(0, 0, 0, .07)),
+          color-mix(in srgb, var(--oc-info) 9%, transparent);
+        box-shadow: 4px 4px 10px rgba(0, 0, 0, .30), -3px -3px 8px rgba(255, 255, 255, .045), inset 1px 1px 0 rgba(255, 255, 255, .05);
+      }
+      html[data-style="neumorphism"] .card.current {
+        background:
+          linear-gradient(145deg, rgba(255, 255, 255, .05), rgba(0, 0, 0, .08)),
+          color-mix(in srgb, var(--tone, var(--oc-warning)) 10%, transparent);
+      }
+
+      /* Brutalismo: gris claro, esquinas rectas */
       html[data-style="brutalism"] {
         --radius-card: 0px;
         --radius-inner: 0px;
         --radius-btn: 0px;
         --radius-pill: 0px;
-        --relief-card: 3px 3px 0 var(--oc-fg);
-        --relief-btn: 2px 2px 0 var(--oc-fg);
+        --brutal-line: color-mix(in srgb, var(--oc-fg) 55%, transparent);
+        --relief-card: 3px 3px 0 var(--brutal-line);
+        --relief-btn: 2px 2px 0 var(--brutal-line);
         --relief-inset: none;
       }
+      html[data-style="brutalism"] *:not(.board-dot) { border-radius: 0; }
       html[data-style="brutalism"] .card,
       html[data-style="brutalism"] .card-head,
-      html[data-style="brutalism"] .card-body { border-width: 2px; }
+      html[data-style="brutalism"] .card-body { border-width: 2px; border-color: var(--brutal-line); }
+      html[data-style="brutalism"] .card { box-shadow: 3px 3px 0 var(--brutal-line); }
       html[data-style="brutalism"] .board-name { text-transform: uppercase; letter-spacing: .03em; }
+      html[data-style="brutalism"] .tick,
+      html[data-style="brutalism"] .open,
+      html[data-style="brutalism"] .card-delete,
+      html[data-style="brutalism"] .session-create,
+      html[data-style="brutalism"] .session-back,
+      html[data-style="brutalism"] .summary-add,
+      html[data-style="brutalism"] .pending-btn {
+        border: 2px solid var(--brutal-line); background: var(--oc-elevated); color: var(--oc-fg);
+        box-shadow: 2px 2px 0 var(--brutal-line);
+      }
+
+      /* Cristal */
       html[data-style="glass"] {
         --radius-card: 14px;
         --radius-inner: 12px;
@@ -41,8 +70,17 @@
         --relief-inset: inset 0 1px 0 rgba(255, 255, 255, .10);
       }
       html[data-style="glass"] .card {
-        backdrop-filter: blur(12px) saturate(150%);
-        border-color: color-mix(in srgb, #fff 16%, transparent);
+        background:
+          linear-gradient(150deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .02)),
+          color-mix(in srgb, var(--oc-info) 8%, transparent);
+        backdrop-filter: blur(14px) saturate(150%);
+        border-color: color-mix(in srgb, var(--oc-info) 55%, rgba(255, 255, 255, .14));
+      }
+      html[data-style="glass"] .card.current {
+        background:
+          linear-gradient(150deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .02)),
+          color-mix(in srgb, var(--tone, var(--oc-warning)) 9%, transparent);
+        border-color: color-mix(in srgb, var(--tone, var(--oc-warning)) 60%, rgba(255, 255, 255, .14));
       }
       html[data-style="glass"] .card-head,
       html[data-style="glass"] .card-body { backdrop-filter: blur(8px); }

@@ -21,29 +21,61 @@
         --relief-btn: 3px 3px 7px rgba(54, 70, 94, .13), -3px -3px 7px rgba(255, 255, 255, .90);
         --relief-inset: inset 2px 2px 5px rgba(54, 70, 94, .14), inset -2px -2px 5px rgba(255, 255, 255, .90);
       }
+      /* Neumorfismo: relieve más profundo */
+      html[data-style="neumorphism"] .column {
+        box-shadow:
+          14px 14px 30px rgba(0, 0, 0, .38),
+          -10px -10px 24px rgba(255, 255, 255, .05),
+          inset 1px 1px 0 rgba(255, 255, 255, .07),
+          inset -1px -1px 0 rgba(0, 0, 0, .14);
+      }
+      html[data-style="neumorphism"] .card {
+        background:
+          linear-gradient(145deg, rgba(255, 255, 255, .05), rgba(0, 0, 0, .06)),
+          var(--kanban-card-bg, color-mix(in srgb, var(--oc-elevated) 88%, var(--oc-fg) 12%));
+        box-shadow:
+          6px 6px 14px rgba(0, 0, 0, .30),
+          -3px -3px 9px rgba(255, 255, 255, .05),
+          inset 1px 1px 0 rgba(255, 255, 255, .06);
+      }
+
+      /* Brutalismo: gris claro, esquinas rectas, sombras sólidas */
       html[data-style="brutalism"] {
         --kanban-radius: 0px;
         --card-radius: 0px;
-        --relief-btn: 3px 3px 0 var(--oc-fg);
+        --brutal-line: color-mix(in srgb, var(--oc-fg) 55%, transparent);
+        --relief-btn: 2px 2px 0 var(--brutal-line);
         --relief-inset: none;
       }
+      html[data-style="brutalism"] *:not(.col-dot):not(.board-dot):not(.dot):not(.label-dot):not(.session-dot) {
+        border-radius: 0;
+      }
       html[data-style="brutalism"] .column {
-        border-width: 2px; box-shadow: 6px 6px 0 var(--oc-fg);
+        border: 2px solid var(--brutal-line);
+        background: var(--oc-elevated);
+        box-shadow: 6px 6px 0 rgba(0, 0, 0, .40);
+        padding-bottom: 10px;
       }
       html[data-style="brutalism"] .card {
-        border: 2px solid var(--oc-fg); box-shadow: 3px 3px 0 var(--oc-fg);
+        border: 2px solid var(--brutal-line);
+        box-shadow: 3px 3px 0 var(--brutal-line);
       }
       html[data-style="brutalism"] .card-title { font-weight: 700; }
-      html[data-style="brutalism"] .sheet { border-left-width: 3px; }
-      html[data-style="brutalism"] .mini-select,
-      html[data-style="brutalism"] .settings-select,
-      html[data-style="brutalism"] .ghost-btn,
-      html[data-style="brutalism"] .btn-mint,
-      html[data-style="brutalism"] .icon-btn,
-      html[data-style="brutalism"] .quick-filter,
-      html[data-style="brutalism"] .source-btn,
-      html[data-style="brutalism"] .style-card,
-      html[data-style="brutalism"] .color-input { border-radius: 0; }
+      html[data-style="brutalism"] .card-actions { opacity: 1; }
+      html[data-style="brutalism"] .card-edit,
+      html[data-style="brutalism"] .card-delete {
+        border: 2px solid var(--brutal-line); background: var(--oc-elevated); color: var(--oc-fg);
+        box-shadow: 2px 2px 0 var(--brutal-line);
+      }
+      html[data-style="brutalism"] .add-card,
+      html[data-style="brutalism"] .col-add {
+        width: 26px; height: 26px; opacity: 1;
+        border: 2px solid var(--brutal-line); background: var(--oc-elevated); color: var(--oc-fg);
+        box-shadow: 2px 2px 0 var(--brutal-line);
+      }
+      html[data-style="brutalism"] .sheet { border-left: 3px solid var(--brutal-line); }
+
+      /* Cristal */
       html[data-style="glass"] {
         --kanban-radius: 20px;
         --card-radius: 14px;
@@ -51,16 +83,24 @@
         --relief-inset: inset 0 1px 0 rgba(255, 255, 255, .10);
       }
       html[data-style="glass"] .column {
-        backdrop-filter: blur(18px) saturate(150%);
-        background: color-mix(in srgb, var(--oc-elevated) 62%, transparent);
-        border-color: color-mix(in srgb, #fff 16%, transparent);
-        box-shadow: 0 16px 36px rgba(0, 0, 0, .32), inset 0 1px 0 rgba(255, 255, 255, .18);
+        backdrop-filter: blur(22px) saturate(170%);
+        background:
+          linear-gradient(155deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .015)),
+          color-mix(in srgb, var(--oc-elevated) 52%, transparent);
+        border: 1px solid color-mix(in srgb, var(--column-tone, var(--oc-border)) 60%, rgba(255, 255, 255, .10));
+        box-shadow: 0 18px 40px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .22);
       }
       html[data-style="glass"] .card {
-        background: color-mix(in srgb, var(--kanban-card-bg, var(--oc-elevated)) 72%, transparent);
-        backdrop-filter: blur(10px) saturate(140%);
-        border: 1px solid color-mix(in srgb, #fff 14%, transparent);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, .24), inset 0 1px 0 rgba(255, 255, 255, .16);
+        background:
+          linear-gradient(150deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .02)),
+          color-mix(in srgb, var(--kanban-card-bg, var(--oc-elevated)) 62%, transparent);
+        backdrop-filter: blur(12px) saturate(150%);
+        border: 1px solid color-mix(in srgb, var(--column-tone, var(--mint)) 55%, rgba(255, 255, 255, .12));
+        box-shadow: 0 10px 24px rgba(0, 0, 0, .26), inset 0 1px 0 rgba(255, 255, 255, .20);
+      }
+      html[data-style="glass"] .sheet {
+        backdrop-filter: blur(26px) saturate(160%);
+        background: color-mix(in srgb, var(--oc-elevated) 74%, transparent);
       }
       html[data-style="glass"] .mini-select,
       html[data-style="glass"] .settings-select,
@@ -70,10 +110,7 @@
       html[data-style="glass"] .quick-filter,
       html[data-style="glass"] .source-btn,
       html[data-style="glass"] .style-card { border-radius: 14px; }
-      html[data-style="glass"] .sheet {
-        backdrop-filter: blur(20px);
-        background: color-mix(in srgb, var(--oc-elevated) 85%, transparent);
-      }
+
       .style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
       .style-card {
         display: flex; flex-direction: column; gap: 5px; padding: 8px; text-align: left;
@@ -313,9 +350,23 @@
       .popover-surface { background: transparent; }
       .popover-card {
         display: flex; flex-direction: column; gap: 6px; height: 100%;
-        padding: 11px 12px; border-radius: 12px;
+        padding: 11px 12px; border-radius: var(--card-radius);
         background: var(--oc-elevated); border: 1px solid var(--oc-border);
         box-shadow: 0 10px 26px rgba(0, 0, 0, .26);
+      }
+      html[data-style="neumorphism"] .popover-card {
+        box-shadow: 6px 6px 16px rgba(0, 0, 0, .34), -3px -3px 10px rgba(255, 255, 255, .05), inset 1px 1px 0 rgba(255, 255, 255, .06);
+      }
+      html[data-style="brutalism"] .popover-card {
+        border: 2px solid var(--brutal-line);
+        box-shadow: 4px 4px 0 var(--brutal-line);
+      }
+      html[data-style="glass"] .popover-card {
+        background:
+          linear-gradient(150deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .02)),
+          color-mix(in srgb, var(--oc-elevated) 92%, transparent);
+        backdrop-filter: blur(18px) saturate(150%);
+        border-color: color-mix(in srgb, #fff 22%, transparent);
       }
       .popover-head { display: flex; align-items: center; gap: 6px; flex: none; }
       .popover-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--oc-warning); flex: none; }

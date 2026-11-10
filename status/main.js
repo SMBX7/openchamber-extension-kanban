@@ -1960,7 +1960,7 @@ ${GUEST_UI_LOOK_CSS}`;
     if (data.backlogId) {
       const add = el2("button", "summary-add");
       add.type = "button";
-      add.title = `A\xF1adir una idea a ${data.backlogName || "ideas"}`;
+      add.title = `A\xF1adir ${data.backlogName || "ideas"}`;
       add.setAttribute("aria-label", add.title);
       add.disabled = state.busy;
       add.append(icon2("plus"));

@@ -153,7 +153,7 @@ const renderSummary = (data) => {
   if (data.backlogId) {
     const add = el('button', 'summary-add');
     add.type = 'button';
-    add.title = `Añadir una idea a ${data.backlogName || 'ideas'}`;
+    add.title = `Añadir ${data.backlogName || 'ideas'}`;
     add.setAttribute('aria-label', add.title);
     add.disabled = state.busy;
     add.append(icon('plus'));

@@ -153,6 +153,7 @@ const renderPopover = (context) => {
   state.view = 'popover';
   stopPolling();
   const data = context.popover?.data || {};
+  document.documentElement.dataset.style = data.style || 'neumorphism';
   document.body.classList.add('popover-surface');
 
   const wrap = el('div', 'popover-card');
@@ -254,7 +255,7 @@ const offerSession = (cardId, name, project, node) => {
       height: 150,
       side: 'top',
       focus: true,
-      data: { cardId, name: name || '', project: project || '' },
+      data: { cardId, name: name || '', project: project || '', style: state.appearance.style || 'neumorphism' },
     })
     .catch(() => showAutoBar(cardId, name, project));
 };
