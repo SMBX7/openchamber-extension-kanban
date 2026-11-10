@@ -25,7 +25,7 @@ try {
   serviceHost = null;
 }
 
-const closePrompt = (title) => `La tarjeta «${title || 'sin título'}» se ha movido a HECHO. La tarea está terminada. Cierra esta sesión y guarda el resumen en Engram.`;
+const closePrompt = (title) => `La tarjeta «${title || 'sin título'}» se ha movido a HECHO. La tarea está terminada. Cierra esta sesión.`;
 
 const sendClosePrompt = async (cardId, link) => {
   if (!serviceHost) return false;
@@ -186,11 +186,10 @@ const sessionPrompt = (card, board, project) => {
     .flatMap((taskList) => taskList.tasks.map((task) => `- ${task.name}`))
     .slice(0, 12);
   return [
-    `Trabaja en la tarjeta de Planka «${card?.name || 'sin título'}» del tablero «${board?.name || ''}».`,
+    `Trabaja en la tarjeta del kanban «${card?.name || 'sin título'}» del tablero «${board?.name || ''}».`,
     card?.description ? `Descripción: ${card.description}` : '',
     checklist.length ? `Checklist:\n${checklist.join('\n')}` : '',
     `Proyecto: ${project.name}.`,
-    'Empieza investigando el código y proponiendo un plan antes de cambiar nada.',
   ]
     .filter(Boolean)
     .join('\n');

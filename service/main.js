@@ -1467,7 +1467,7 @@ try {
 } catch {
   serviceHost = null;
 }
-var closePrompt = (title) => `La tarjeta \xAB${title || "sin t\xEDtulo"}\xBB se ha movido a HECHO. La tarea est\xE1 terminada. Cierra esta sesi\xF3n y guarda el resumen en Engram.`;
+var closePrompt = (title) => `La tarjeta \xAB${title || "sin t\xEDtulo"}\xBB se ha movido a HECHO. La tarea est\xE1 terminada. Cierra esta sesi\xF3n.`;
 var sendClosePrompt = async (cardId, link) => {
   if (!serviceHost) return false;
   try {
@@ -1607,12 +1607,11 @@ var snapshotView = (snapshot) => ({
 var sessionPrompt = (card, board, project) => {
   const checklist = (card?.taskLists || []).flatMap((taskList) => taskList.tasks.map((task) => `- ${task.name}`)).slice(0, 12);
   return [
-    `Trabaja en la tarjeta de Planka \xAB${card?.name || "sin t\xEDtulo"}\xBB del tablero \xAB${board?.name || ""}\xBB.`,
+    `Trabaja en la tarjeta del kanban \xAB${card?.name || "sin t\xEDtulo"}\xBB del tablero \xAB${board?.name || ""}\xBB.`,
     card?.description ? `Descripci\xF3n: ${card.description}` : "",
     checklist.length ? `Checklist:
 ${checklist.join("\n")}` : "",
-    `Proyecto: ${project.name}.`,
-    "Empieza investigando el c\xF3digo y proponiendo un plan antes de cambiar nada."
+    `Proyecto: ${project.name}.`
   ].filter(Boolean).join("\n");
 };
 var startWorkSession = async (card, board, project, boardId) => {
