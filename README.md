@@ -77,10 +77,6 @@ extension.
 - **Complete**: the tick moves it to HECHO and closes its session.
 - **Search** with the magnifier, and **Paradas** filters cards in progress with no
   session.
-- **Keyboard**: `Tab` reaches the board, the arrows move the selection and `Enter`
-  opens a card. The move keys are yours: Settings → Atajos records whichever
-  combination you press. By default `Shift`+`1`, `2`, `3` send the selected card to a
-  column and `Shift`+`↑`/`↓` reorder it. Moves are announced to screen readers.
 
 ## Work Status
 

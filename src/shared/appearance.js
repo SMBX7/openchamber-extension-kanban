@@ -18,28 +18,7 @@ const clean = (value) => {
 const STYLES = ['neumorphism', 'brutalism', 'glass'];
 const cleanStyle = (value) => (STYLES.includes(value) ? value : 'neumorphism');
 
-const DEFAULT_KEYS = {
-  ideas: 'Shift+Digit1',
-  work: 'Shift+Digit2',
-  done: 'Shift+Digit3',
-  up: 'Shift+ArrowUp',
-  down: 'Shift+ArrowDown',
-};
-const KEY_ACTIONS = Object.keys(DEFAULT_KEYS);
-const COMBO = /^([A-Za-z]+\+)*(Digit\d|Key[A-Z]|Numpad\d|Arrow(Up|Down|Left|Right)|F\d{1,2})$/;
-
-const cleanKeys = (value) => {
-  const next = { ...DEFAULT_KEYS };
-  if (value && typeof value === 'object') {
-    for (const action of KEY_ACTIONS) {
-      const combo = String(value[action] || '');
-      if (COMBO.test(combo)) next[action] = combo;
-    }
-  }
-  return next;
-};
-
-const empty = () => ({ version: 1, style: 'neumorphism', keys: { ...DEFAULT_KEYS }, columns: ['', '', ''], card: '' });
+const empty = () => ({ version: 1, style: 'neumorphism', columns: ['', '', ''], card: '' });
 
 export const readAppearance = () => {
   try {
@@ -47,7 +26,7 @@ export const readAppearance = () => {
     if (!parsed || typeof parsed !== 'object') return empty();
     const columns = Array.isArray(parsed.columns) ? parsed.columns.slice(0, 3).map(clean) : [];
     while (columns.length < 3) columns.push('');
-    return { version: 1, style: cleanStyle(parsed.style), keys: cleanKeys(parsed.keys), columns, card: clean(parsed.card) };
+    return { version: 1, style: cleanStyle(parsed.style), columns, card: clean(parsed.card) };
   } catch {
     return empty();
   }
@@ -65,8 +44,6 @@ const writeAppearance = (data) => {
   }
 };
 
-export const DEFAULT_SHORTCUTS = DEFAULT_KEYS;
-
 export const setAppearance = (input = {}) => {
   const current = readAppearance();
   const columns = Array.isArray(input.columns) ? input.columns.slice(0, 3).map(clean) : current.columns;
@@ -74,7 +51,6 @@ export const setAppearance = (input = {}) => {
   const next = {
     version: 1,
     style: input.style === undefined ? current.style : cleanStyle(input.style),
-    keys: input.keys === undefined ? current.keys : cleanKeys(input.keys),
     columns,
     card: input.card === undefined ? current.card : clean(input.card),
   };

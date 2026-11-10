@@ -4,15 +4,7 @@ import { applyHostReady } from '@openchamber/sdk/ui';
 const host = connectHost();
 const root = document.querySelector('#root');
 
-const ensureA11yNodes = () => {
-  if (document.getElementById('kanban-live')) return;
-  const live = el('div', 'sr-only');
-  live.id = 'kanban-live';
-  live.setAttribute('aria-live', 'polite');
-  const help = el('div', 'sr-only', 'Mayús más flechas mueve la tarjeta entre columnas y dentro de una.');
-  help.id = 'kanban-kbd-help';
-  document.body.append(live, help);
-};
+
 
 const COLUMN_TOKENS = ['var(--oc-info)', 'var(--oc-warning)', 'var(--oc-success)'];
 const SAVE_DEBOUNCE_MS = 650;
@@ -37,8 +29,6 @@ const state = {
   loginSource: '',
   features: {},
   popoverMounted: false,
-  selectedId: '',
-  capturing: '',
   surface: 'panel',
   booted: false,
   view: 'boot',
@@ -419,7 +409,6 @@ host.onReady((context) => {
   }
   state.session = context.session || null;
   state.surface = context.surface === 'page' ? 'page' : 'panel';
-  ensureA11yNodes();
   if (state.booted) return;
   state.booted = true;
   void boot();
@@ -1279,32 +1268,6 @@ const openSettings = () => {
   }
   conexion.append(sourceBox);
 
-  /* Atajos */
-  const atajos = el('section', 'settings-section');
-  atajos.append(el('div', 'settings-heading', 'Atajos'));
-  atajos.append(el('p', 'settings-note', 'Pulsa una combinación para cambiarla. Las flechas solas mueven la selección y Enter abre la tarjeta.'));
-  const keyRows = el('div', 'keybindings');
-  const currentKeys = { ...defaultKeys, ...(state.appearance.keys || {}) };
-  for (const [action, label] of [
-    ['ideas', 'Enviar a IDEAS'],
-    ['work', 'Enviar a EN PROGRESO'],
-    ['done', 'Enviar a HECHO'],
-    ['up', 'Subir'],
-    ['down', 'Bajar'],
-  ]) {
-    const row = el('div', 'keybinding');
-    row.append(el('span', 'keybinding-label', label));
-    const button = el('button', 'ghost-btn key-btn', prettyCombo(currentKeys[action]));
-    button.type = 'button';
-    button.addEventListener('click', () => {
-      state.capturing = action;
-      button.textContent = 'Pulsa una tecla…';
-    });
-    row.append(button);
-    keyRows.append(row);
-  }
-  atajos.append(keyRows);
-
   /* Delegación */
   const delegacion = el('section', 'settings-section');
   delegacion.append(el('div', 'settings-heading', 'Delegación'));
@@ -1382,7 +1345,7 @@ const openSettings = () => {
   avanzadoBox.append(el('p', 'settings-note', 'El MCP solo actúa cuando el agente llama a una herramienta. En Planka lo ves desde cualquier dispositivo; el tablero local vive solo en este equipo. Tras actualizar la extensión, reinicia OpenCode.'));
   avanzado.append(avanzadoBox);
 
-  scroll.append(conexion, estilo, atajos, delegacion, sesiones, avanzado);
+  scroll.append(conexion, estilo, delegacion, sesiones, avanzado);
 
   const foot = el('div', 'sheet-foot settings-foot');
   const done = el('button', 'btn-mint', 'Listo');
@@ -1464,17 +1427,11 @@ const renderFilters = () => {
 
 const buildCard = (card, listIndex) => {
   const node = el('article', 'card');
-  node.tabIndex = card.id === state.selectedId ? 0 : -1;
+  node.tabIndex = 0;
   node.draggable = !state.search.trim() && state.labels.size === 0;
   node.dataset.cardId = card.id;
   node.setAttribute('role', 'button');
   node.setAttribute('aria-label', `${card.name}. Abrir tarjeta`);
-  node.setAttribute('aria-describedby', 'kanban-kbd-help');
-  node.setAttribute('aria-keyshortcuts', 'Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight');
-
-  node.addEventListener('focus', () => {
-    state.selectedId = card.id;
-  });
 
   const actions = el('div', 'card-actions');
   node.append(actions);
@@ -1564,7 +1521,7 @@ const buildCard = (card, listIndex) => {
   actions.append(edit, remove);
 
   const open = () => openSheet(card.id);
-  node.title = 'Abrir y editar · Mayús + flechas para mover';
+  node.title = 'Abrir y editar';
   node.addEventListener('click', open);
   node.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -1663,11 +1620,7 @@ const attachDropTarget = (column, cardsEl, listId) => {
 const renderBoard = () => {
   const board = state.refs?.board;
   if (!board) return;
-  const focusedCard = document.activeElement?.closest?.('[data-card-id]')?.dataset.cardId || '';
   const snapshot = state.snapshot;
-  if (snapshot && !snapshot.lists.some((list) => list.cards.some((card) => card.id === state.selectedId))) {
-    state.selectedId = snapshot.lists.flatMap((list) => list.cards)[0]?.id || '';
-  }
   const scrollState = new Map();
   for (const existing of board.querySelectorAll('.column')) {
     const cards = existing.querySelector('.cards');
@@ -1779,9 +1732,6 @@ const renderBoard = () => {
     if (!cards) continue;
     cards.scrollTop = saved.atBottom ? cards.scrollHeight : saved.top;
   }
-  if (focusedCard) {
-    board.querySelector(`[data-card-id="${CSS.escape(focusedCard)}"]`)?.focus({ preventScroll: true });
-  }
 };
 
 
@@ -1884,175 +1834,6 @@ const moveCard = async (cardId, listId, index) => {
     await refresh(true);
   }
 };
-
-const announce = (message) => {
-  const live = document.getElementById('kanban-live');
-  if (live) live.textContent = message;
-};
-
-const moveByKeyboard = async (card, listIndex, key) => {
-  const snapshot = state.snapshot;
-  const lists = snapshot?.lists || [];
-  const source = lists[listIndex];
-  const position = source?.cards.findIndex((item) => item.id === card.id) ?? -1;
-  if (!source || position < 0) return;
-  let target = source;
-  let index = position;
-  if (key === 'ArrowUp') index = position - 1;
-  else if (key === 'ArrowDown') index = position + 1;
-  else if (key === 'ArrowLeft') {
-    target = lists[listIndex - 1] || source;
-    index = 0;
-  } else if (key === 'ArrowRight') {
-    target = lists[listIndex + 1] || source;
-    index = 0;
-  }
-  if (target === source) {
-    index = Math.max(0, Math.min(index, source.cards.length - 1));
-    if (index === position) return;
-  } else {
-    index = Math.min(index, target.cards.length);
-  }
-  try {
-    await moveCard(card.id, target.id, index);
-    announce(`«${card.name}» movida a ${target.name}.`);
-    document.querySelector(`[data-card-id="${CSS.escape(card.id)}"]`)?.focus({ preventScroll: true });
-  } catch (error) {
-    toast('error', error.message);
-  }
-};
-
-const prettyCombo = (combo) => String(combo || '')
-  .replace(/Digit/g, '')
-  .replace(/Key/g, '')
-  .replace(/ArrowUp/g, '↑')
-  .replace(/ArrowDown/g, '↓')
-  .replace(/ArrowLeft/g, '←')
-  .replace(/ArrowRight/g, '→')
-  .replace(/Shift/g, 'Mayús')
-  .replace(/Meta/g, 'Cmd');
-
-const comboOf = (event) => {
-  const mods = [];
-  if (event.ctrlKey) mods.push('Ctrl');
-  if (event.altKey) mods.push('Alt');
-  if (event.shiftKey) mods.push('Shift');
-  if (event.metaKey) mods.push('Meta');
-  return [...mods, event.code].join('+');
-};
-
-const defaultKeys = {
-  ideas: 'Shift+Digit1',
-  work: 'Shift+Digit2',
-  done: 'Shift+Digit3',
-  up: 'Shift+ArrowUp',
-  down: 'Shift+ArrowDown',
-};
-
-const cardContext = (cardId) => {
-  const lists = state.snapshot?.lists || [];
-  for (let index = 0; index < lists.length; index += 1) {
-    const card = lists[index].cards.find((item) => item.id === cardId);
-    if (card) return { card, listIndex: index };
-  }
-  return null;
-};
-
-const selectCard = (cardId, focus = false) => {
-  state.selectedId = cardId;
-  for (const node of document.querySelectorAll('[data-card-id]')) {
-    node.tabIndex = node.dataset.cardId === cardId ? 0 : -1;
-  }
-  if (focus) document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`)?.focus({ preventScroll: true });
-};
-
-const navigateCards = (key) => {
-  const lists = state.snapshot?.lists || [];
-  if (!lists.length) return;
-  let column = -1;
-  let index = -1;
-  lists.forEach((list, listIndex) => {
-    const position = list.cards.findIndex((card) => card.id === state.selectedId);
-    if (position >= 0) {
-      column = listIndex;
-      index = position;
-    }
-  });
-  if (column < 0) {
-    const first = lists.find((list) => list.cards.length);
-    if (first) selectCard(first.cards[0].id, true);
-    return;
-  }
-  if (key === 'ArrowLeft' && column > 0) {
-    column -= 1;
-    index = Math.min(index, lists[column].cards.length - 1);
-  } else if (key === 'ArrowRight' && column < lists.length - 1) {
-    column += 1;
-    index = Math.min(index, lists[column].cards.length - 1);
-  } else if (key === 'ArrowUp') {
-    index = Math.max(0, index - 1);
-  } else if (key === 'ArrowDown') {
-    index = Math.min(lists[column].cards.length - 1, index + 1);
-  }
-  if (!lists[column]?.cards.length) return;
-  const next = lists[column].cards[Math.max(0, Math.min(index, lists[column].cards.length - 1))];
-  if (next) selectCard(next.id, true);
-};
-
-document.addEventListener('keydown', (event) => {
-  if (state.capturing) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.key === 'Escape') {
-      state.capturing = '';
-      reopenSettings();
-      return;
-    }
-    if (['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) return;
-    const combo = comboOf(event);
-    if (/Arrow/.test(combo) && !/Ctrl|Alt|Shift|Meta/.test(combo)) {
-      toast('error', 'Añade Mayús, Ctrl o Alt a las flechas.');
-      return;
-    }
-    const keys = { ...defaultKeys, ...(state.appearance?.keys || {}), [state.capturing]: combo };
-    state.capturing = '';
-    void saveAppearance({ keys });
-    reopenSettings();
-    return;
-  }
-  if (state.view !== 'board' || state.sheetId) return;
-  const active = document.activeElement;
-  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA'
-    || active.tagName === 'SELECT' || active.isContentEditable)) return;
-
-  const keys = { ...defaultKeys, ...(state.appearance?.keys || {}) };
-  const combo = comboOf(event);
-  const action = Object.keys(keys).find((name) => keys[name] === combo);
-  if (action) {
-    event.preventDefault();
-    const context = cardContext(state.selectedId);
-    if (!context) return;
-    if (action === 'ideas' || action === 'work' || action === 'done') {
-      const targetIndex = { ideas: 0, work: 1, done: 2 }[action];
-      const target = state.snapshot.lists[targetIndex];
-      if (!target || target.id === context.card.listId) return;
-      moveCard(context.card.id, target.id, 0)
-        .then(() => {
-          selectCard(context.card.id, true);
-          announce(`«${context.card.name}» movida a ${target.name}.`);
-        })
-        .catch((error) => toast('error', error.message));
-      return;
-    }
-    if (action === 'up') void moveByKeyboard(context.card, context.listIndex, 'ArrowUp');
-    if (action === 'down') void moveByKeyboard(context.card, context.listIndex, 'ArrowDown');
-    return;
-  }
-  if (event.ctrlKey || event.altKey || event.metaKey) return;
-  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-  event.preventDefault();
-  navigateCards(event.key);
-});
 
 const completeCard = async (cardId, node) => {
   const card = findCard(cardId)?.card;

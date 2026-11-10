@@ -75,11 +75,6 @@ extensión.
   cae decide lo que pasa después.
 - **Completar**: el tic la mueve a HECHO y cierra su sesión.
 - **Buscar** con la lupa, y **Paradas** filtra las tarjetas en progreso sin sesión.
-- **Teclado**: `Tab` entra en el tablero, las flechas mueven la selección y `Enter`
-  abre una tarjeta. Las teclas de mover son tuyas: Ajustes → Atajos graba la
-  combinación que pulses. Por defecto `Mayús`+`1`, `2`, `3` envían la tarjeta
-  seleccionada a una columna y `Mayús`+`↑`/`↓` la reordenan. Los movimientos se
-  anuncian a los lectores de pantalla.
 
 ## Work Status
 
