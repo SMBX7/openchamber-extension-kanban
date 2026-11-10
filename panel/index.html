@@ -325,15 +325,25 @@
 
       .settings-sheet { width: min(470px, 100%); }
       .settings-title { flex: 1; font-size: 17px; font-weight: 600; line-height: 1.3; color: var(--oc-fg); padding: 2px 0; }
-      .settings-scroll { gap: 20px; }
-      .settings-section { display: flex; flex-direction: column; gap: 8px; }
-      .settings-heading {
-        font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-        color: color-mix(in srgb, var(--oc-muted) 70%, var(--oc-fg));
+      .settings-scroll { gap: 4px; }
+      .settings-section {
+        display: flex; flex-direction: column; gap: 10px;
+        padding: 16px 0 4px;
+        border-top: 1px solid color-mix(in srgb, var(--oc-border) 65%, transparent);
       }
-      .settings-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--oc-fg); }
+      .settings-section:first-child { padding-top: 2px; border-top: 0; }
+      .settings-heading {
+        display: flex; align-items: center; gap: 7px;
+        font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+        color: var(--oc-fg);
+      }
+      .settings-heading::before {
+        content: ''; width: 6px; height: 6px; flex: none; border-radius: 50%;
+        background: var(--mint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mint) 16%, transparent);
+      }
+      .settings-line { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--oc-fg); }
       .settings-line-text { overflow-wrap: anywhere; }
-      .settings-note { margin: 0; font-size: 12px; line-height: 1.55; color: color-mix(in srgb, var(--oc-muted) 78%, var(--oc-fg)); }
+      .settings-note { margin: 0; font-size: 12.5px; line-height: 1.55; color: color-mix(in srgb, var(--oc-muted) 72%, var(--oc-fg)); }
       .settings-note.warning { color: var(--oc-warning-text, var(--oc-warning)); }
       .settings-actions { display: flex; gap: 8px; flex-wrap: wrap; }
       .settings-select { width: 100%; }
@@ -392,9 +402,19 @@
       .login-note-text { margin: 0 0 10px; font-size: 11.5px; line-height: 1.45; color: var(--oc-muted); }
       .settings-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
       .mode-card {
-        display: flex; flex-direction: column; gap: 4px; text-align: left;
+        position: relative; display: flex; flex-direction: column; gap: 5px; text-align: left;
         border: 1px solid var(--oc-border); background: transparent; color: var(--oc-muted);
-        border-radius: 10px; padding: 10px 11px;
+        border-radius: 10px; padding: 10px 11px 10px 32px;
+      }
+      .mode-card::before {
+        content: ''; position: absolute; left: 11px; top: 12px;
+        width: 10px; height: 10px; border-radius: 50%;
+        border: 1.5px solid color-mix(in srgb, var(--oc-muted) 70%, var(--oc-border));
+      }
+      .mode-card[aria-pressed="true"]::before {
+        border-color: var(--mint);
+        background: var(--mint);
+        box-shadow: inset 0 0 0 2px var(--oc-elevated);
       }
       .mode-card:hover:not(:disabled) { background: var(--oc-hover); color: var(--oc-fg); }
       .mode-card[aria-pressed="true"] {
@@ -402,8 +422,8 @@
         background: color-mix(in srgb, var(--mint) 14%, transparent);
       }
       .mode-card:disabled { opacity: .5; }
-      .mode-card-title { font-size: 12.5px; font-weight: 600; }
-      .mode-card-text { font-size: 11.5px; line-height: 1.45; color: color-mix(in srgb, var(--oc-muted) 82%, var(--oc-fg)); }
+      .mode-card-title { font-size: 13.5px; font-weight: 600; color: var(--oc-fg); }
+      .mode-card-text { font-size: 12px; line-height: 1.45; color: color-mix(in srgb, var(--oc-muted) 74%, var(--oc-fg)); }
       .settings-foot { justify-content: space-between; }
       .settings-foot-text { font-size: 10.5px; color: var(--oc-muted); }
 
@@ -628,7 +648,7 @@
 
       .sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
       .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-      .field > span { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--oc-muted); }
+      .field > span { font-size: 11.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: color-mix(in srgb, var(--oc-muted) 75%, var(--oc-fg)); }
       .field input, .field select {
         width: 100%; background: color-mix(in srgb, var(--oc-elevated) 86%, var(--oc-fg) 14%);
         border: 1px solid transparent; border-radius: 8px; padding: 7px 8px; font-size: 12px; outline: none;
