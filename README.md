@@ -18,6 +18,8 @@ in brackets, the label you will actually see on screen.
 ## What you get
 
 - **Three columns**: IDEAS, IN PROGRESS and DONE. Nothing else.
+- **Boards**: create a Planka board with its three columns from the extension, and add
+  the columns to a board that arrives empty.
 - **Cards** with a name, description, labels, checklist and due date.
 - **Sessions**: each card can carry an OpenChamber session, and you open it from there.
 - **Automatic or manual**: let the agent open the session when a card moves, or open it

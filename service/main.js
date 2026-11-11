@@ -533,8 +533,27 @@ var import_node_fs5 = require("node:fs");
 var import_node_path5 = require("node:path");
 var import_node_crypto = require("node:crypto");
 
-// src/shared/planka.js
+// src/shared/defaults.js
+var DEFAULT_LIST_NAMES = ["IDEAS", "EN PROGRESO", "HECHO"];
 var POSITION_STEP = 65536;
+var ensureDefaultLists = async (client2, boardId) => {
+  const board = await client2.readBoard(boardId);
+  const present = new Set(
+    (board.lists || []).map((list) => String(list.name || "").trim().toUpperCase())
+  );
+  const missing = DEFAULT_LIST_NAMES.filter((name) => !present.has(name));
+  if (!missing.length) return { created: [], board };
+  let position = (board.lists || []).reduce((max, list) => Math.max(max, Number(list.position) || 0), 0) + POSITION_STEP;
+  const created = [];
+  for (const name of missing) {
+    created.push(await client2.createList(name, boardId, position));
+    position += POSITION_STEP;
+  }
+  return { created, board: await client2.readBoard(boardId) };
+};
+
+// src/shared/planka.js
+var POSITION_STEP2 = 65536;
 var DONE_NAME = /(^|\b)(hecho|done|completad[oa]?s?|finalizad[oa]?s?|listo)(\b|$)/i;
 var PlankaError = class extends Error {
   constructor(message, options = {}) {
@@ -586,8 +605,9 @@ var PlankaClient = class {
     const method = options.method || "GET";
     const auth = options.auth !== false;
     const retry = options.retry !== false;
+    const form = typeof FormData !== "undefined" && options.form instanceof FormData ? options.form : null;
     const headers = { Accept: "application/json" };
-    if (options.body !== void 0) headers["Content-Type"] = "application/json";
+    if (!form && options.body !== void 0) headers["Content-Type"] = "application/json";
     if (options.basic) headers.Authorization = `Basic ${options.basic}`;
     else if (auth && this.token) headers.Authorization = `Bearer ${this.token}`;
     let response;
@@ -595,7 +615,7 @@ var PlankaClient = class {
       response = await fetch(`${this.baseUrl}${path}`, {
         method,
         headers,
-        body: options.body === void 0 ? void 0 : JSON.stringify(options.body),
+        body: form || (options.body === void 0 ? void 0 : JSON.stringify(options.body)),
         signal: AbortSignal.timeout(options.timeout || 15e3)
       });
     } catch (error) {
@@ -710,6 +730,51 @@ var PlankaClient = class {
       url: `${this.baseUrl}/boards/${board.id}`
     })).sort((a, b) => a.name.localeCompare(b.name, "es"));
   }
+  async getProjects() {
+    const data = await this.request("/api/projects");
+    const projects = Array.isArray(data?.items) ? data.items : [];
+    return projects.filter((project) => project && project.id).map((project) => ({
+      id: String(project.id),
+      name: textOf(project.name) || "Proyecto"
+    })).sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }
+  async createProject(name) {
+    const trimmed = textOf(name).trim().slice(0, 128);
+    if (!trimmed) throw new PlankaError("El proyecto necesita un nombre.", { kind: "validation" });
+    const data = await this.request("/api/projects", {
+      method: "POST",
+      body: { type: "private", name: trimmed }
+    });
+    const item = data?.item;
+    if (!item?.id) throw new PlankaError("Planka no ha devuelto el proyecto creado.", { kind: "api" });
+    return { id: String(item.id), name: textOf(item.name).trim() || trimmed };
+  }
+  async createBoard(name, projectId, position) {
+    const trimmed = textOf(name).trim().slice(0, 128);
+    if (!trimmed) throw new PlankaError("El tablero necesita un nombre.", { kind: "validation" });
+    let at = Number.isFinite(position) && position >= 0 ? position : null;
+    if (at === null) {
+      const boards = await this.getBoards();
+      const siblings = boards.filter((board) => board.projectId === String(projectId));
+      at = siblings.reduce((max, board) => Math.max(max, Number(board.position) || 0), 0) + POSITION_STEP2;
+    }
+    const form = new FormData();
+    form.append("name", trimmed);
+    form.append("position", String(at));
+    const data = await this.request(`/api/projects/${encode(projectId)}/boards`, {
+      method: "POST",
+      form
+    });
+    const item = data?.item;
+    if (!item?.id) throw new PlankaError("Planka no ha devuelto el tablero creado.", { kind: "api" });
+    return {
+      id: String(item.id),
+      name: textOf(item.name).trim() || trimmed,
+      projectId: String(item.projectId || projectId),
+      position: Number.isFinite(item.position) ? item.position : at,
+      url: `${this.baseUrl}/boards/${item.id}`
+    };
+  }
   async resolveBoardId(boardId) {
     if (boardId) return String(boardId);
     const boards = await this.getBoards();
@@ -779,6 +844,28 @@ var PlankaClient = class {
     });
     return data?.item ?? null;
   }
+  async createList(name, boardId, position) {
+    const trimmed = String(name || "").trim().slice(0, 128);
+    if (!trimmed) throw new PlankaError("La columna necesita un nombre.", { kind: "validation" });
+    let at = Number.isFinite(position) && position >= 0 ? position : null;
+    if (at === null) {
+      const board = await this.readBoard(boardId);
+      at = board.lists.reduce((max, list) => Math.max(max, Number(list.position) || 0), 0) + POSITION_STEP2;
+    }
+    const data = await this.request(`/api/boards/${encode(boardId)}/lists`, {
+      method: "POST",
+      body: { type: "active", name: trimmed, position: at }
+    });
+    const item = data?.item;
+    if (!item?.id) throw new PlankaError("Planka no ha devuelto la columna creada.", { kind: "api" });
+    return {
+      id: String(item.id),
+      name: textOf(item.name).trim() || trimmed,
+      color: textOf(item.color),
+      position: Number.isFinite(item.position) ? item.position : at,
+      cards: []
+    };
+  }
   async moveCard(cardId, listId, index, boardId) {
     const board = await this.readBoard(boardId);
     const card = flattenCards(board).find((item) => item.id === String(cardId));
@@ -819,7 +906,7 @@ var PlankaClient = class {
     const board = await this.readBoard(boardId);
     const card = flattenCards(board).find((item) => item.id === String(cardId));
     if (!card) throw new PlankaError("Esa tarjeta ya no existe en Planka.", { kind: "not-found", status: 404 });
-    const position = card.taskLists.length ? Math.max(...card.taskLists.map((item) => item.position || 0)) + POSITION_STEP : POSITION_STEP;
+    const position = card.taskLists.length ? Math.max(...card.taskLists.map((item) => item.position || 0)) + POSITION_STEP2 : POSITION_STEP2;
     const created = await this.request(`/api/cards/${encode(cardId)}/task-lists`, {
       method: "POST",
       body: { name: String(name || "Checklist").trim().slice(0, 128), position }
@@ -827,7 +914,7 @@ var PlankaClient = class {
     const taskListId = created?.item?.id;
     const added = [];
     if (taskListId) {
-      let next = POSITION_STEP;
+      let next = POSITION_STEP2;
       for (const taskName of tasks) {
         const trimmed = String(taskName || "").trim();
         if (!trimmed) continue;
@@ -835,7 +922,7 @@ var PlankaClient = class {
           method: "POST",
           body: { name: trimmed.slice(0, 1024), position: next }
         });
-        next += POSITION_STEP;
+        next += POSITION_STEP2;
         if (data?.item) added.push(data.item);
       }
     }
@@ -845,7 +932,7 @@ var PlankaClient = class {
     const boardId = await this.resolveBoardId();
     const board = await this.readBoard(boardId);
     const taskList = board.lists.flatMap((list) => list.cards).flatMap((card) => card.taskLists).find((item) => item.id === String(taskListId));
-    const position = taskList && taskList.tasks.length ? Math.max(...taskList.tasks.map((task) => task.position || 0)) + POSITION_STEP : POSITION_STEP;
+    const position = taskList && taskList.tasks.length ? Math.max(...taskList.tasks.map((task) => task.position || 0)) + POSITION_STEP2 : POSITION_STEP2;
     const data = await this.request(`/api/task-lists/${encode(taskListId)}/tasks`, {
       method: "POST",
       body: { name: String(name || "").trim().slice(0, 1024), position }
@@ -866,12 +953,27 @@ var PlankaClient = class {
     });
     return data?.item ?? null;
   }
+  // Planka 2.x moved label removal to
+  // /cards/:cardId/card-labels/labelId:<id>; 1.x only has
+  // /card-labels/:cardLabelId. Try the current route, fall back on 404.
+  async deleteCardLabel(cardId, labelId, cardLabelId) {
+    try {
+      await this.request(`/api/cards/${encode(cardId)}/card-labels/labelId:${encode(labelId)}`, {
+        method: "DELETE"
+      });
+      return true;
+    } catch (error) {
+      if (error?.status !== 404 || !cardLabelId) throw error;
+      await this.request(`/api/card-labels/${encode(cardLabelId)}`, { method: "DELETE" });
+      return true;
+    }
+  }
   async removeLabel(cardId, labelId, boardId) {
     const { board } = await this.findCard(cardId, boardId);
     const card = flattenCards(board).find((item) => item.id === String(cardId));
     const match = card?.labels.find((label) => label.id === String(labelId));
     if (!match?.cardLabelId) return false;
-    await this.request(`/api/card-labels/${encode(match.cardLabelId)}`, { method: "DELETE" });
+    await this.deleteCardLabel(cardId, labelId, match.cardLabelId);
     return true;
   }
   async toggleLabel(cardId, labelId, boardId) {
@@ -879,7 +981,7 @@ var PlankaClient = class {
     const card = flattenCards(board).find((item) => item.id === String(cardId));
     const match = card?.labels.find((label) => label.id === String(labelId));
     if (match) {
-      await this.request(`/api/card-labels/${encode(match.cardLabelId)}`, { method: "DELETE" });
+      await this.deleteCardLabel(cardId, labelId, match.cardLabelId);
       return false;
     }
     await this.addLabel(cardId, labelId);
@@ -889,7 +991,7 @@ var PlankaClient = class {
 var flattenCards = (board) => board.lists.flatMap((list) => list.cards);
 var topPosition = (cards) => {
   const positions = cards.map((card) => Number(card.position)).filter((value) => Number.isFinite(value) && value > 0);
-  if (!positions.length) return POSITION_STEP;
+  if (!positions.length) return POSITION_STEP2;
   const first = Math.min(...positions);
   return first > 0 ? first / 2 : 0.5;
 };
@@ -906,11 +1008,11 @@ var positionAtIndex = (cards, index, movingId) => {
   } else if (Number.isFinite(nextPositionValue)) {
     position = nextPositionValue / 2;
   } else if (Number.isFinite(previousPosition)) {
-    position = previousPosition + POSITION_STEP;
+    position = previousPosition + POSITION_STEP2;
   } else {
-    position = POSITION_STEP;
+    position = POSITION_STEP2;
   }
-  return position > 0 ? position : POSITION_STEP;
+  return position > 0 ? position : POSITION_STEP2;
 };
 var normaliseBoard = (payload, baseUrl, requestedBoardId) => {
   const item = payload?.item || {};
@@ -1008,10 +1110,9 @@ var searchCards = (board, query) => {
 };
 
 // src/shared/local.js
-var POSITION_STEP2 = 65536;
+var POSITION_STEP3 = 65536;
 var DONE_NAME2 = /(^|\b)(hecho|done|completad[oa]?s?|finalizad[oa]?s?|listo)(\b|$)/i;
 var BOARD_ID = "local";
-var DEFAULT_LISTS = ["IDEAS", "EN PROGRESO", "HECHO"];
 var DEFAULT_LABELS = [
   { name: "Urgente", color: "hsl(0 62% 58%)" },
   { name: "Importante", color: "hsl(38 78% 58%)" },
@@ -1039,10 +1140,10 @@ var toIso = (value) => {
 var emptyStore = () => ({
   version: 1,
   board: { id: BOARD_ID, name: "Kanban local" },
-  lists: DEFAULT_LISTS.map((name, index) => ({
+  lists: DEFAULT_LIST_NAMES.map((name, index) => ({
     id: `list-${index + 1}`,
     name,
-    position: (index + 1) * POSITION_STEP2
+    position: (index + 1) * POSITION_STEP3
   })),
   cards: [],
   labels: DEFAULT_LABELS.map((label, index) => ({
@@ -1067,7 +1168,7 @@ var normaliseStore = (value) => {
     lists: lists.filter((list) => list && list.id).map((list, index) => ({
       id: String(list.id),
       name: String(list.name || `Columna ${index + 1}`).slice(0, 120),
-      position: Number.isFinite(list.position) ? list.position : (index + 1) * POSITION_STEP2
+      position: Number.isFinite(list.position) ? list.position : (index + 1) * POSITION_STEP3
     })),
     cards: (Array.isArray(store.cards) ? store.cards : []).filter((card) => card && card.id && card.listId).map((card) => ({
       id: String(card.id),
@@ -1089,14 +1190,14 @@ var normaliseStore = (value) => {
       id: String(taskList.id),
       cardId: String(taskList.cardId),
       name: String(taskList.name || "Checklist").slice(0, 120),
-      position: Number.isFinite(taskList.position) ? taskList.position : POSITION_STEP2
+      position: Number.isFinite(taskList.position) ? taskList.position : POSITION_STEP3
     })),
     tasks: (Array.isArray(store.tasks) ? store.tasks : []).filter((task) => task && task.id && task.taskListId).map((task) => ({
       id: String(task.id),
       taskListId: String(task.taskListId),
       name: String(task.name || "").slice(0, 1024),
       isCompleted: Boolean(task.isCompleted),
-      position: Number.isFinite(task.position) ? task.position : POSITION_STEP2
+      position: Number.isFinite(task.position) ? task.position : POSITION_STEP3
     }))
   };
 };
@@ -1161,13 +1262,13 @@ var mutate = (work) => withLock(() => {
 });
 var topPosition2 = (cards) => {
   const positions = cards.map((card) => Number(card.position)).filter((value) => Number.isFinite(value) && value > 0);
-  if (!positions.length) return POSITION_STEP2;
+  if (!positions.length) return POSITION_STEP3;
   const first = Math.min(...positions);
   return first > 0 ? first / 2 : 0.5;
 };
 var nextPosition = (rows) => {
   const positions = rows.map((row) => Number(row.position)).filter((value) => Number.isFinite(value) && value >= 0);
-  return positions.length ? Math.max(...positions) + POSITION_STEP2 : POSITION_STEP2;
+  return positions.length ? Math.max(...positions) + POSITION_STEP3 : POSITION_STEP3;
 };
 var positionAtIndex2 = (cards, index, movingId) => {
   const rest = cards.filter((card) => card.id !== String(movingId)).slice().sort(byPosition2);
@@ -1180,8 +1281,8 @@ var positionAtIndex2 = (cards, index, movingId) => {
     return (previousPosition + nextPositionValue) / 2;
   }
   if (Number.isFinite(nextPositionValue)) return nextPositionValue / 2;
-  if (Number.isFinite(previousPosition)) return previousPosition + POSITION_STEP2;
-  return POSITION_STEP2;
+  if (Number.isFinite(previousPosition)) return previousPosition + POSITION_STEP3;
+  return POSITION_STEP3;
 };
 var findCardRow = (store, cardId) => {
   const card = store.cards.find((item) => item.id === String(cardId));
@@ -1369,6 +1470,21 @@ var LocalClient = class {
       return list;
     });
   }
+  // Same surface as PlankaClient.createList. The position is computed inside
+  // the store lock so two callers cannot append to the same slot.
+  async createList(name) {
+    const trimmed = String(name || "").trim().slice(0, 120);
+    if (!trimmed) throw new PlankaError("La columna necesita un nombre.", { kind: "validation" });
+    return mutate((store) => {
+      const list = {
+        id: uid("list"),
+        name: trimmed,
+        position: nextPosition(store.lists)
+      };
+      store.lists.push(list);
+      return { id: list.id, name: list.name, color: "", position: list.position, cards: [] };
+    });
+  }
   async addChecklist(cardId, name, boardId, tasks = []) {
     return mutate((store) => {
       const card = findCardRow(store, cardId);
@@ -1380,7 +1496,7 @@ var LocalClient = class {
       };
       store.taskLists.push(taskList);
       const added = [];
-      let position = POSITION_STEP2;
+      let position = POSITION_STEP3;
       for (const taskName of tasks) {
         const trimmed = String(taskName || "").trim();
         if (!trimmed) continue;
@@ -1391,7 +1507,7 @@ var LocalClient = class {
           isCompleted: false,
           position
         };
-        position += POSITION_STEP2;
+        position += POSITION_STEP3;
         store.tasks.push(task);
         added.push(task);
       }
@@ -1793,6 +1909,36 @@ var handleStatusAction = async (body) => {
 var invalidate = () => {
   cache = { boardId: cache.boardId, at: 0, data: null, inflight: null };
 };
+var listBuilds = /* @__PURE__ */ new Map();
+var ensureListsOnce = (boardId) => {
+  const key = `${readConfig().source || "planka"}:${boardId}`;
+  const running = listBuilds.get(key);
+  if (running) return running;
+  const task = ensureDefaultLists(client(), boardId).finally(() => {
+    listBuilds.delete(key);
+  });
+  listBuilds.set(key, task);
+  return task;
+};
+var PENDING_DELETE_MS = 2e4;
+var pendingDeletes = /* @__PURE__ */ new Map();
+var markPendingDelete = (cardId, pending) => {
+  const id = String(cardId || "");
+  if (!id) return;
+  if (pending) pendingDeletes.set(id, Date.now() + PENDING_DELETE_MS);
+  else pendingDeletes.delete(id);
+};
+var isPendingDelete = (cardId) => {
+  const id = String(cardId || "");
+  const until = pendingDeletes.get(id);
+  if (!until) return false;
+  if (until <= Date.now()) {
+    pendingDeletes.delete(id);
+    return false;
+  }
+  return true;
+};
+var withoutPendingCards = (list) => (list?.cards || []).filter((card) => !isPendingDelete(card.id));
 var statusView = async () => {
   const config = readConfig();
   if (!isConnected(config)) {
@@ -1964,6 +2110,7 @@ var routes = {
     const token = await next.login();
     sessionPassword = password;
     const boards = await next.getBoards().catch(() => []);
+    const projects = await next.getProjects().catch(() => []);
     const chosen = body.boardId && String(body.boardId) || (boards.find((board) => board.id === readConfig().boardId)?.id ?? "") || boards[0]?.id || "";
     const boardName = boards.find((board) => board.id === chosen)?.name || "";
     saveConfig({ baseUrl, email, token, boardId: chosen, boardName });
@@ -1974,7 +2121,7 @@ var routes = {
     } catch {
       snapshot = null;
     }
-    return { ok: true, boards, boardId: chosen, snapshot };
+    return { ok: true, boards, projects, boardId: chosen, snapshot };
   },
   "POST /logout": async () => {
     sessionPassword = "";
@@ -2000,6 +2147,7 @@ var routes = {
         boardId: LOCAL_BOARD_ID,
         boardName: board2?.name || "Kanban local",
         boards: boards2,
+        projects: [],
         boardUrl: ""
       };
     }
@@ -2011,7 +2159,8 @@ var routes = {
         email: config.email,
         boardId: config.boardId,
         boardName: config.boardName,
-        boards: []
+        boards: [],
+        projects: []
       };
     }
     let boards = [];
@@ -2019,6 +2168,12 @@ var routes = {
       boards = await client().getBoards();
     } catch {
       boards = [];
+    }
+    let projects = [];
+    try {
+      projects = await client().getProjects();
+    } catch {
+      projects = [];
     }
     const board = boards.find((item) => item.id === config.boardId) || boards[0] || null;
     return {
@@ -2028,6 +2183,7 @@ var routes = {
       boardId: board?.id || config.boardId,
       boardName: board?.name || config.boardName,
       boards,
+      projects,
       boardUrl: board?.url || "",
       source: "planka"
     };
@@ -2067,10 +2223,13 @@ var routes = {
     const project = getBoardProject(boardId);
     const workList = workListFor(snapshot);
     const doneList = snapshot.lists.find((list) => list.id === snapshot.doneListId) || null;
-    const total = snapshot.counts.total;
-    const completed = doneList?.cards.length || 0;
     const backlog = snapshot.lists.find((list) => list.id !== workList?.id && list.id !== snapshot.doneListId) || null;
-    const currentCard = workList?.cards[0] || null;
+    const workCards = withoutPendingCards(workList);
+    const doneCards = withoutPendingCards(doneList);
+    const backlogCards = withoutPendingCards(backlog);
+    const total = snapshot.lists.reduce((sum, list) => sum + withoutPendingCards(list).length, 0);
+    const completed = doneCards.length;
+    const currentCard = workCards[0] || null;
     let current = null;
     if (currentCard) {
       const state = await sessionStateFor(currentCard.id);
@@ -2088,6 +2247,7 @@ var routes = {
       board: { id: snapshot.board.id, name: snapshot.board.name },
       style: readAppearance().style,
       counts: { total, completed, incomplete: total - completed },
+      needsLists: snapshot.lists.length === 0,
       project: project ? {
         id: project.projectId,
         name: project.name,
@@ -2095,7 +2255,7 @@ var routes = {
         autoSession: project.autoSession === true
       } : null,
       current,
-      ideas: (backlog?.cards || []).slice(0, 50).map((card) => ({ id: card.id, name: card.name })),
+      ideas: backlogCards.slice(0, 50).map((card) => ({ id: card.id, name: card.name })),
       backlogId: backlog?.id || "",
       backlogName: backlog?.name || ""
     };
@@ -2212,6 +2372,20 @@ var routes = {
     invalidate();
     return { list: item };
   },
+  // Creates the default columns that are missing (IDEAS, EN PROGRESO, HECHO).
+  // Safe to repeat: existing columns are left alone.
+  "POST /lists/default": async (body) => {
+    const config = requireConnected();
+    const boardId = String(body.boardId || "") || await boardIdOf(config);
+    const result = await ensureListsOnce(boardId);
+    invalidate();
+    const snapshot = await getSnapshot({ boardId, fresh: true });
+    return {
+      created: result.created.length,
+      names: result.created.map((list) => list.name),
+      snapshot: snapshotView(snapshot)
+    };
+  },
   "POST /card/move": async (body) => {
     requireConnected();
     const id = String(body.id || "");
@@ -2314,10 +2488,19 @@ var routes = {
     const linked = result.already ? false : await triggerClose(id);
     return { ...result, linked };
   },
+  "POST /card/pending": async (body) => {
+    requireConnected();
+    const id = String(body.id || "");
+    if (!id) throw new PlankaError("Falta el id de la tarjeta.", { kind: "validation" });
+    const pending = body.pending !== false;
+    markPendingDelete(id, pending);
+    return { ok: true, pending };
+  },
   "DELETE /card": async (body) => {
     requireConnected();
     const id = String(body.id || "");
     if (!id) throw new PlankaError("Falta el id de la tarjeta.", { kind: "validation" });
+    markPendingDelete(id, false);
     const link = getLink(id);
     if (link) {
       if (serviceHost) {
@@ -2342,6 +2525,48 @@ var routes = {
     saveConfig({ boardId: board.id, boardName: board.name });
     invalidate();
     return snapshotView(await getSnapshot({ boardId, fresh: true }));
+  },
+  // Creates a Planka board (and its project, when the person does not have one)
+  // together with the three default columns, then selects it.
+  "POST /board/create": async (body) => {
+    const config = requireConnected();
+    if (config.source === "local") {
+      throw new PlankaError("El tablero local ya existe y es \xFAnico.", { kind: "validation" });
+    }
+    const name = String(body.name || "").trim();
+    if (!name) throw new PlankaError("Escribe un nombre para el tablero.", { kind: "validation" });
+    let projectId = String(body.projectId || "");
+    let project = null;
+    if (!projectId) {
+      const projectName = String(body.projectName || "").trim();
+      if (!projectName) {
+        throw new PlankaError("Elige un proyecto de Planka o escribe uno nuevo.", { kind: "validation" });
+      }
+      project = await client().createProject(projectName);
+      projectId = project.id;
+    }
+    const siblings = (await client().getBoards()).filter((board2) => board2.projectId === projectId);
+    const position = siblings.reduce((max, board2) => Math.max(max, Number(board2.position) || 0), 0) + 65536;
+    const board = await client().createBoard(name, projectId, position);
+    let columns = 0;
+    let columnsError = "";
+    try {
+      columns = (await ensureListsOnce(board.id)).created.length;
+    } catch (error) {
+      columnsError = error.message;
+    }
+    saveConfig({ boardId: board.id, boardName: board.name });
+    invalidate();
+    const snapshot = await getSnapshot({ boardId: board.id, fresh: true });
+    const boards = await client().getBoards().catch(() => []);
+    return {
+      board,
+      project,
+      columns,
+      columnsError,
+      boards,
+      snapshot: snapshotView(snapshot)
+    };
   },
   "POST /checklist": async (body) => {
     requireConnected();

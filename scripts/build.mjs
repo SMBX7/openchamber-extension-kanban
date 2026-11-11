@@ -1,4 +1,4 @@
-import { build } from 'esbuild';
+import { build, context } from 'esbuild';
 
 const common = {
   bundle: true,
@@ -7,38 +7,49 @@ const common = {
   sourcemap: false,
 };
 
-await build({
-  ...common,
-  entryPoints: ['src/panel/main.js'],
-  outfile: 'panel/main.js',
-  format: 'iife',
-  platform: 'browser',
-  target: ['es2020'],
-});
+const targets = [
+  {
+    entryPoints: ['src/panel/main.js'],
+    outfile: 'panel/main.js',
+    format: 'iife',
+    platform: 'browser',
+    target: ['es2020'],
+  },
+  {
+    entryPoints: ['src/status/main.js'],
+    outfile: 'status/main.js',
+    format: 'iife',
+    platform: 'browser',
+    target: ['es2020'],
+  },
+  {
+    entryPoints: ['src/service/main.js'],
+    outfile: 'service/main.js',
+    format: 'cjs',
+    platform: 'node',
+    target: ['node20'],
+  },
+  {
+    entryPoints: ['src/mcp/main.js'],
+    outfile: 'mcp/main.js',
+    format: 'cjs',
+    platform: 'node',
+    target: ['node20'],
+  },
+];
 
-await build({
-  ...common,
-  entryPoints: ['src/status/main.js'],
-  outfile: 'status/main.js',
-  format: 'iife',
-  platform: 'browser',
-  target: ['es2020'],
-});
+const watch = process.argv.includes('--watch');
 
-await build({
-  ...common,
-  entryPoints: ['src/service/main.js'],
-  outfile: 'service/main.js',
-  format: 'cjs',
-  platform: 'node',
-  target: ['node20'],
-});
+for (const options of targets) {
+  const config = { ...common, ...options };
+  if (watch) {
+    const ctx = await context(config);
+    await ctx.watch();
+  } else {
+    await build(config);
+  }
+}
 
-await build({
-  ...common,
-  entryPoints: ['src/mcp/main.js'],
-  outfile: 'mcp/main.js',
-  format: 'cjs',
-  platform: 'node',
-  target: ['node20'],
-});
+if (watch) {
+  console.log('Watching the extension bundles. Save a file in src/ to rebuild.');
+}

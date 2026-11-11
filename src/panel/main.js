@@ -35,6 +35,7 @@ const state = {
   config: null,
   boards: [],
   projects: [],
+  plankaProjects: [],
   session: null,
   snapshot: null,
   sessions: {},
@@ -44,6 +45,7 @@ const state = {
   sheet: null,
   settings: null,
   settingsDirty: false,
+  createBoard: null,
   appearance: { style: 'neumorphism', shortcut: 'shift', columns: ['', '', ''], card: '' },
   hiddenCards: new Set(),
   pendingDelete: null,
@@ -301,6 +303,7 @@ const undoDelete = () => {
   const pending = state.pendingDelete;
   if (!pending) return;
   clearTimeout(pending.timer);
+  void api('POST', '/card/pending', { id: pending.card.id, pending: false }).catch(() => {});
   removeUndoBar();
   state.pendingDelete = null;
   state.hiddenCards.delete(pending.card.id);
@@ -335,6 +338,7 @@ const queueDelete = async (card, node) => {
   action.type = 'button';
   action.addEventListener('click', () => undoDelete());
   bar.append(text, action, progress);
+  void api('POST', '/card/pending', { id: card.id, pending: true }).catch(() => {});
   node.classList.add('leaving');
   await sleep(140);
   state.hiddenCards.add(card.id);
@@ -394,6 +398,7 @@ const isPaused = () =>
   Boolean(state.sheetId) ||
   state.dragging ||
   Boolean(state.composerListId) ||
+  Boolean(state.createBoard) ||
   state.saving > 0;
 
 /* ------------------------------------------------------------------ */
@@ -486,6 +491,7 @@ const boot = async () => {
     const config = await configWithRetry();
     state.config = config;
     state.boards = Array.isArray(config.boards) ? config.boards : [];
+    state.plankaProjects = Array.isArray(config.projects) ? config.projects : [];
     if (!config.connected) {
       showLogin();
       return;
@@ -658,6 +664,7 @@ const doLogin = async (values, submit, errorBox, note) => {
   try {
     const result = await api('POST', '/login', values);
     state.boards = Array.isArray(result.boards) ? result.boards : [];
+    state.plankaProjects = Array.isArray(result.projects) ? result.projects : state.plankaProjects;
     state.config = {
       ...(state.config || {}),
       connected: true,
@@ -687,6 +694,7 @@ const doLogin = async (values, submit, errorBox, note) => {
         if (config.connected) {
           state.config = config;
           state.boards = config.boards || [];
+          state.plankaProjects = config.projects || state.plankaProjects;
           await loadSnapshot();
           await loadSessionStates();
           showBoard();
@@ -913,6 +921,177 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeMenuSelects();
 });
 
+/* ------------------------------------------------------------------ */
+/* New board                                                           */
+/* ------------------------------------------------------------------ */
+
+const closeCreateBoard = (force = false) => {
+  const dialog = state.createBoard;
+  if (!dialog) return;
+  if (!force && state.saving > 0) return;
+  dialog.backdrop.remove();
+  dialog.sheet.remove();
+  state.createBoard = null;
+};
+
+const openCreateBoard = () => {
+  if (state.createBoard) closeCreateBoard(true);
+  const backdrop = el('div', 'sheet-backdrop open');
+  const sheet = el('aside', 'sheet create-sheet open');
+  sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-modal', 'true');
+  sheet.setAttribute('aria-label', 'Crear tablero');
+
+  const head = el('div', 'sheet-head');
+  const title = el('div', 'settings-title', 'Nuevo tablero');
+  const close = el('button', 'icon-btn');
+  close.type = 'button';
+  close.title = 'Cerrar';
+  close.setAttribute('aria-label', 'Cerrar');
+  close.append(makeIcon('close'));
+  head.append(title, close);
+
+  const scroll = el('div', 'sheet-scroll');
+  const section = el('section', 'settings-section');
+  section.append(el('div', 'settings-heading', 'Tablero de Planka'));
+
+  const nameField = el('label', 'field');
+  nameField.append(el('span', '', 'Nombre'));
+  const nameInput = el('input');
+  nameInput.type = 'text';
+  nameInput.placeholder = 'Mi tablero';
+  nameInput.maxLength = 128;
+  nameField.append(nameInput);
+
+  const projectField = el('label', 'field');
+  projectField.append(el('span', '', 'Proyecto de Planka'));
+  const projectSelect = el('select');
+  projectSelect.append(new Option('Proyecto nuevo…', ''));
+  for (const project of state.plankaProjects) {
+    projectSelect.append(new Option(project.name, project.id));
+  }
+  projectField.append(projectSelect);
+
+  const newProjectField = el('label', 'field');
+  newProjectField.append(el('span', '', 'Nombre del proyecto nuevo'));
+  const projectInput = el('input');
+  projectInput.type = 'text';
+  projectInput.placeholder = 'Mi proyecto';
+  projectInput.maxLength = 128;
+  newProjectField.append(projectInput);
+
+  const note = el(
+    'p',
+    'settings-note',
+    'Se crearán las columnas IDEAS, EN PROGRESO y HECHO, y quedarás en el tablero nuevo.',
+  );
+  const error = el('p', 'settings-note warning');
+  error.hidden = true;
+
+  const syncProjectField = () => {
+    newProjectField.hidden = Boolean(projectSelect.value);
+  };
+  projectSelect.addEventListener('change', syncProjectField);
+
+  const actions = el('div', 'settings-actions');
+  const cancel = el('button', 'ghost-btn', 'Cancelar');
+  cancel.type = 'button';
+  const submit = el('button', 'btn-mint', 'Crear tablero');
+  submit.type = 'button';
+  actions.append(cancel, submit);
+
+  section.append(nameField, projectField, newProjectField, note, error, actions);
+  scroll.append(section);
+  sheet.append(head, scroll);
+  root.append(backdrop, sheet);
+  state.createBoard = { backdrop, sheet };
+  syncProjectField();
+
+  let creating = false;
+  const create = async () => {
+    if (creating) return;
+    const name = nameInput.value.trim();
+    const projectId = projectSelect.value;
+    const projectName = projectId ? '' : projectInput.value.trim();
+    error.hidden = true;
+    if (!name) {
+      error.textContent = 'Escribe un nombre para el tablero.';
+      error.hidden = false;
+      nameInput.focus();
+      return;
+    }
+    if (!projectId && !projectName) {
+      error.textContent = 'Elige un proyecto de Planka o escribe uno nuevo.';
+      error.hidden = false;
+      projectInput.focus();
+      return;
+    }
+    state.saving += 1;
+    creating = true;
+    submit.disabled = true;
+    cancel.disabled = true;
+    submit.textContent = 'Creando…';
+    try {
+      const answer = await api('POST', '/board/create', { name, projectId, projectName });
+      state.boards = Array.isArray(answer?.boards) && answer.boards.length ? answer.boards : state.boards;
+      state.config = {
+        ...state.config,
+        boardId: answer?.board?.id || state.config?.boardId,
+        boardName: answer?.board?.name || state.config?.boardName,
+      };
+      if (answer?.snapshot) state.snapshot = answer.snapshot;
+      if (answer?.project && !state.plankaProjects.some((project) => project.id === answer.project.id)) {
+        state.plankaProjects = [...state.plankaProjects, answer.project];
+      }
+      state.saving -= 1;
+      creating = false;
+      closeCreateBoard(true);
+      if (answer?.columnsError) {
+        toast('error', `Tablero creado, pero no se pudieron crear las columnas: ${answer.columnsError}`);
+      } else {
+        toast('success', `Tablero «${answer?.board?.name || name}» creado con ${answer?.columns || 0} columnas.`);
+      }
+      renderAll();
+    } catch (nextError) {
+      state.saving -= 1;
+      creating = false;
+      submit.disabled = false;
+      cancel.disabled = false;
+      submit.textContent = 'Crear tablero';
+      error.textContent = nextError.message;
+      error.hidden = false;
+    }
+  };
+
+  submit.addEventListener('click', () => void create());
+  cancel.addEventListener('click', () => closeCreateBoard());
+  close.addEventListener('click', () => closeCreateBoard());
+  backdrop.addEventListener('click', () => closeCreateBoard());
+  for (const input of [nameInput, projectInput]) {
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      void create();
+    });
+  }
+  requestAnimationFrame(() => nameInput.focus());
+};
+
+const boardControl = (boardSelect) => {
+  const wrap = el('div', 'board-control');
+  wrap.append(boardSelect.wrap);
+  if ((state.config?.source || 'planka') !== 'local') {
+    const create = el('button', 'icon-btn board-add');
+    create.type = 'button';
+    create.title = 'Crear tablero en Planka';
+    create.setAttribute('aria-label', 'Crear tablero en Planka');
+    create.append(makeIcon('plus'));
+    create.addEventListener('click', () => openCreateBoard());
+    wrap.append(create);
+  }
+  return wrap;
+};
+
 const buildPage = () => {
   const app = el('div', 'app');
   const topbar = el('div', 'topbar');
@@ -980,7 +1159,7 @@ const buildPage = () => {
   topbar.append(
     brand,
     labeledField('Proyecto', projectSelect.wrap),
-    labeledField('Tablero', boardSelect.wrap),
+    labeledField('Tablero', boardControl(boardSelect)),
     projectChip,
     stoppedChip,
     settingsButton,
@@ -1058,7 +1237,7 @@ const buildPanel = () => {
   const selectorRow = el('div', 'selector-row');
   selectorRow.append(
     labeledField('Proyecto', projectSelect.wrap),
-    labeledField('Tablero', boardSelect.wrap),
+    labeledField('Tablero', boardControl(boardSelect)),
   );
 
   const delegationRow = el('div', 'delegation-row');
@@ -1373,6 +1552,7 @@ const switchBoard = async (boardId) => {
         const config = await api('GET', '/config');
         state.config = config;
         state.boards = config.boards || [];
+        state.plankaProjects = config.projects || state.plankaProjects;
         state.snapshot = await api('GET', '/snapshot?fresh=1');
         renderAll();
         return;
@@ -1614,6 +1794,24 @@ const attachDropTarget = (column, cardsEl, listId) => {
   });
 };
 
+const createDefaultColumns = async (button) => {
+  const boardId = state.snapshot?.board?.id || '';
+  if (!boardId) return;
+  if (button) button.disabled = true;
+  try {
+    const answer = await api('POST', '/lists/default', { boardId });
+    if (answer?.snapshot) state.snapshot = answer.snapshot;
+    const names = Array.isArray(answer?.names) ? answer.names.join(', ') : '';
+    if (answer?.created && names) toast('success', `Columnas creadas: ${names}.`);
+    else toast('success', 'Las columnas ya existían.');
+  } catch (error) {
+    toast('error', error.message);
+    if (button) button.disabled = false;
+    return;
+  }
+  renderAll();
+};
+
 const renderBoard = () => {
   const board = state.refs?.board;
   if (!board) return;
@@ -1631,7 +1829,24 @@ const renderBoard = () => {
   board.replaceChildren();
   if (!snapshot) return;
   if (!snapshot.lists.length) {
-    board.append(el('div', 'board-empty', 'Este tablero no tiene columnas activas. Añádelas en Planka.'));
+    const isLocal = (state.config?.source || 'planka') === 'local';
+    const empty = el('div', 'board-empty');
+    const create = el('button', 'btn-mint board-empty-action');
+    create.type = 'button';
+    create.append(makeIcon('plus'), el('span', '', 'Crear columnas'));
+    create.addEventListener('click', () => void createDefaultColumns(create));
+    empty.append(
+      el('div', 'board-empty-title', 'Este tablero no tiene columnas'),
+      el(
+        'p',
+        'board-empty-text',
+        isLocal
+          ? 'Crea IDEAS, EN PROGRESO y HECHO para empezar.'
+          : 'Crea IDEAS, EN PROGRESO y HECHO desde aquí. Se crearán en Planka.',
+      ),
+      create,
+    );
+    board.append(empty);
     return;
   }
 
@@ -2495,6 +2710,9 @@ document.addEventListener('keydown', (event) => {
   } else if (state.settings) {
     event.preventDefault();
     closeSettings(true);
+  } else if (state.createBoard) {
+    event.preventDefault();
+    closeCreateBoard();
   } else if (state.composerListId) {
     event.preventDefault();
     closeComposer();

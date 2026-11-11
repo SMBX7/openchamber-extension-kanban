@@ -23,13 +23,42 @@ await build({
 
 const require = createRequire(import.meta.url);
 const { LocalClient } = require(bundle);
+
+// The default-column helper lives in its own module so the service and the
+// local client share it; bundle it the same way and exercise it here.
+const defaultsBundle = join(dir, 'defaults.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/defaults.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: defaultsBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const { DEFAULT_LIST_NAMES, ensureDefaultLists } = require(defaultsBundle);
 const client = new LocalClient({});
+
+assert.deepEqual(DEFAULT_LIST_NAMES, ['IDEAS', 'EN PROGRESO', 'HECHO']);
 
 const board = await client.readBoard();
 assert.deepEqual(board.lists.map((list) => list.name), ['IDEAS', 'EN PROGRESO', 'HECHO']);
 assert.equal(board.doneListId, 'list-3');
 assert.equal(board.counts.total, 0);
 assert.ok(board.labels.length >= 1, 'the local board has default labels');
+
+const ensured = await ensureDefaultLists(client, 'local');
+assert.equal(ensured.created.length, 0, 'a full board creates no columns');
+
+const extra = await client.createList('  Revisión  ');
+assert.equal(extra.name, 'Revisión');
+assert.ok(extra.id);
+let view = await client.readBoard();
+assert.deepEqual(
+  view.lists.map((list) => list.name),
+  ['IDEAS', 'EN PROGRESO', 'HECHO', 'Revisión'],
+);
+assert.equal(view.doneListId, 'list-3', 'HECHO stays the done column');
+await assert.rejects(() => client.createList('   '), /nombre/);
 
 const ideas = board.lists[0];
 const doing = board.lists[1];
@@ -38,7 +67,7 @@ const card = await client.createCard(ideas.id, '  Comprar pan  ');
 assert.equal(card.name, 'Comprar pan');
 
 await client.moveCard(card.id, doing.id, 0);
-let view = await client.readBoard();
+view = await client.readBoard();
 assert.equal(view.lists[1].cards[0].id, card.id);
 assert.equal(view.counts.incomplete, 1);
 
@@ -88,4 +117,4 @@ writeFileSync(process.env.KANBAN_LOCAL_PATH, '{ not json');
 assert.equal((await new LocalClient({}).readBoard()).counts.total, 0);
 
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 14 assertions ok');
+console.log('local mode: 30 assertions ok');

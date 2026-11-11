@@ -3,7 +3,7 @@ import { applyHostReady } from '@openchamber/sdk/ui';
 
 const host = connectHost();
 const root = document.querySelector('#root');
-const POLL_MS = 2500;
+const POLL_MS = 800;
 
 const ICONS = {
   check: '<path d="m5 12 4.5 4.5L19 7"/>',
@@ -121,6 +121,36 @@ const setAutoMode = async (enabled) => {
   render();
 };
 
+// The + of the summary always works: with a backlog it opens the idea input;
+// without columns it first creates IDEAS, EN PROGRESO and HECHO, then opens it.
+const openIdea = async () => {
+  if (state.busy) return;
+  if (state.data?.backlogId) {
+    state.adding = true;
+    state.draft = '';
+    render();
+    requestAnimationFrame(() => root.querySelector('.idea-input')?.focus());
+    return;
+  }
+  state.busy = true;
+  state.error = '';
+  render();
+  try {
+    await api('POST', '/lists/default', { boardId: state.data?.board?.id || '' });
+    state.adding = true;
+    state.draft = '';
+  } catch (error) {
+    state.error = error.message;
+  }
+  state.busy = false;
+  if (state.error) {
+    render();
+    return;
+  }
+  await load(true);
+  if (state.adding) requestAnimationFrame(() => root.querySelector('.idea-input')?.focus());
+};
+
 const renderSummary = (data) => {
   const row = el('div', 'summary');
   const dot = el('span', 'board-dot');
@@ -150,21 +180,16 @@ const renderSummary = (data) => {
   bar.append(fill);
   const count = el('span', 'count', `${completed}/${total}`);
   row.append(mode, bar, count);
-  if (data.backlogId) {
-    const add = el('button', 'summary-add');
-    add.type = 'button';
-    add.title = `Añadir ${data.backlogName || 'ideas'}`;
-    add.setAttribute('aria-label', add.title);
-    add.disabled = state.busy;
-    add.append(icon('plus'));
-    add.addEventListener('click', () => {
-      state.adding = true;
-      state.draft = '';
-      render();
-      requestAnimationFrame(() => root.querySelector('.idea-input')?.focus());
-    });
-    row.append(add);
-  }
+  const add = el('button', 'summary-add');
+  add.type = 'button';
+  add.title = data.backlogId
+    ? `Añadir ${data.backlogName || 'ideas'}`
+    : 'Añadir una idea y crear las columnas que falten';
+  add.setAttribute('aria-label', add.title);
+  add.disabled = state.busy;
+  add.append(icon('plus'));
+  add.addEventListener('click', () => void openIdea());
+  row.append(add);
   return row;
 };
 
@@ -332,12 +357,15 @@ const removeCard = (card) => {
       void commitRemove(pending.card);
     }, 5000),
   };
+  void api('POST', '/card/pending', { id: card.id, pending: true }).catch(() => {});
   render();
 };
 
 const undoRemove = () => {
   if (!state.pendingDelete) return;
+  const card = state.pendingDelete.card;
   clearTimeout(state.pendingDelete.timer);
+  void api('POST', '/card/pending', { id: card.id, pending: false }).catch(() => {});
   state.pendingDelete = null;
   render();
 };
@@ -536,14 +564,20 @@ const render = () => {
     undo.append(action);
     scroll.append(undo);
   }
-  scroll.append(renderCurrent(data.current));
-  if (state.adding && data.backlogId) scroll.append(renderAddRow());
-  for (const idea of data.ideas || []) {
-    if (state.pendingDelete?.card.id === idea.id) continue;
-    scroll.append(renderIdea(idea));
-  }
-  if (!(data.ideas || []).length) {
-    scroll.append(el('div', 'muted', `Sin ideas en ${data.backlogName || 'la lista de entrada'}.`));
+  if (data.needsLists) {
+    scroll.append(
+      el('div', 'muted', 'Este tablero no tiene columnas. Pulsa + para crearlas y añadir una idea.'),
+    );
+  } else {
+    scroll.append(renderCurrent(data.current));
+    if (state.adding && data.backlogId) scroll.append(renderAddRow());
+    for (const idea of data.ideas || []) {
+      if (state.pendingDelete?.card.id === idea.id) continue;
+      scroll.append(renderIdea(idea));
+    }
+    if (!(data.ideas || []).length) {
+      scroll.append(el('div', 'muted', `Sin ideas en ${data.backlogName || 'la lista de entrada'}.`));
+    }
   }
   if (!data.project) {
     scroll.append(el('div', 'warning', 'Asigna un proyecto a este tablero en el panel de Kanban.'));
@@ -554,21 +588,28 @@ const render = () => {
 };
 
 const load = async (force = false) => {
-  if (state.adding) return;
+  if (state.adding && !force) return;
   if (inFlight && !force) return;
   inFlight = true;
+  let projectId = '';
   try {
     const data = await api('GET', '/work');
     state.data = data;
     document.documentElement.dataset.style = data?.style || 'neumorphism';
     state.error = '';
-    if (data?.project?.id) await loadSessions(data.project.id);
+    projectId = data?.project?.id || '';
   } catch (error) {
     state.error = error.message;
   } finally {
     inFlight = false;
   }
   render();
+  if (projectId) {
+    const before = state.sessionsAt;
+    void loadSessions(projectId).then(() => {
+      if (state.sessionsAt !== before) render();
+    });
+  }
 };
 
 const startPolling = () => {
@@ -587,5 +628,5 @@ host.onReady((context) => {
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') void load(true);
+  if (document.visibilityState === 'visible' && !state.adding) void load(true);
 });

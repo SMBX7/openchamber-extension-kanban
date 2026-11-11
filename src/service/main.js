@@ -12,6 +12,7 @@ import { getBoardProject, setBoardProject } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
 import { LOCAL_BOARD_ID, LocalClient, exportBoard, importBoard } from '../shared/local.js';
 import { PlankaClient, PlankaError, flattenCards, searchCards } from '../shared/planka.js';
+import { ensureDefaultLists } from '../shared/defaults.js';
 
 const PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
 const TOKEN = process.env.OPENCHAMBER_SERVICE_TOKEN || '';
@@ -302,6 +303,43 @@ const invalidate = () => {
   cache = { boardId: cache.boardId, at: 0, data: null, inflight: null };
 };
 
+// One in-flight ensure per board: the panel and the Work Status section can ask
+// at the same time, and nobody should end up with duplicate columns.
+const listBuilds = new Map();
+const ensureListsOnce = (boardId) => {
+  const key = `${readConfig().source || 'planka'}:${boardId}`;
+  const running = listBuilds.get(key);
+  if (running) return running;
+  const task = ensureDefaultLists(client(), boardId).finally(() => {
+    listBuilds.delete(key);
+  });
+  listBuilds.set(key, task);
+  return task;
+};
+
+// A card the panel is about to delete: the Work Status hides it at once while
+// the undo bar is still open. The entry expires if the deletion never commits.
+const PENDING_DELETE_MS = 20000;
+const pendingDeletes = new Map();
+const markPendingDelete = (cardId, pending) => {
+  const id = String(cardId || '');
+  if (!id) return;
+  if (pending) pendingDeletes.set(id, Date.now() + PENDING_DELETE_MS);
+  else pendingDeletes.delete(id);
+};
+const isPendingDelete = (cardId) => {
+  const id = String(cardId || '');
+  const until = pendingDeletes.get(id);
+  if (!until) return false;
+  if (until <= Date.now()) {
+    pendingDeletes.delete(id);
+    return false;
+  }
+  return true;
+};
+const withoutPendingCards = (list) =>
+  (list?.cards || []).filter((card) => !isPendingDelete(card.id));
+
 const statusView = async () => {
   const config = readConfig();
   if (!isConnected(config)) {
@@ -485,6 +523,7 @@ const routes = {
     sessionPassword = password;
 
     const boards = await next.getBoards().catch(() => []);
+    const projects = await next.getProjects().catch(() => []);
     const chosen =
       (body.boardId && String(body.boardId)) ||
       (boards.find((board) => board.id === readConfig().boardId)?.id ?? '') ||
@@ -499,7 +538,7 @@ const routes = {
     } catch {
       snapshot = null;
     }
-    return { ok: true, boards, boardId: chosen, snapshot };
+    return { ok: true, boards, projects, boardId: chosen, snapshot };
   },
 
   'POST /logout': async () => {
@@ -527,6 +566,7 @@ const routes = {
         boardId: LOCAL_BOARD_ID,
         boardName: board?.name || 'Kanban local',
         boards,
+        projects: [],
         boardUrl: '',
       };
     }
@@ -539,6 +579,7 @@ const routes = {
         boardId: config.boardId,
         boardName: config.boardName,
         boards: [],
+        projects: [],
       };
     }
     let boards = [];
@@ -546,6 +587,12 @@ const routes = {
       boards = await client().getBoards();
     } catch {
       boards = [];
+    }
+    let projects = [];
+    try {
+      projects = await client().getProjects();
+    } catch {
+      projects = [];
     }
     const board = boards.find((item) => item.id === config.boardId) || boards[0] || null;
     return {
@@ -555,6 +602,7 @@ const routes = {
       boardId: board?.id || config.boardId,
       boardName: board?.name || config.boardName,
       boards,
+      projects,
       boardUrl: board?.url || '',
       source: 'planka',
     };
@@ -600,10 +648,13 @@ const routes = {
     const project = getBoardProject(boardId);
     const workList = workListFor(snapshot);
     const doneList = snapshot.lists.find((list) => list.id === snapshot.doneListId) || null;
-    const total = snapshot.counts.total;
-    const completed = doneList?.cards.length || 0;
     const backlog = snapshot.lists.find((list) => list.id !== workList?.id && list.id !== snapshot.doneListId) || null;
-    const currentCard = workList?.cards[0] || null;
+    const workCards = withoutPendingCards(workList);
+    const doneCards = withoutPendingCards(doneList);
+    const backlogCards = withoutPendingCards(backlog);
+    const total = snapshot.lists.reduce((sum, list) => sum + withoutPendingCards(list).length, 0);
+    const completed = doneCards.length;
+    const currentCard = workCards[0] || null;
     let current = null;
     if (currentCard) {
       const state = await sessionStateFor(currentCard.id);
@@ -621,6 +672,7 @@ const routes = {
       board: { id: snapshot.board.id, name: snapshot.board.name },
       style: readAppearance().style,
       counts: { total, completed, incomplete: total - completed },
+      needsLists: snapshot.lists.length === 0,
       project: project
         ? {
             id: project.projectId,
@@ -630,7 +682,7 @@ const routes = {
           }
         : null,
       current,
-      ideas: (backlog?.cards || []).slice(0, 50).map((card) => ({ id: card.id, name: card.name })),
+      ideas: backlogCards.slice(0, 50).map((card) => ({ id: card.id, name: card.name })),
       backlogId: backlog?.id || '',
       backlogName: backlog?.name || '',
     };
@@ -761,6 +813,21 @@ const routes = {
     return { list: item };
   },
 
+  // Creates the default columns that are missing (IDEAS, EN PROGRESO, HECHO).
+  // Safe to repeat: existing columns are left alone.
+  'POST /lists/default': async (body) => {
+    const config = requireConnected();
+    const boardId = String(body.boardId || '') || (await boardIdOf(config));
+    const result = await ensureListsOnce(boardId);
+    invalidate();
+    const snapshot = await getSnapshot({ boardId, fresh: true });
+    return {
+      created: result.created.length,
+      names: result.created.map((list) => list.name),
+      snapshot: snapshotView(snapshot),
+    };
+  },
+
   'POST /card/move': async (body) => {
     requireConnected();
     const id = String(body.id || '');
@@ -872,10 +939,20 @@ const routes = {
     return { ...result, linked };
   },
 
+  'POST /card/pending': async (body) => {
+    requireConnected();
+    const id = String(body.id || '');
+    if (!id) throw new PlankaError('Falta el id de la tarjeta.', { kind: 'validation' });
+    const pending = body.pending !== false;
+    markPendingDelete(id, pending);
+    return { ok: true, pending };
+  },
+
   'DELETE /card': async (body) => {
     requireConnected();
     const id = String(body.id || '');
     if (!id) throw new PlankaError('Falta el id de la tarjeta.', { kind: 'validation' });
+    markPendingDelete(id, false);
     const link = getLink(id);
     if (link) {
       if (serviceHost) {
@@ -902,6 +979,50 @@ const routes = {
     saveConfig({ boardId: board.id, boardName: board.name });
     invalidate();
     return snapshotView(await getSnapshot({ boardId, fresh: true }));
+  },
+
+  // Creates a Planka board (and its project, when the person does not have one)
+  // together with the three default columns, then selects it.
+  'POST /board/create': async (body) => {
+    const config = requireConnected();
+    if (config.source === 'local') {
+      throw new PlankaError('El tablero local ya existe y es único.', { kind: 'validation' });
+    }
+    const name = String(body.name || '').trim();
+    if (!name) throw new PlankaError('Escribe un nombre para el tablero.', { kind: 'validation' });
+    let projectId = String(body.projectId || '');
+    let project = null;
+    if (!projectId) {
+      const projectName = String(body.projectName || '').trim();
+      if (!projectName) {
+        throw new PlankaError('Elige un proyecto de Planka o escribe uno nuevo.', { kind: 'validation' });
+      }
+      project = await client().createProject(projectName);
+      projectId = project.id;
+    }
+    const siblings = (await client().getBoards()).filter((board) => board.projectId === projectId);
+    const position =
+      siblings.reduce((max, board) => Math.max(max, Number(board.position) || 0), 0) + 65536;
+    const board = await client().createBoard(name, projectId, position);
+    let columns = 0;
+    let columnsError = '';
+    try {
+      columns = (await ensureListsOnce(board.id)).created.length;
+    } catch (error) {
+      columnsError = error.message;
+    }
+    saveConfig({ boardId: board.id, boardName: board.name });
+    invalidate();
+    const snapshot = await getSnapshot({ boardId: board.id, fresh: true });
+    const boards = await client().getBoards().catch(() => []);
+    return {
+      board,
+      project,
+      columns,
+      columnsError,
+      boards,
+      snapshot: snapshotView(snapshot),
+    };
   },
 
   'POST /checklist': async (body) => {

@@ -37,6 +37,9 @@ var import_node_fs2 = require("node:fs");
 var import_node_path2 = require("node:path");
 var import_node_crypto = require("node:crypto");
 
+// src/shared/defaults.js
+var DEFAULT_LIST_NAMES = ["IDEAS", "EN PROGRESO", "HECHO"];
+
 // src/shared/planka.js
 var POSITION_STEP = 65536;
 var DONE_NAME = /(^|\b)(hecho|done|completad[oa]?s?|finalizad[oa]?s?|listo)(\b|$)/i;
@@ -90,8 +93,9 @@ var PlankaClient = class {
     const method = options.method || "GET";
     const auth = options.auth !== false;
     const retry = options.retry !== false;
+    const form = typeof FormData !== "undefined" && options.form instanceof FormData ? options.form : null;
     const headers = { Accept: "application/json" };
-    if (options.body !== void 0) headers["Content-Type"] = "application/json";
+    if (!form && options.body !== void 0) headers["Content-Type"] = "application/json";
     if (options.basic) headers.Authorization = `Basic ${options.basic}`;
     else if (auth && this.token) headers.Authorization = `Bearer ${this.token}`;
     let response;
@@ -99,7 +103,7 @@ var PlankaClient = class {
       response = await fetch(`${this.baseUrl}${path}`, {
         method,
         headers,
-        body: options.body === void 0 ? void 0 : JSON.stringify(options.body),
+        body: form || (options.body === void 0 ? void 0 : JSON.stringify(options.body)),
         signal: AbortSignal.timeout(options.timeout || 15e3)
       });
     } catch (error) {
@@ -214,6 +218,51 @@ var PlankaClient = class {
       url: `${this.baseUrl}/boards/${board2.id}`
     })).sort((a, b) => a.name.localeCompare(b.name, "es"));
   }
+  async getProjects() {
+    const data = await this.request("/api/projects");
+    const projects = Array.isArray(data?.items) ? data.items : [];
+    return projects.filter((project) => project && project.id).map((project) => ({
+      id: String(project.id),
+      name: textOf(project.name) || "Proyecto"
+    })).sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }
+  async createProject(name) {
+    const trimmed = textOf(name).trim().slice(0, 128);
+    if (!trimmed) throw new PlankaError("El proyecto necesita un nombre.", { kind: "validation" });
+    const data = await this.request("/api/projects", {
+      method: "POST",
+      body: { type: "private", name: trimmed }
+    });
+    const item = data?.item;
+    if (!item?.id) throw new PlankaError("Planka no ha devuelto el proyecto creado.", { kind: "api" });
+    return { id: String(item.id), name: textOf(item.name).trim() || trimmed };
+  }
+  async createBoard(name, projectId, position) {
+    const trimmed = textOf(name).trim().slice(0, 128);
+    if (!trimmed) throw new PlankaError("El tablero necesita un nombre.", { kind: "validation" });
+    let at = Number.isFinite(position) && position >= 0 ? position : null;
+    if (at === null) {
+      const boards = await this.getBoards();
+      const siblings = boards.filter((board2) => board2.projectId === String(projectId));
+      at = siblings.reduce((max, board2) => Math.max(max, Number(board2.position) || 0), 0) + POSITION_STEP;
+    }
+    const form = new FormData();
+    form.append("name", trimmed);
+    form.append("position", String(at));
+    const data = await this.request(`/api/projects/${encode(projectId)}/boards`, {
+      method: "POST",
+      form
+    });
+    const item = data?.item;
+    if (!item?.id) throw new PlankaError("Planka no ha devuelto el tablero creado.", { kind: "api" });
+    return {
+      id: String(item.id),
+      name: textOf(item.name).trim() || trimmed,
+      projectId: String(item.projectId || projectId),
+      position: Number.isFinite(item.position) ? item.position : at,
+      url: `${this.baseUrl}/boards/${item.id}`
+    };
+  }
   async resolveBoardId(boardId) {
     if (boardId) return String(boardId);
     const boards = await this.getBoards();
@@ -282,6 +331,28 @@ var PlankaClient = class {
       body: { name: trimmed }
     });
     return data?.item ?? null;
+  }
+  async createList(name, boardId, position) {
+    const trimmed = String(name || "").trim().slice(0, 128);
+    if (!trimmed) throw new PlankaError("La columna necesita un nombre.", { kind: "validation" });
+    let at = Number.isFinite(position) && position >= 0 ? position : null;
+    if (at === null) {
+      const board2 = await this.readBoard(boardId);
+      at = board2.lists.reduce((max, list) => Math.max(max, Number(list.position) || 0), 0) + POSITION_STEP;
+    }
+    const data = await this.request(`/api/boards/${encode(boardId)}/lists`, {
+      method: "POST",
+      body: { type: "active", name: trimmed, position: at }
+    });
+    const item = data?.item;
+    if (!item?.id) throw new PlankaError("Planka no ha devuelto la columna creada.", { kind: "api" });
+    return {
+      id: String(item.id),
+      name: textOf(item.name).trim() || trimmed,
+      color: textOf(item.color),
+      position: Number.isFinite(item.position) ? item.position : at,
+      cards: []
+    };
   }
   async moveCard(cardId, listId, index, boardId) {
     const board2 = await this.readBoard(boardId);
@@ -370,12 +441,27 @@ var PlankaClient = class {
     });
     return data?.item ?? null;
   }
+  // Planka 2.x moved label removal to
+  // /cards/:cardId/card-labels/labelId:<id>; 1.x only has
+  // /card-labels/:cardLabelId. Try the current route, fall back on 404.
+  async deleteCardLabel(cardId, labelId, cardLabelId) {
+    try {
+      await this.request(`/api/cards/${encode(cardId)}/card-labels/labelId:${encode(labelId)}`, {
+        method: "DELETE"
+      });
+      return true;
+    } catch (error) {
+      if (error?.status !== 404 || !cardLabelId) throw error;
+      await this.request(`/api/card-labels/${encode(cardLabelId)}`, { method: "DELETE" });
+      return true;
+    }
+  }
   async removeLabel(cardId, labelId, boardId) {
     const { board: board2 } = await this.findCard(cardId, boardId);
     const card = flattenCards(board2).find((item) => item.id === String(cardId));
     const match = card?.labels.find((label) => label.id === String(labelId));
     if (!match?.cardLabelId) return false;
-    await this.request(`/api/card-labels/${encode(match.cardLabelId)}`, { method: "DELETE" });
+    await this.deleteCardLabel(cardId, labelId, match.cardLabelId);
     return true;
   }
   async toggleLabel(cardId, labelId, boardId) {
@@ -383,7 +469,7 @@ var PlankaClient = class {
     const card = flattenCards(board2).find((item) => item.id === String(cardId));
     const match = card?.labels.find((label) => label.id === String(labelId));
     if (match) {
-      await this.request(`/api/card-labels/${encode(match.cardLabelId)}`, { method: "DELETE" });
+      await this.deleteCardLabel(cardId, labelId, match.cardLabelId);
       return false;
     }
     await this.addLabel(cardId, labelId);
@@ -565,7 +651,6 @@ var boardSummary = (board2) => ({
 var POSITION_STEP2 = 65536;
 var DONE_NAME2 = /(^|\b)(hecho|done|completad[oa]?s?|finalizad[oa]?s?|listo)(\b|$)/i;
 var BOARD_ID = "local";
-var DEFAULT_LISTS = ["IDEAS", "EN PROGRESO", "HECHO"];
 var DEFAULT_LABELS = [
   { name: "Urgente", color: "hsl(0 62% 58%)" },
   { name: "Importante", color: "hsl(38 78% 58%)" },
@@ -593,7 +678,7 @@ var toIso = (value) => {
 var emptyStore = () => ({
   version: 1,
   board: { id: BOARD_ID, name: "Kanban local" },
-  lists: DEFAULT_LISTS.map((name, index) => ({
+  lists: DEFAULT_LIST_NAMES.map((name, index) => ({
     id: `list-${index + 1}`,
     name,
     position: (index + 1) * POSITION_STEP2
@@ -921,6 +1006,21 @@ var LocalClient = class {
       if (!trimmed) throw new PlankaError("El nombre de la columna no puede quedar vac\xEDo.", { kind: "validation" });
       list.name = trimmed;
       return list;
+    });
+  }
+  // Same surface as PlankaClient.createList. The position is computed inside
+  // the store lock so two callers cannot append to the same slot.
+  async createList(name) {
+    const trimmed = String(name || "").trim().slice(0, 120);
+    if (!trimmed) throw new PlankaError("La columna necesita un nombre.", { kind: "validation" });
+    return mutate((store) => {
+      const list = {
+        id: uid("list"),
+        name: trimmed,
+        position: nextPosition(store.lists)
+      };
+      store.lists.push(list);
+      return { id: list.id, name: list.name, color: "", position: list.position, cards: [] };
     });
   }
   async addChecklist(cardId, name, boardId, tasks = []) {

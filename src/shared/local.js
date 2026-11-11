@@ -9,12 +9,12 @@ import { chmodSync, closeSync, openSync, readFileSync, renameSync, statSync, unl
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { ROOT } from './config.js';
+import { DEFAULT_LIST_NAMES } from './defaults.js';
 import { PlankaError } from './planka.js';
 
 const POSITION_STEP = 65536;
 const DONE_NAME = /(^|\b)(hecho|done|completad[oa]?s?|finalizad[oa]?s?|listo)(\b|$)/i;
 const BOARD_ID = 'local';
-const DEFAULT_LISTS = ['IDEAS', 'EN PROGRESO', 'HECHO'];
 const DEFAULT_LABELS = [
   { name: 'Urgente', color: 'hsl(0 62% 58%)' },
   { name: 'Importante', color: 'hsl(38 78% 58%)' },
@@ -48,7 +48,7 @@ const toIso = (value) => {
 const emptyStore = () => ({
   version: 1,
   board: { id: BOARD_ID, name: 'Kanban local' },
-  lists: DEFAULT_LISTS.map((name, index) => ({
+  lists: DEFAULT_LIST_NAMES.map((name, index) => ({
     id: `list-${index + 1}`,
     name,
     position: (index + 1) * POSITION_STEP,
@@ -439,6 +439,22 @@ export class LocalClient {
       if (!trimmed) throw new PlankaError('El nombre de la columna no puede quedar vacío.', { kind: 'validation' });
       list.name = trimmed;
       return list;
+    });
+  }
+
+  // Same surface as PlankaClient.createList. The position is computed inside
+  // the store lock so two callers cannot append to the same slot.
+  async createList(name) {
+    const trimmed = String(name || '').trim().slice(0, 120);
+    if (!trimmed) throw new PlankaError('La columna necesita un nombre.', { kind: 'validation' });
+    return mutate((store) => {
+      const list = {
+        id: uid('list'),
+        name: trimmed,
+        position: nextPosition(store.lists),
+      };
+      store.lists.push(list);
+      return { id: list.id, name: list.name, color: '', position: list.position, cards: [] };
     });
   }
 

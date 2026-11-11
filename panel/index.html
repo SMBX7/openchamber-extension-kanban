@@ -22,21 +22,69 @@
         --relief-inset: inset 2px 2px 5px rgba(54, 70, 94, .14), inset -2px -2px 5px rgba(255, 255, 255, .90);
       }
       /* Neumorfismo: relieve más profundo */
+      html[data-style="neumorphism"] {
+        --kanban-radius: 20px;
+        --card-radius: 14px;
+      }
+      html[data-style="neumorphism"] .project-chip,
+      html[data-style="neumorphism"] .quick-filter {
+        border-radius: 10px;
+      }
       html[data-style="neumorphism"] .column {
+        background:
+          radial-gradient(140% 90% at 16% 0%, rgba(255, 255, 255, .05), transparent 58%),
+          radial-gradient(140% 100% at 84% 100%, rgba(0, 0, 0, .15), transparent 62%),
+          linear-gradient(145deg,
+            color-mix(in srgb, var(--oc-elevated) 97%, var(--column-tone, var(--oc-border)) 3%),
+            color-mix(in srgb, var(--oc-elevated) 94%, var(--column-tone, var(--oc-border)) 6%));
         box-shadow:
-          14px 14px 30px rgba(0, 0, 0, .38),
-          -10px -10px 24px rgba(255, 255, 255, .05),
-          inset 1px 1px 0 rgba(255, 255, 255, .07),
-          inset -1px -1px 0 rgba(0, 0, 0, .14);
+          3px 3px 6px rgba(0, 0, 0, .45),
+          inset 0 2px 5px rgba(255, 255, 255, .02),
+          inset 0 -3px 10px rgba(0, 0, 0, .10);
       }
       html[data-style="neumorphism"] .card {
         background:
+          radial-gradient(150% 100% at 18% 0%, rgba(255, 255, 255, .04), transparent 58%),
+          radial-gradient(150% 100% at 82% 100%, rgba(0, 0, 0, .12), transparent 62%),
           linear-gradient(145deg, rgba(255, 255, 255, .05), rgba(0, 0, 0, .06)),
           var(--kanban-card-bg, color-mix(in srgb, var(--oc-elevated) 88%, var(--oc-fg) 12%));
         box-shadow:
-          6px 6px 14px rgba(0, 0, 0, .30),
-          -3px -3px 9px rgba(255, 255, 255, .05),
-          inset 1px 1px 0 rgba(255, 255, 255, .06);
+          1px 1px 4px rgba(0, 0, 0, .30),
+          inset 0 2px 5px rgba(255, 255, 255, .02),
+          inset 0 -3px 8px rgba(0, 0, 0, .09);
+      }
+
+
+      html[data-style="neumorphism"] .field input,
+      html[data-style="neumorphism"] .field select,
+      html[data-style="neumorphism"] .search-input,
+      html[data-style="neumorphism"] .mini-select,
+      html[data-style="neumorphism"] .settings-textarea,
+      html[data-style="neumorphism"] .description,
+      html[data-style="neumorphism"] .session-select,
+      html[data-style="neumorphism"] .task-add input {
+        background-color: color-mix(in srgb, var(--oc-elevated) 88%, var(--oc-fg) 12%);
+        box-shadow: var(--relief-inset);
+      }
+      html[data-style="neumorphism"] .settings-box,
+      html[data-style="neumorphism"] .login-card {
+        border-color: transparent;
+        background-color: color-mix(in srgb, var(--oc-elevated) 92%, var(--oc-fg) 8%);
+        box-shadow: var(--relief-btn);
+      }
+      html[data-style="neumorphism"] .mode-card,
+      html[data-style="neumorphism"] .style-card {
+        box-shadow: var(--relief-btn);
+      }
+      html[data-style="neumorphism"] .mode-card[aria-pressed="true"],
+      html[data-style="neumorphism"] .style-card[aria-pressed="true"] {
+        box-shadow: var(--relief-inset);
+      }
+      html[data-style="neumorphism"] .sheet {
+        box-shadow: -14px 0 34px rgba(0, 0, 0, .32);
+      }
+      html[data-style="neumorphism"] .menu-select-menu {
+        box-shadow: 8px 8px 22px rgba(0, 0, 0, .38), -4px -4px 14px rgba(255, 255, 255, .035);
       }
 
       /* Brutalismo: gris claro, esquinas rectas, sombras sólidas */
@@ -47,7 +95,7 @@
         --relief-btn: 2px 2px 0 var(--brutal-line);
         --relief-inset: none;
       }
-      html[data-style="brutalism"] *:not(.col-dot):not(.board-dot):not(.dot):not(.label-dot):not(.session-dot) {
+      html[data-style="brutalism"] *:not(.col-dot):not(.board-dot):not(.brand-dot):not(.dot):not(.label-dot):not(.session-dot) {
         border-radius: 0;
       }
       html[data-style="brutalism"] .column {
@@ -75,6 +123,51 @@
       }
       html[data-style="brutalism"] .sheet { border-left: 3px solid var(--brutal-line); }
 
+
+      html[data-style="brutalism"] .field input,
+      html[data-style="brutalism"] .field select,
+      html[data-style="brutalism"] .search-input,
+      html[data-style="brutalism"] .mini-select,
+      html[data-style="brutalism"] .settings-textarea,
+      html[data-style="brutalism"] .description,
+      html[data-style="brutalism"] .session-select,
+      html[data-style="brutalism"] .task-add input,
+      html[data-style="brutalism"] .composer input {
+        background-color: var(--oc-elevated);
+        border: 2px solid var(--brutal-line);
+        box-shadow: 2px 2px 0 var(--brutal-line);
+      }
+      html[data-style="brutalism"] .settings-box,
+      html[data-style="brutalism"] .login-card {
+        background: var(--oc-elevated);
+        border: 2px solid var(--brutal-line);
+        box-shadow: 4px 4px 0 var(--brutal-line);
+      }
+      html[data-style="brutalism"] .mode-card,
+      html[data-style="brutalism"] .style-card,
+      html[data-style="brutalism"] .source-btn {
+        border-width: 2px;
+        box-shadow: 2px 2px 0 var(--brutal-line);
+      }
+      html[data-style="brutalism"] .mode-card:not([aria-pressed="true"]),
+      html[data-style="brutalism"] .style-card:not([aria-pressed="true"]),
+      html[data-style="brutalism"] .source-btn:not([aria-pressed="true"]) {
+        border-color: var(--brutal-line);
+      }
+      html[data-style="brutalism"] .mode-card::before { border-radius: 0; }
+      html[data-style="brutalism"] .menu-select-menu,
+      html[data-style="brutalism"] .undo-bar {
+        border: 2px solid var(--brutal-line);
+        box-shadow: 4px 4px 0 var(--brutal-line);
+      }
+
+
+      html[data-style="brutalism"] .settings-section:not(:first-child),
+      html[data-style="brutalism"] .sheet-foot {
+        border-top: 2px solid var(--brutal-line);
+      }
+      html[data-style="brutalism"] .settings-heading::before { border-radius: 0; }
+
       /* Cristal */
       html[data-style="glass"] {
         --kanban-radius: 20px;
@@ -83,25 +176,34 @@
         --relief-inset: inset 0 1px 0 rgba(255, 255, 255, .10);
       }
       html[data-style="glass"] .column {
-        backdrop-filter: blur(22px) saturate(170%);
+        -webkit-backdrop-filter: blur(26px) saturate(180%);
+        backdrop-filter: blur(26px) saturate(180%);
         background:
-          linear-gradient(155deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .015)),
-          color-mix(in srgb, var(--oc-elevated) 52%, transparent);
-        border: 1px solid color-mix(in srgb, var(--column-tone, var(--oc-border)) 60%, rgba(255, 255, 255, .10));
-        box-shadow: 0 18px 40px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .22);
+          linear-gradient(160deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .025) 42%, rgba(255, 255, 255, .008) 68%),
+          color-mix(in srgb, var(--oc-elevated) 48%, transparent);
+        border: 1px solid rgba(255, 255, 255, .18);
+        box-shadow:
+          0 3px 8px rgba(0, 0, 0, .30),
+          inset 0 0 22px color-mix(in srgb, var(--column-tone, var(--oc-info)) 20%, transparent),
+          inset 0 1px 0 rgba(255, 255, 255, .22);
       }
       html[data-style="glass"] .card {
         background:
-          linear-gradient(150deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .02)),
-          color-mix(in srgb, var(--kanban-card-bg, var(--oc-elevated)) 62%, transparent);
-        backdrop-filter: blur(12px) saturate(150%);
-        border: 1px solid color-mix(in srgb, var(--column-tone, var(--mint)) 55%, rgba(255, 255, 255, .12));
-        box-shadow: 0 10px 24px rgba(0, 0, 0, .26), inset 0 1px 0 rgba(255, 255, 255, .20);
+          linear-gradient(112deg, rgba(255, 255, 255, .09) 0%, rgba(255, 255, 255, .025) 16%, transparent 30%),
+          linear-gradient(150deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .01) 55%, transparent),
+          color-mix(in srgb, var(--oc-elevated) 86%, var(--oc-fg) 14%);
+        -webkit-backdrop-filter: blur(16px) saturate(170%);
+        backdrop-filter: blur(16px) saturate(170%);
+        border: 1px solid rgba(255, 255, 255, .20);
+        box-shadow:
+          0 2px 8px rgba(0, 0, 0, .26),
+          inset 0 1px 0 rgba(255, 255, 255, .14);
       }
       html[data-style="glass"] .sheet {
         backdrop-filter: blur(26px) saturate(160%);
         background: color-mix(in srgb, var(--oc-elevated) 74%, transparent);
       }
+      html[data-style="glass"] .project-chip,
       html[data-style="glass"] .mini-select,
       html[data-style="glass"] .settings-select,
       html[data-style="glass"] .ghost-btn,
@@ -110,6 +212,100 @@
       html[data-style="glass"] .quick-filter,
       html[data-style="glass"] .source-btn,
       html[data-style="glass"] .style-card { border-radius: 14px; }
+
+
+      html[data-style="glass"] .field input,
+      html[data-style="glass"] .field select,
+      html[data-style="glass"] .search-input,
+      html[data-style="glass"] .mini-select,
+      html[data-style="glass"] .settings-textarea,
+      html[data-style="glass"] .description,
+      html[data-style="glass"] .session-select,
+      html[data-style="glass"] .task-add input,
+      html[data-style="glass"] .composer input,
+      html[data-style="glass"] .menu-select-button,
+      html[data-style="glass"] .tool-chip {
+        background-color: color-mix(in srgb, var(--oc-elevated) 55%, transparent);
+        border-color: rgba(255, 255, 255, .18);
+        -webkit-backdrop-filter: blur(12px) saturate(150%);
+        backdrop-filter: blur(12px) saturate(150%);
+      }
+      html[data-style="glass"] .settings-box,
+      html[data-style="glass"] .login-card {
+        background:
+          linear-gradient(150deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)),
+          color-mix(in srgb, var(--oc-elevated) 48%, transparent);
+        border-color: rgba(255, 255, 255, .16);
+        -webkit-backdrop-filter: blur(14px) saturate(150%);
+        backdrop-filter: blur(14px) saturate(150%);
+      }
+      html[data-style="glass"] .mode-card:not([aria-pressed="true"]),
+      html[data-style="glass"] .style-card:not([aria-pressed="true"]),
+      html[data-style="glass"] .source-btn:not([aria-pressed="true"]),
+      html[data-style="glass"] .label-chip:not([aria-pressed="true"]) {
+        background:
+          linear-gradient(150deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)),
+          color-mix(in srgb, var(--oc-elevated) 46%, transparent);
+        border-color: rgba(255, 255, 255, .16);
+      }
+      html[data-style="glass"] .mode-card,
+      html[data-style="glass"] .style-card,
+      html[data-style="glass"] .source-btn,
+      html[data-style="glass"] .label-chip {
+        -webkit-backdrop-filter: blur(12px) saturate(150%);
+        backdrop-filter: blur(12px) saturate(150%);
+      }
+      html[data-style="glass"] .menu-select-menu {
+        background:
+          linear-gradient(150deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)),
+          color-mix(in srgb, var(--oc-elevated) 78%, transparent);
+        border-color: rgba(255, 255, 255, .18);
+        -webkit-backdrop-filter: blur(18px) saturate(150%);
+        backdrop-filter: blur(18px) saturate(150%);
+      }
+
+
+      html[data-style="glass"] .add-card,
+      html[data-style="glass"] .col-add,
+      html[data-style="glass"] .card-edit,
+      html[data-style="glass"] .card-delete,
+      html[data-style="glass"] .card-done {
+        border-radius: 10px;
+      }
+      html[data-style="glass"] .undo-bar {
+        background: color-mix(in srgb, var(--oc-elevated) 82%, transparent);
+        border-color: rgba(255, 255, 255, .18);
+        -webkit-backdrop-filter: blur(16px) saturate(150%);
+        backdrop-filter: blur(16px) saturate(150%);
+      }
+      html[data-style="glass"] .undo-bar.label-undo {
+        background: color-mix(in srgb, var(--oc-elevated) 82%, var(--oc-warning) 18%);
+        border-color: color-mix(in srgb, var(--oc-warning) 55%, rgba(255, 255, 255, .2));
+      }
+
+
+      html[data-style="neumorphism"] .column.drop-target,
+      html[data-style="brutalism"] .column.drop-target,
+      html[data-style="glass"] .column.drop-target {
+        background: color-mix(in srgb, var(--oc-elevated) 82%, var(--column-tone, var(--mint)) 18%);
+        border-color: var(--column-tone, var(--mint));
+      }
+
+
+      html[data-style="glass"] .icon-btn:hover,
+      html[data-style="glass"] .ghost-btn:hover,
+      html[data-style="glass"] .menu-select-button:hover,
+      html[data-style="glass"] .source-btn:not([aria-pressed="true"]):hover,
+      html[data-style="glass"] .card-edit:hover,
+      html[data-style="glass"] .card-done:hover,
+      html[data-style="glass"] .add-card:hover,
+      html[data-style="glass"] .col-add:hover,
+      html[data-style="glass"] .project-chip:not(.auto):hover,
+      html[data-style="glass"] .quick-filter:not([aria-pressed="true"]):hover,
+      html[data-style="glass"] .mode-card:hover:not(:disabled):not([aria-pressed="true"]),
+      html[data-style="glass"] .style-card:hover:not([aria-pressed="true"]) {
+        background: rgba(255, 255, 255, .07);
+      }
 
       .style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
       .style-card {
@@ -477,7 +673,17 @@
       .board-empty {
         margin: auto; text-align: center; color: var(--oc-muted);
         font-size: 12px; max-width: 320px; line-height: 1.5;
+        display: flex; flex-direction: column; align-items: center; gap: 10px;
+        padding: 18px;
       }
+      .board-empty-title { color: var(--oc-fg); font-size: 15px; font-weight: 600; line-height: 1.3; }
+      .board-empty-text { margin: 0; }
+      .board-empty-action { display: inline-flex; align-items: center; gap: 6px; }
+      .board-empty-action .icon { width: 13px; height: 13px; }
+      .board-control { display: flex; align-items: center; gap: 6px; min-width: 0; }
+      .board-control > .menu-select { flex: 1 1 auto; }
+      .board-control .board-add { flex: none; }
+      .create-sheet .settings-actions { margin-top: 2px; }
       .column {
         flex: 1 1 0; min-width: 232px; min-height: 0;
         display: flex; flex-direction: column;
@@ -489,16 +695,14 @@
         border-radius: var(--kanban-radius);
         padding: 10px 8px 6px; transition: background .14s ease, border-color .14s ease;
         box-shadow:
-          12px 12px 26px rgba(0, 0, 0, .34),
-          -8px -8px 20px rgba(255, 255, 255, .045),
-          inset 1px 1px 0 rgba(255, 255, 255, .07),
-          inset -1px -1px 0 rgba(0, 0, 0, .12);
+          2px 2px 6px rgba(0, 0, 0, .30),
+          inset 0 1px 9px rgba(255, 255, 255, .035),
+          inset 0 -1px 11px rgba(0, 0, 0, .10);
       }
       html[data-oc-theme="light"] .column {
         box-shadow:
           10px 10px 22px rgba(54, 70, 94, .15),
-          -10px -10px 22px rgba(255, 255, 255, .9),
-          inset 0 1px 0 rgba(255, 255, 255, .95);
+          inset 0 1px 8px rgba(255, 255, 255, .55);
       }
       .column.drop-target {
         background: color-mix(in srgb, var(--oc-elevated) 84%, var(--column-tone, var(--mint)) 16%);
@@ -529,7 +733,7 @@
 
       .cards {
         flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
-        display: flex; flex-direction: column; gap: 8px; padding: 1px 2px 6px;
+        display: flex; flex-direction: column; gap: 8px; padding: 3px 5px 8px;
         border-radius: calc(var(--card-radius) + 2px);
         scrollbar-width: none; -ms-overflow-style: none;
       }
@@ -540,15 +744,17 @@
 
       .card {
         position: relative;
+        user-select: none;
+        -webkit-user-select: none;
         background: var(--kanban-card-bg, color-mix(in srgb, var(--oc-elevated) 88%, var(--oc-fg) 12%));
         border: 0; border-radius: var(--card-radius); padding: 9px 10px;
         cursor: grab; transition: background .12s ease, transform .16s ease, opacity .16s ease;
         outline: none;
-        box-shadow: 4px 4px 10px rgba(0, 0, 0, .22), -2px -2px 6px rgba(255, 255, 255, .035), inset 0 1px 0 rgba(255, 255, 255, .04);
+        box-shadow: 1px 1px 4px rgba(0, 0, 0, .22), inset 0 1px 6px rgba(255, 255, 255, .03);
       }
       html[data-oc-theme="light"] .card {
         background: var(--kanban-card-bg, color-mix(in srgb, var(--oc-elevated) 45%, var(--oc-bg) 55%));
-        box-shadow: 3px 3px 8px rgba(54, 70, 94, .12), -3px -3px 6px rgba(255, 255, 255, .85), inset 0 1px 0 rgba(255, 255, 255, .9);
+        box-shadow: 3px 3px 8px rgba(54, 70, 94, .12), inset 0 1px 7px rgba(255, 255, 255, .55);
       }
       .card:focus-visible { outline: 2px solid var(--oc-focus, var(--oc-primary)); outline-offset: -1px; }
       .card.dragging { opacity: .55; cursor: grabbing; box-shadow: 7px 7px 16px rgba(0, 0, 0, .3), -4px -4px 10px rgba(255, 255, 255, .035); }
@@ -752,7 +958,7 @@
       .panel-board .col-dot { width: 6px; height: 6px; }
       .panel-board .col-name { font-size: 10px; letter-spacing: .06em; }
       .panel-board .col-count { font-size: 9.5px; }
-      .panel-board .cards { gap: 6px; padding: 1px 1px 4px; border-radius: 9px; }
+      .panel-board .cards { gap: 6px; padding: 3px 5px 8px; border-radius: 9px; }
       .panel-board .card { padding: 7px 8px; }
       .panel-board .card-title { font-size: 12px; }
       .panel-board .card-desc { font-size: 10.5px; }

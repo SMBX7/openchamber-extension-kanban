@@ -74,9 +74,11 @@ export class PlankaClient {
     const method = options.method || 'GET';
     const auth = options.auth !== false;
     const retry = options.retry !== false;
+    const form =
+      typeof FormData !== 'undefined' && options.form instanceof FormData ? options.form : null;
 
     const headers = { Accept: 'application/json' };
-    if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+    if (!form && options.body !== undefined) headers['Content-Type'] = 'application/json';
     if (options.basic) headers.Authorization = `Basic ${options.basic}`;
     else if (auth && this.token) headers.Authorization = `Bearer ${this.token}`;
 
@@ -85,7 +87,7 @@ export class PlankaClient {
       response = await fetch(`${this.baseUrl}${path}`, {
         method,
         headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        body: form || (options.body === undefined ? undefined : JSON.stringify(options.body)),
         signal: AbortSignal.timeout(options.timeout || 15000),
       });
     } catch (error) {
@@ -219,6 +221,58 @@ export class PlankaClient {
       .sort((a, b) => a.name.localeCompare(b.name, 'es'));
   }
 
+  async getProjects() {
+    const data = await this.request('/api/projects');
+    const projects = Array.isArray(data?.items) ? data.items : [];
+    return projects
+      .filter((project) => project && project.id)
+      .map((project) => ({
+        id: String(project.id),
+        name: textOf(project.name) || 'Proyecto',
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  }
+
+  async createProject(name) {
+    const trimmed = textOf(name).trim().slice(0, 128);
+    if (!trimmed) throw new PlankaError('El proyecto necesita un nombre.', { kind: 'validation' });
+    const data = await this.request('/api/projects', {
+      method: 'POST',
+      body: { type: 'private', name: trimmed },
+    });
+    const item = data?.item;
+    if (!item?.id) throw new PlankaError('Planka no ha devuelto el proyecto creado.', { kind: 'api' });
+    return { id: String(item.id), name: textOf(item.name).trim() || trimmed };
+  }
+
+  async createBoard(name, projectId, position) {
+    const trimmed = textOf(name).trim().slice(0, 128);
+    if (!trimmed) throw new PlankaError('El tablero necesita un nombre.', { kind: 'validation' });
+    let at = Number.isFinite(position) && position >= 0 ? position : null;
+    if (at === null) {
+      const boards = await this.getBoards();
+      const siblings = boards.filter((board) => board.projectId === String(projectId));
+      at = siblings.reduce((max, board) => Math.max(max, Number(board.position) || 0), 0) + POSITION_STEP;
+    }
+    // Planka expects multipart/form-data for board creation.
+    const form = new FormData();
+    form.append('name', trimmed);
+    form.append('position', String(at));
+    const data = await this.request(`/api/projects/${encode(projectId)}/boards`, {
+      method: 'POST',
+      form,
+    });
+    const item = data?.item;
+    if (!item?.id) throw new PlankaError('Planka no ha devuelto el tablero creado.', { kind: 'api' });
+    return {
+      id: String(item.id),
+      name: textOf(item.name).trim() || trimmed,
+      projectId: String(item.projectId || projectId),
+      position: Number.isFinite(item.position) ? item.position : at,
+      url: `${this.baseUrl}/boards/${item.id}`,
+    };
+  }
+
   async resolveBoardId(boardId) {
     if (boardId) return String(boardId);
     const boards = await this.getBoards();
@@ -296,6 +350,29 @@ export class PlankaClient {
       body: { name: trimmed },
     });
     return data?.item ?? null;
+  }
+
+  async createList(name, boardId, position) {
+    const trimmed = String(name || '').trim().slice(0, 128);
+    if (!trimmed) throw new PlankaError('La columna necesita un nombre.', { kind: 'validation' });
+    let at = Number.isFinite(position) && position >= 0 ? position : null;
+    if (at === null) {
+      const board = await this.readBoard(boardId);
+      at = board.lists.reduce((max, list) => Math.max(max, Number(list.position) || 0), 0) + POSITION_STEP;
+    }
+    const data = await this.request(`/api/boards/${encode(boardId)}/lists`, {
+      method: 'POST',
+      body: { type: 'active', name: trimmed, position: at },
+    });
+    const item = data?.item;
+    if (!item?.id) throw new PlankaError('Planka no ha devuelto la columna creada.', { kind: 'api' });
+    return {
+      id: String(item.id),
+      name: textOf(item.name).trim() || trimmed,
+      color: textOf(item.color),
+      position: Number.isFinite(item.position) ? item.position : at,
+      cards: [],
+    };
   }
 
   async moveCard(cardId, listId, index, boardId) {
@@ -399,12 +476,28 @@ export class PlankaClient {
     return data?.item ?? null;
   }
 
+  // Planka 2.x moved label removal to
+  // /cards/:cardId/card-labels/labelId:<id>; 1.x only has
+  // /card-labels/:cardLabelId. Try the current route, fall back on 404.
+  async deleteCardLabel(cardId, labelId, cardLabelId) {
+    try {
+      await this.request(`/api/cards/${encode(cardId)}/card-labels/labelId:${encode(labelId)}`, {
+        method: 'DELETE',
+      });
+      return true;
+    } catch (error) {
+      if (error?.status !== 404 || !cardLabelId) throw error;
+      await this.request(`/api/card-labels/${encode(cardLabelId)}`, { method: 'DELETE' });
+      return true;
+    }
+  }
+
   async removeLabel(cardId, labelId, boardId) {
     const { board } = await this.findCard(cardId, boardId);
     const card = flattenCards(board).find((item) => item.id === String(cardId));
     const match = card?.labels.find((label) => label.id === String(labelId));
     if (!match?.cardLabelId) return false;
-    await this.request(`/api/card-labels/${encode(match.cardLabelId)}`, { method: 'DELETE' });
+    await this.deleteCardLabel(cardId, labelId, match.cardLabelId);
     return true;
   }
 
@@ -413,7 +506,7 @@ export class PlankaClient {
     const card = flattenCards(board).find((item) => item.id === String(cardId));
     const match = card?.labels.find((label) => label.id === String(labelId));
     if (match) {
-      await this.request(`/api/card-labels/${encode(match.cardLabelId)}`, { method: 'DELETE' });
+      await this.deleteCardLabel(cardId, labelId, match.cardLabelId);
       return false;
     }
     await this.addLabel(cardId, labelId);

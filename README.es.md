@@ -15,6 +15,8 @@ dentro de OpenChamber, también sirve para eso.
 ## Qué te llevas
 
 - **Tres columnas**: IDEAS, EN PROGRESO y HECHO. Nada más.
+- **Tableros**: crea un tablero de Planka con sus tres columnas desde la extensión, y
+  añade las columnas a uno que llegue vacío.
 - **Tarjetas** con nombre, descripción, etiquetas, checklist y fecha.
 - **Sesiones**: cada tarjeta puede llevar una sesión de OpenChamber, y la abres desde
   ahí.

@@ -20,16 +20,49 @@
         --relief-inset: inset 2px 2px 5px rgba(54, 70, 94, .14), inset -2px -2px 5px rgba(255, 255, 255, .90);
       }
       /* Neumorfismo: relieve más profundo */
+      html[data-style="neumorphism"] {
+        --radius-card: 14px;
+        --radius-inner: 10px;
+        --radius-btn: 6px;
+      }
       html[data-style="neumorphism"] .card {
         background:
-          linear-gradient(145deg, rgba(255, 255, 255, .04), rgba(0, 0, 0, .07)),
-          color-mix(in srgb, var(--oc-info) 9%, transparent);
-        box-shadow: 4px 4px 10px rgba(0, 0, 0, .30), -3px -3px 8px rgba(255, 255, 255, .045), inset 1px 1px 0 rgba(255, 255, 255, .05);
+          radial-gradient(150% 100% at 18% 0%, rgba(255, 255, 255, .045), transparent 58%),
+          radial-gradient(150% 100% at 82% 100%, rgba(0, 0, 0, .12), transparent 62%),
+          linear-gradient(145deg,
+            color-mix(in srgb, var(--oc-elevated) 96%, var(--card-tint, var(--tone, var(--oc-info))) 4%),
+            color-mix(in srgb, var(--oc-elevated) 92%, var(--card-tint, var(--tone, var(--oc-info))) 8%));
+        border: 1px solid color-mix(in srgb, var(--oc-border) 84%, var(--card-tint, var(--tone, var(--oc-info))) 16%);
+        box-shadow:
+          2px 2px 5px rgba(0, 0, 0, .28),
+          inset 0 2px 5px rgba(255, 255, 255, .02),
+          inset 0 -3px 8px rgba(0, 0, 0, .08);
       }
       html[data-style="neumorphism"] .card.current {
         background:
-          linear-gradient(145deg, rgba(255, 255, 255, .05), rgba(0, 0, 0, .08)),
-          color-mix(in srgb, var(--tone, var(--oc-warning)) 10%, transparent);
+          radial-gradient(150% 100% at 18% 0%, rgba(255, 255, 255, .05), transparent 58%),
+          radial-gradient(150% 100% at 82% 100%, rgba(0, 0, 0, .13), transparent 62%),
+          linear-gradient(145deg,
+            color-mix(in srgb, var(--oc-elevated) 94%, var(--tone, var(--oc-warning)) 6%),
+            color-mix(in srgb, var(--oc-elevated) 90%, var(--tone, var(--oc-warning)) 10%));
+        border-color: color-mix(in srgb, var(--oc-border) 76%, var(--tone, var(--oc-warning)) 24%);
+      }
+      html[data-style="neumorphism"] .card-head,
+      html[data-style="neumorphism"] .card-body {
+        background: color-mix(in srgb, var(--oc-elevated) 88%, var(--card-tint, var(--tone, var(--oc-info))) 12%);
+        border: 1px solid color-mix(in srgb, var(--oc-border) 78%, var(--card-tint, var(--tone, var(--oc-info))) 22%);
+        box-shadow: inset 0 2px 5px rgba(255, 255, 255, .02), inset 0 -2px 6px rgba(0, 0, 0, .07);
+      }
+      html[data-style="neumorphism"] .mode-pill {
+        border-radius: 6px;
+        background: var(--oc-elevated);
+        border-color: var(--oc-border);
+        box-shadow: var(--relief-btn);
+      }
+
+
+      html[data-style="neumorphism"] .session-menu {
+        box-shadow: 8px 8px 22px rgba(0, 0, 0, .38), -4px -4px 14px rgba(255, 255, 255, .035);
       }
 
       /* Brutalismo: gris claro, esquinas rectas */
@@ -60,6 +93,35 @@
         box-shadow: 2px 2px 0 var(--brutal-line);
       }
 
+
+      html[data-style="brutalism"] .card { background: var(--oc-elevated); }
+      html[data-style="brutalism"] .card-head,
+      html[data-style="brutalism"] .card-body {
+        background: var(--oc-elevated);
+        box-shadow: none;
+      }
+      html[data-style="brutalism"] .card.current {
+        background: color-mix(in srgb, var(--tone, var(--oc-warning)) 10%, var(--oc-elevated));
+        border-color: var(--tone, var(--oc-warning));
+      }
+      html[data-style="brutalism"] .mode-pill,
+      html[data-style="brutalism"] .idea-input,
+      html[data-style="brutalism"] .session-pick,
+      html[data-style="brutalism"] .session-menu {
+        background: var(--oc-elevated);
+        border: 2px solid var(--brutal-line);
+        box-shadow: 2px 2px 0 var(--brutal-line);
+      }
+      html[data-style="brutalism"] .mode-pill.on {
+        background: color-mix(in srgb, var(--mint) 16%, var(--oc-elevated));
+        border-color: var(--mint);
+      }
+      html[data-style="brutalism"] .status-undo,
+      html[data-style="brutalism"] .card-pending {
+        border: 2px solid var(--brutal-line);
+        box-shadow: 2px 2px 0 var(--brutal-line);
+      }
+
       /* Cristal */
       html[data-style="glass"] {
         --radius-card: 14px;
@@ -71,19 +133,58 @@
       }
       html[data-style="glass"] .card {
         background:
-          linear-gradient(150deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .02)),
-          color-mix(in srgb, var(--oc-info) 8%, transparent);
-        backdrop-filter: blur(14px) saturate(150%);
-        border-color: color-mix(in srgb, var(--oc-info) 55%, rgba(255, 255, 255, .14));
+          linear-gradient(150deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .01) 50%, transparent),
+          color-mix(in srgb, var(--tone, var(--oc-info)) 5%, transparent);
+        -webkit-backdrop-filter: blur(16px) saturate(120%);
+        backdrop-filter: blur(16px) saturate(120%);
+        border-color: color-mix(in srgb, var(--tone, var(--oc-info)) 28%, rgba(255, 255, 255, .18));
+        box-shadow:
+          inset 0 0 18px color-mix(in srgb, var(--tone, var(--oc-info)) 7%, transparent),
+          inset 0 1px 0 rgba(255, 255, 255, .10);
       }
       html[data-style="glass"] .card.current {
         background:
-          linear-gradient(150deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .02)),
-          color-mix(in srgb, var(--tone, var(--oc-warning)) 9%, transparent);
-        border-color: color-mix(in srgb, var(--tone, var(--oc-warning)) 60%, rgba(255, 255, 255, .14));
+          linear-gradient(150deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .01) 50%, transparent),
+          color-mix(in srgb, var(--tone, var(--oc-warning)) 5%, transparent);
+        border-color: color-mix(in srgb, var(--tone, var(--oc-warning)) 28%, rgba(255, 255, 255, .18));
       }
       html[data-style="glass"] .card-head,
-      html[data-style="glass"] .card-body { backdrop-filter: blur(8px); }
+      html[data-style="glass"] .card-body {
+        background: color-mix(in srgb, var(--tone, var(--oc-info)) 6%, var(--oc-elevated) 94%);
+        border-color: color-mix(in srgb, var(--tone, var(--oc-info)) 16%, var(--oc-border));
+        box-shadow: none;
+        -webkit-backdrop-filter: blur(10px) saturate(115%);
+        backdrop-filter: blur(10px) saturate(115%);
+      }
+
+
+      html[data-style="glass"] .idea-input,
+      html[data-style="glass"] .session-pick,
+      html[data-style="glass"] .mode-pill:not(.on) {
+        background-color: color-mix(in srgb, var(--oc-elevated) 55%, transparent);
+        border-color: rgba(255, 255, 255, .18);
+        -webkit-backdrop-filter: blur(12px) saturate(150%);
+        backdrop-filter: blur(12px) saturate(150%);
+      }
+      html[data-style="glass"] .session-menu {
+        background:
+          linear-gradient(150deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)),
+          color-mix(in srgb, var(--oc-elevated) 78%, transparent);
+        border-color: rgba(255, 255, 255, .18);
+        -webkit-backdrop-filter: blur(18px) saturate(150%);
+        backdrop-filter: blur(18px) saturate(150%);
+      }
+
+
+      html[data-style="glass"] .pending-btn { border-radius: 9px; }
+
+
+      html[data-style="glass"] .summary-add:hover,
+      html[data-style="glass"] .session-back:hover,
+      html[data-style="glass"] .session-pick:hover,
+      html[data-style="glass"] .session-menu button:hover {
+        background: rgba(255, 255, 255, .07);
+      }
 
       html, body, #root { height: 100%; margin: 0; }
       body {
@@ -156,17 +257,17 @@
         padding: 6px 7px 6px 9px; border-radius: var(--radius-card);
         background: color-mix(in srgb, var(--oc-info) 9%, transparent);
         border: 1px solid color-mix(in srgb, var(--oc-info) 24%, var(--oc-border));
-        box-shadow: 3px 3px 8px rgba(0, 0, 0, .22), -2px -2px 6px rgba(255, 255, 255, .035), inset 0 1px 0 rgba(255, 255, 255, .04);
+        box-shadow: inset 0 1px 5px rgba(255, 255, 255, .03);
       }
       html[data-oc-theme="light"] .card {
-        box-shadow: 3px 3px 8px rgba(54, 70, 94, .12), -3px -3px 6px rgba(255, 255, 255, .8), inset 0 1px 0 rgba(255, 255, 255, .9);
+        box-shadow: inset 0 1px 6px rgba(255, 255, 255, .5);
       }
       .card.current { flex-direction: column; align-items: stretch; gap: 5px; padding: 6px; }
       .card-head {
         display: flex; align-items: center; gap: 4px; min-width: 0;
         padding: 3px 4px; border-radius: var(--radius-inner);
-        background: color-mix(in srgb, var(--card-tint) 18%, transparent);
-        border: 1px solid color-mix(in srgb, var(--card-tint) 34%, var(--oc-border));
+        background: color-mix(in srgb, var(--card-tint, var(--tone, var(--oc-info))) 18%, transparent);
+        border: 1px solid color-mix(in srgb, var(--card-tint, var(--tone, var(--oc-info))) 34%, var(--oc-border));
         box-shadow:
           inset 0 0 0 999px rgba(0, 0, 0, .055),
           inset 1px 1px 3px rgba(0, 0, 0, .12),
@@ -179,8 +280,8 @@
       .card-body {
         flex: 1 1 auto; min-width: 0;
         padding: 5px 7px 6px; border-radius: var(--radius-inner);
-        background: color-mix(in srgb, var(--card-tint) 20%, transparent);
-        border: 1px solid color-mix(in srgb, var(--card-tint) 36%, var(--oc-border));
+        background: color-mix(in srgb, var(--card-tint, var(--tone, var(--oc-info))) 20%, transparent);
+        border: 1px solid color-mix(in srgb, var(--card-tint, var(--tone, var(--oc-info))) 36%, var(--oc-border));
         box-shadow: inset 0 0 0 999px rgba(0, 0, 0, .065);
       }
       .card.current .card-body { flex: none; }
