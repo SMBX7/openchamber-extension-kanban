@@ -1832,6 +1832,7 @@ ${GUEST_UI_LOOK_CSS}`;
   var COLUMN_TOKENS = ["var(--oc-info)", "var(--oc-warning)", "var(--oc-success)"];
   var SAVE_DEBOUNCE_MS = 650;
   var POLL_MS = 2500;
+  var TITLE_REQUIRED = "El t\xEDtulo no puede quedar vac\xEDo.";
   var ICONS = {
     search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
@@ -1871,6 +1872,7 @@ ${GUEST_UI_LOOK_CSS}`;
     hiddenCards: /* @__PURE__ */ new Set(),
     pendingDelete: null,
     stoppedOnly: false,
+    editingCard: "",
     dragId: "",
     dragging: false,
     composerListId: "",
@@ -1918,14 +1920,6 @@ ${GUEST_UI_LOOK_CSS}`;
     else if (diff === 1) label = "Ma\xF1ana";
     else label = date.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
     return { label, late: diff < 0, due };
-  };
-  var toDateInput = (iso) => {
-    if (!iso) return "";
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return "";
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${date.getFullYear()}-${month}-${day}`;
   };
   var parseBody = (text) => {
     try {
@@ -2004,36 +1998,6 @@ ${GUEST_UI_LOOK_CSS}`;
     actions.append(open, skip);
     wrap.append(head, text, where, note, actions);
     root.replaceChildren(wrap);
-  };
-  var showLabelUndo = (label, cardId) => {
-    for (const node of document.querySelectorAll(".undo-bar")) node.remove();
-    const bar = el2("div", "undo-bar label-undo");
-    const text = el2("span", "undo-text");
-    const dot = el2("span", "label-dot");
-    dot.style.setProperty("--label", labelColor(label.color || label.name));
-    text.append(dot, el2("b", "", "Etiqueta quitada"), document.createTextNode(` \xB7 ${label.name}`));
-    const action = el2("button", "undo-action", "Deshacer");
-    action.type = "button";
-    const progress = el2("span", "undo-progress");
-    let timer = null;
-    const close = () => {
-      clearTimeout(timer);
-      bar.remove();
-    };
-    action.addEventListener("click", async () => {
-      close();
-      try {
-        await api("POST", "/label", { cardId, labelId: label.id });
-        if (state.sheet) await rereadSheet();
-        else await refresh(true);
-        toast("success", "Etiqueta restaurada.");
-      } catch (error) {
-        toast("error", error.message);
-      }
-    });
-    bar.append(text, action, progress);
-    document.body.append(bar);
-    timer = setTimeout(close, 6e3);
   };
   var closeAutoBars = () => {
     for (const node of document.querySelectorAll(".auto-bar")) node.remove();
@@ -2182,7 +2146,7 @@ ${card.description}`.toLowerCase();
     }
     return true;
   };
-  var isPaused = () => state.view !== "board" || Boolean(state.sheetId) || state.dragging || Boolean(state.composerListId) || Boolean(state.createBoard) || state.saving > 0;
+  var isPaused = () => state.view !== "board" || Boolean(state.sheetId) || Boolean(state.editingCard) || state.dragging || Boolean(state.composerListId) || Boolean(state.createBoard) || state.saving > 0;
   host.onReady((context) => {
     state.features = context.features || {};
     applyHostReady(context, document.documentElement);
@@ -3244,10 +3208,87 @@ ${card.description}`.toLowerCase();
       holder.append(chip);
     }
   };
+  var cardDraggable = () => !state.search.trim() && state.labels.size === 0;
+  var startCardTitleEdit = (card, node, titleNode) => {
+    if (state.editingCard === card.id) {
+      node.querySelector(".card-title-input")?.focus();
+      return;
+    }
+    const original = card.name || "";
+    const wasDraggable = node.draggable;
+    const input = el2("input", "card-title-input");
+    input.type = "text";
+    input.value = original;
+    input.maxLength = 1024;
+    input.setAttribute("aria-label", "T\xEDtulo de la tarjeta");
+    state.editingCard = card.id;
+    node.draggable = false;
+    node.classList.add("editing");
+    titleNode.replaceChildren(input);
+    const showTitle = (text) => {
+      titleNode.replaceChildren(document.createTextNode(text || "Sin t\xEDtulo"));
+    };
+    const leave = () => {
+      if (state.editingCard === card.id) state.editingCard = "";
+      node.draggable = wasDraggable;
+      node.classList.remove("editing");
+    };
+    let finished = false;
+    let cancelled = false;
+    const finish = async (save) => {
+      if (finished) return;
+      finished = true;
+      const value = input.value.trim();
+      if (!save || !value) {
+        leave();
+        showTitle(original);
+        if (save) toast("error", TITLE_REQUIRED);
+        return;
+      }
+      if (value === original) {
+        leave();
+        showTitle(original);
+        return;
+      }
+      const previous = card.name || "";
+      card.name = value;
+      node.setAttribute("aria-label", `${value}. Abrir tarjeta`);
+      showTitle(value);
+      leave();
+      state.saving += 1;
+      try {
+        await api("PATCH", "/card", { id: card.id, name: value });
+      } catch (error) {
+        card.name = previous;
+        node.setAttribute("aria-label", `${previous || "Sin t\xEDtulo"}. Abrir tarjeta`);
+        showTitle(previous);
+        toast("error", error.message);
+      } finally {
+        state.saving -= 1;
+      }
+      if (!state.editingCard) await refresh(true);
+    };
+    input.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter") {
+        event.preventDefault();
+        input.blur();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        cancelled = true;
+        input.blur();
+      }
+    });
+    input.addEventListener("blur", () => void finish(!cancelled));
+    input.addEventListener("click", (event) => event.stopPropagation());
+    input.addEventListener("dblclick", (event) => event.stopPropagation());
+    input.focus();
+    input.select();
+  };
   var buildCard = (card, listIndex) => {
     const node = el2("article", "card");
     node.tabIndex = 0;
-    node.draggable = !state.search.trim() && state.labels.size === 0;
+    node.draggable = cardDraggable();
     node.dataset.cardId = card.id;
     node.setAttribute("role", "button");
     node.setAttribute("aria-label", `${card.name}. Abrir tarjeta`);
@@ -3294,12 +3335,12 @@ ${card.description}`.toLowerCase();
     if (meta.childNodes.length) node.append(meta);
     const edit = el2("button", "card-edit");
     edit.type = "button";
-    edit.title = "Editar tarjeta";
-    edit.setAttribute("aria-label", `Editar ${card.name}`);
+    edit.title = "Editar el t\xEDtulo";
+    edit.setAttribute("aria-label", `Editar el t\xEDtulo de ${card.name}`);
     edit.append(makeIcon("edit"));
     edit.addEventListener("click", (event) => {
       event.stopPropagation();
-      openSheet(card.id);
+      startCardTitleEdit(card, node, title);
     });
     const remove = el2("button", "card-delete");
     remove.type = "button";
@@ -3328,8 +3369,11 @@ ${card.description}`.toLowerCase();
       void queueDelete(card, node);
     });
     actions.append(edit, remove);
-    const open = () => openSheet(card.id);
-    node.title = "Abrir y editar";
+    const open = () => {
+      if (state.editingCard === card.id) return;
+      openSheet(card.id);
+    };
+    node.title = "Abrir la tarjeta y su descripci\xF3n";
     node.addEventListener("click", open);
     node.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
@@ -3734,10 +3778,6 @@ ${card.description}`.toLowerCase();
     close.append(makeIcon("close"));
     head.append(title, close);
     const scroll = el2("div", "sheet-scroll");
-    const labelsSection = el2("div");
-    labelsSection.append(el2("span", "section-label", "Etiquetas"));
-    const labels = el2("div", "sheet-labels");
-    labelsSection.append(labels);
     const sessionSection = el2("div", "sheet-session-section");
     sessionSection.append(el2("span", "section-label", "Sesi\xF3n"));
     const sessionRow = el2("div", "sheet-session");
@@ -3755,22 +3795,6 @@ ${card.description}`.toLowerCase();
     const sessionNote = el2("div", "session-note", "Cargando sesiones\u2026");
     sessionRow.append(sessionSelect, sessionRemove);
     sessionSection.append(sessionRow, sessionStart, sessionOpen, sessionNote);
-    const grid = el2("div", "sheet-grid");
-    const dateField = el2("label", "field");
-    dateField.append(el2("span", "", "Fecha"));
-    const date = el2("input");
-    date.type = "date";
-    date.value = toDateInput(card.dueDate);
-    dateField.append(date);
-    const columnField = el2("label", "field");
-    columnField.append(el2("span", "", "Columna"));
-    const column = el2("select");
-    for (const list of state.snapshot?.lists || []) {
-      column.append(new Option(list.name, list.id));
-    }
-    column.value = card.listId;
-    columnField.append(column);
-    grid.append(dateField, columnField);
     const checklistSection = el2("div", "checklist");
     const checklistHead = el2("div", "checklist-head");
     checklistHead.append(el2("span", "section-label", "Checklist"));
@@ -3779,6 +3803,11 @@ ${card.description}`.toLowerCase();
     progress.append(progressFill);
     const countLabel = el2("span", "count", "");
     checklistHead.append(progress, countLabel);
+    const checklistHint = el2(
+      "p",
+      "sheet-hint",
+      "Los pasos para terminar la tarjeta: m\xE1rcalos cuando los completes."
+    );
     const checklistBody = el2("div");
     checklistBody.style.display = "flex";
     checklistBody.style.flexDirection = "column";
@@ -3789,19 +3818,20 @@ ${card.description}`.toLowerCase();
     const checklistButton = el2("button", "", "A\xF1adir");
     checklistButton.type = "button";
     checklistAdd.append(checklistName, checklistButton);
-    checklistSection.append(checklistHead, checklistBody, checklistAdd);
+    checklistSection.append(checklistHead, checklistHint, checklistBody, checklistAdd);
     const descriptionSection = el2("div");
     descriptionSection.append(el2("span", "section-label", "Descripci\xF3n"));
     const description = el2("textarea", "description");
     description.value = card.description;
     description.placeholder = "A\xF1ade una descripci\xF3n\u2026";
     descriptionSection.append(description);
-    scroll.append(labelsSection, sessionSection, grid, checklistSection, descriptionSection);
+    scroll.append(sessionSection, checklistSection, descriptionSection);
     const foot = el2("div", "sheet-foot");
     const saveState = el2("span", "save-state", "");
+    const doneLabel = (listId) => listId === state.snapshot?.doneListId ? "En HECHO" : "Mover a HECHO";
     const complete = el2("button", "btn-complete");
     complete.type = "button";
-    complete.append(makeIcon("check"), el2("span", "", card.listId === state.snapshot?.doneListId ? "Completada" : "Completar"));
+    complete.append(makeIcon("check"), el2("span", "", doneLabel(card.listId)));
     complete.disabled = card.listId === state.snapshot?.doneListId;
     foot.append(saveState, complete);
     sheet.append(head, scroll, foot);
@@ -3810,9 +3840,7 @@ ${card.description}`.toLowerCase();
       backdrop,
       sheet,
       title,
-      date,
-      column,
-      labels,
+      nameSaved: card.name,
       checklistBody,
       progressFill,
       countLabel,
@@ -3832,6 +3860,7 @@ ${card.description}`.toLowerCase();
     };
     state.sheet = session;
     title.addEventListener("input", () => {
+      if (!title.value.trim()) return;
       session.card.name = title.value;
       session.pending.add("name");
       scheduleSave();
@@ -3843,37 +3872,18 @@ ${card.description}`.toLowerCase();
       }
     });
     title.addEventListener("blur", () => {
-      if (!title.value.trim()) {
-        title.value = session.card.name || "Sin t\xEDtulo";
-      }
+      if (title.value.trim()) return;
+      session.pending.delete("name");
+      session.card.name = session.nameSaved;
+      title.value = session.nameSaved;
+      setSaveState(TITLE_REQUIRED, "error");
+      toast("error", TITLE_REQUIRED);
     });
     description.addEventListener("input", () => {
       session.card.description = description.value;
       session.pending.add("description");
       scheduleSave();
     });
-    date.addEventListener("change", () => {
-      session.card.dueDate = date.value ? `${date.value}T12:00:00` : "";
-      session.pending.add("dueDate");
-      scheduleSave();
-    });
-    column.addEventListener("change", () => {
-      session.card.listId = column.value;
-      session.pending.add("listId");
-      scheduleSave();
-    });
-    const toggleLabel = async (labelId) => {
-      try {
-        const answer = await api("POST", "/label", { cardId: session.card.id, labelId });
-        await rereadSheet();
-        if (answer && answer.added === false) {
-          const label = (state.snapshot?.labels || []).find((item) => item.id === labelId);
-          if (label) showLabelUndo(label, session.card.id);
-        }
-      } catch (error) {
-        toast("error", error.message);
-      }
-    };
     const addTask = async (taskListId, input) => {
       const name = input.value.trim();
       if (!name) return;
@@ -3910,20 +3920,6 @@ ${card.description}`.toLowerCase();
         void addChecklist();
       }
     });
-    session.renderLabels = () => {
-      const current = new Map(session.card.labels.map((label) => [label.id, label]));
-      labels.replaceChildren();
-      for (const label of state.snapshot?.labels || []) {
-        const chip = el2("button", "label-chip");
-        chip.type = "button";
-        chip.style.setProperty("--label", labelColor(label.color || label.name));
-        chip.setAttribute("aria-pressed", current.has(label.id) ? "true" : "false");
-        chip.append(el2("span", "label-dot"), el2("span", "", label.name));
-        chip.addEventListener("click", () => void toggleLabel(label.id));
-        labels.append(chip);
-      }
-      if (!(state.snapshot?.labels || []).length) labels.append(el2("span", "compact-empty", "Este tablero no tiene etiquetas."));
-    };
     session.renderChecklist = () => {
       const taskLists = session.card.taskLists || [];
       const total = taskLists.reduce((sum, taskList) => sum + taskList.tasks.length, 0);
@@ -3971,7 +3967,6 @@ ${card.description}`.toLowerCase();
         checklistBody.append(block);
       }
     };
-    session.renderLabels();
     session.renderChecklist();
     close.addEventListener("click", () => void closeSheet());
     backdrop.addEventListener("click", () => void closeSheet());
@@ -4140,14 +4135,21 @@ ${card.description}`.toLowerCase();
     session.pending.clear();
     const card = session.card;
     const payload = { id: card.id };
-    if (fields.includes("name")) payload.name = session.title.value;
+    const name = fields.includes("name") ? session.title.value.trim() : "";
+    if (fields.includes("name") && !name) {
+      session.card.name = session.nameSaved;
+      session.title.value = session.nameSaved;
+      setSaveState(TITLE_REQUIRED, "error");
+      toast("error", TITLE_REQUIRED);
+    }
+    if (name) payload.name = name;
     if (fields.includes("description")) payload.description = session.description.value;
-    if (fields.includes("dueDate")) payload.dueDate = session.date.value;
-    if (fields.includes("listId")) payload.listId = session.column.value;
+    if (Object.keys(payload).length === 1) return;
     state.saving += 1;
     setSaveState("Guardando\u2026");
     try {
       await api("PATCH", "/card", payload);
+      if (payload.name) session.nameSaved = payload.name;
       const answer = await api("GET", `/card?id=${encodeURIComponent(card.id)}`);
       applyServerCard(answer.card);
       setSaveState("Guardado");
@@ -4186,6 +4188,7 @@ ${card.description}`.toLowerCase();
     const session = state.sheet;
     if (!session || server.id !== session.card.id) return;
     session.card = server;
+    session.nameSaved = server.name;
     mergeCard(server);
     const pending = session.pending;
     if (!pending.has("name") && document.activeElement !== session.title) {
@@ -4194,13 +4197,10 @@ ${card.description}`.toLowerCase();
     if (!pending.has("description") && document.activeElement !== session.description) {
       session.description.value = server.description;
     }
-    if (!pending.has("dueDate")) session.date.value = toDateInput(server.dueDate);
-    if (!pending.has("listId")) session.column.value = server.listId;
-    session.renderLabels();
     session.renderChecklist();
     const done = server.listId === state.snapshot?.doneListId;
     session.complete.disabled = done;
-    session.complete.lastChild.textContent = done ? "Completada" : "Completar";
+    session.complete.lastChild.textContent = done ? "En HECHO" : "Mover a HECHO";
   };
   var completeFromSheet = async () => {
     const session = state.sheet;

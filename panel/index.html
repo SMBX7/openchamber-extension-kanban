@@ -278,11 +278,6 @@
         -webkit-backdrop-filter: blur(16px) saturate(150%);
         backdrop-filter: blur(16px) saturate(150%);
       }
-      html[data-style="glass"] .undo-bar.label-undo {
-        background: color-mix(in srgb, var(--oc-elevated) 82%, var(--oc-warning) 18%);
-        border-color: color-mix(in srgb, var(--oc-warning) 55%, rgba(255, 255, 255, .2));
-      }
-
 
       html[data-style="neumorphism"] .column.drop-target,
       html[data-style="brutalism"] .column.drop-target,
@@ -764,6 +759,15 @@
         overflow-wrap: break-word; word-break: normal; hyphens: none; white-space: normal;
         text-wrap: pretty;
       }
+      .card.editing { cursor: default; user-select: text; -webkit-user-select: text; }
+      .card-title-input {
+        width: 100%; box-sizing: border-box; display: block;
+        font: inherit; font-size: 13px; line-height: 1.35; font-weight: 500;
+        color: var(--oc-fg);
+        background: color-mix(in srgb, var(--oc-fg) 7%, transparent);
+        border: 1px solid var(--oc-focus, var(--oc-primary)); border-radius: 6px;
+        padding: 2px 5px; margin: -3px -6px; outline: none;
+      }
       .card-desc {
         margin-top: 4px; font-size: 11px; line-height: 1.45; color: var(--oc-muted);
         overflow-wrap: break-word; word-break: normal; hyphens: auto; white-space: normal;
@@ -893,11 +897,11 @@
         display: block; font-size: 10px; font-weight: 600; letter-spacing: .09em;
         text-transform: uppercase; color: var(--oc-muted); margin-bottom: 7px;
       }
-      .sheet-labels { display: flex; flex-wrap: wrap; gap: 6px; }
-      .sheet-labels .label-chip { font-size: 11px; padding: 4px 9px 4px 7px; }
-      .sheet-labels .label-chip:not([aria-pressed="true"]) { color: var(--oc-muted); }
+      .sheet-hint {
+        margin: -3px 0 0; font-size: 10.5px; line-height: 1.45;
+        color: var(--oc-muted);
+      }
 
-      .sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
       .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
       .field > span { font-size: 11.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: color-mix(in srgb, var(--oc-muted) 75%, var(--oc-fg)); }
       .field input, .field select {
@@ -954,11 +958,16 @@
       .save-state { font-size: 10.5px; color: var(--oc-muted); margin-right: auto; }
       .save-state.error { color: var(--oc-error-text, var(--oc-error)); }
       .btn-complete {
-        display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 8px;
-        padding: 7px 12px; font-size: 12px; font-weight: 600;
-        color: var(--mint-text); background: color-mix(in srgb, var(--mint) 18%, transparent);
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        border: 1px solid color-mix(in srgb, var(--oc-border) 82%, var(--oc-fg) 18%);
+        border-radius: 8px; padding: 6px 11px; font-size: 11.5px; font-weight: 500;
+        color: var(--oc-muted); background: transparent;
       }
-      .btn-complete:hover { background: color-mix(in srgb, var(--mint) 28%, transparent); }
+      .btn-complete:hover:not(:disabled) {
+        color: var(--oc-fg);
+        background: color-mix(in srgb, var(--oc-fg) 7%, transparent);
+      }
+      .btn-complete:disabled { opacity: .45; cursor: default; }
       .btn-complete .icon { width: 13px; height: 13px; }
 
       /* ---------- panel: the real board in the rail ---------- */
@@ -976,6 +985,7 @@
       .panel-board .cards { gap: 6px; padding: 3px 5px 8px; border-radius: 9px; }
       .panel-board .card { padding: 7px 8px; }
       .panel-board .card-title { font-size: 12px; }
+      .panel-board .card-title-input { font-size: 12px; }
       .panel-board .card-desc { font-size: 10.5px; }
       .panel-board .card-meta { gap: 5px; margin-top: 6px; font-size: 9.5px; }
       .panel-board .composer input { font-size: 11.5px; padding: 6px 7px; }
@@ -1017,27 +1027,10 @@
       }
       @keyframes undo-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
       .undo-bar { animation: label-undo-in .18s ease-out; }
-      .label-undo {
-        top: 10px; bottom: auto;
-        border-color: color-mix(in srgb, var(--oc-warning) 60%, var(--oc-border));
-        background: color-mix(in srgb, var(--oc-elevated) 86%, var(--oc-warning) 14%);
-        box-shadow: 0 16px 38px rgba(0, 0, 0, .42);
-        animation: label-undo-in .18s ease-out;
-      }
       @keyframes label-undo-in {
         from { opacity: 0; transform: translate(-50%, -10px); }
         to { opacity: 1; transform: translate(-50%, 0); }
       }
-      .label-undo .undo-progress { background: var(--oc-warning); animation-duration: 6s; }
-      .label-undo b { font-weight: 600; color: var(--oc-fg); }
-      .label-undo .label-dot { width: 8px; height: 8px; margin-right: 5px; }
-      .label-undo .undo-action {
-        padding: 5px 12px; border-radius: 7px; font-weight: 600;
-        border: 1px solid color-mix(in srgb, var(--mint) 55%, var(--oc-border));
-        background: color-mix(in srgb, var(--mint) 16%, transparent);
-        color: var(--mint-text, var(--oc-success));
-      }
-      .label-undo .undo-action:hover { background: color-mix(in srgb, var(--mint) 26%, transparent); }
       .auto-bar .undo-progress { animation-duration: 15s; background: var(--oc-info, var(--mint)); }
       .undo-cancel {
         border: 0; background: transparent; padding: 2px 4px; font-size: 12px;

@@ -77,6 +77,16 @@ const updated = view.lists[1].cards[0];
 assert.equal(updated.description, 'Integral');
 assert.ok(updated.dueDate.startsWith('2026-12-01'));
 
+// Renaming keeps the card in its column and its position: the title edit must
+// never become a move to HECHO (the reported S2 bug).
+const beforeRename = view.lists[1].cards[0];
+await client.updateCard(card.id, { name: 'Pan integral' });
+view = await client.readBoard();
+const renamed = view.lists[1].cards[0];
+assert.equal(renamed.name, 'Pan integral');
+assert.equal(renamed.listId, beforeRename.listId, 'renaming keeps the column');
+assert.equal(renamed.position, beforeRename.position, 'renaming keeps the position');
+
 const checklist = await client.addChecklist(card.id, 'Pasos', undefined, ['Masa', 'Horno']);
 assert.equal(checklist.tasks.length, 2);
 await client.checkTask(checklist.tasks[0].id, true);
@@ -117,4 +127,4 @@ writeFileSync(process.env.KANBAN_LOCAL_PATH, '{ not json');
 assert.equal((await new LocalClient({}).readBoard()).counts.total, 0);
 
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 30 assertions ok');
+console.log('local mode: 33 assertions ok');

@@ -22,9 +22,11 @@ const require = createRequire(import.meta.url);
 const { PlankaClient } = require(bundle);
 
 const calls = [];
+const bodies = [];
 let queue = [];
 globalThis.fetch = async (url, init) => {
   calls.push({ url: String(url), method: init?.method || 'GET' });
+  bodies.push(init?.body ? String(init.body) : '');
   const next = queue.shift();
   if (!next) throw new Error(`unexpected fetch ${url}`);
   return {
@@ -66,5 +68,14 @@ calls.length = 0;
 queue = [{ status: 404, body: { code: 'E_NOT_FOUND' } }];
 await assert.rejects(() => client().deleteCardLabel('c1', 'l1', ''));
 
+// Renaming must send only the name: sending listId would move the card, and a
+// listId without index teleports it to index 0 of that column.
+calls.length = 0;
+bodies.length = 0;
+queue = [{ status: 200, body: { item: { id: 'c1', name: 'Renombrada' } } }];
+const renamed = await client().updateCard('c1', { id: 'c1', name: 'Renombrada' }, 'b1');
+assert.equal(renamed.name, 'Renombrada');
+assert.deepEqual(JSON.parse(bodies[0]), { name: 'Renombrada' });
+
 rmSync(dir, { recursive: true, force: true });
-console.log('planka label routes: 5 assertions ok');
+console.log('planka routes: 7 assertions ok');
