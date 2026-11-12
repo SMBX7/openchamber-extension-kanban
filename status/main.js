@@ -1836,9 +1836,10 @@ ${GUEST_UI_LOOK_CSS}`;
     plus: '<path d="M12 5v14M5 12h14"/>',
     back: '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
     trash: '<path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 12h10l1-12"/>',
-    open: '<path d="M14 4h6v6M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>'
+    open: '<path d="M14 4h6v6M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
+    edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/>'
   };
-  var state = { data: null, error: "", busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: "", confirmId: "", askSession: "", pendingDelete: null, sessions: [], sessionsProjectId: "", sessionsAt: 0 };
+  var state = { data: null, error: "", busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: "", confirmId: "", askSession: "", pendingDelete: null, sessions: [], sessionsProjectId: "", sessionsAt: 0, editId: "", editDraft: "" };
   var confirmTimer = null;
   var poll = null;
   var inFlight = false;
@@ -1895,6 +1896,152 @@ ${GUEST_UI_LOOK_CSS}`;
       }
     });
     return button2;
+  };
+  var renderEditor = (card) => {
+    const wrap = el2("div", "card-edit");
+    const input = el2("input", "card-edit-input");
+    input.type = "text";
+    input.value = state.editDraft;
+    input.dataset.id = card.id;
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.setAttribute("aria-label", "T\xEDtulo de la tarjeta");
+    let saving = false;
+    let finished = false;
+    const clearError = () => {
+      wrap.querySelector(".card-edit-error")?.remove();
+      input.removeAttribute("aria-invalid");
+      input.removeAttribute("aria-describedby");
+    };
+    const showError = (message) => {
+      clearError();
+      const error = el2("div", "card-edit-error", message);
+      error.id = "card-edit-error";
+      error.setAttribute("role", "alert");
+      wrap.append(error);
+      input.setAttribute("aria-invalid", "true");
+      input.setAttribute("aria-describedby", "card-edit-error");
+    };
+    const commit = async (fromKeyboard) => {
+      if (saving || finished) return;
+      saving = true;
+      state.busy = true;
+      input.disabled = true;
+      input.setAttribute("aria-busy", "true");
+      clearError();
+      try {
+        await api("PATCH", "/card", { id: card.id, name: input.value.trim() });
+        finished = true;
+        state.busy = false;
+        if (state.editId === card.id) {
+          state.editId = "";
+          state.editDraft = "";
+        }
+        await load(true);
+        focusEditButton(card.id);
+        return;
+      } catch (error) {
+        saving = false;
+        state.busy = false;
+        input.disabled = false;
+        input.removeAttribute("aria-busy");
+        showError(error.message || "No se pudo guardar el t\xEDtulo.");
+        if (fromKeyboard) {
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }
+    };
+    const cancel = () => {
+      if (finished) return;
+      finished = true;
+      cancelEdit(card.id);
+    };
+    input.addEventListener("input", () => {
+      state.editDraft = input.value;
+      clearError();
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void commit(true);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancel();
+      }
+    });
+    input.addEventListener("blur", () => {
+      if (state.editId !== card.id) return;
+      void commit(false);
+    });
+    wrap.append(input);
+    return wrap;
+  };
+  var cancelEdit = (cardId) => {
+    if (!state.editId) return false;
+    if (cardId && state.editId !== cardId) return false;
+    const id = state.editId;
+    state.editId = "";
+    state.editDraft = "";
+    render();
+    focusEditButton(id);
+    return true;
+  };
+  var startEdit = (card) => {
+    if (state.busy) return;
+    const open = root.querySelector(".card-edit-input");
+    if (open) {
+      open.focus();
+      if (open.dataset.id === card.id) open.select();
+      return;
+    }
+    state.editId = card.id;
+    state.editDraft = card.name || "";
+    render();
+    requestAnimationFrame(() => {
+      const input = root.querySelector(".card-edit-input");
+      if (!input || input.dataset.id !== card.id) return;
+      input.focus();
+      input.select();
+    });
+  };
+  var focusEditButton = (cardId) => {
+    for (const button2 of root.querySelectorAll(".card-edit-btn")) {
+      if (button2.dataset.id !== cardId) continue;
+      button2.focus();
+      return;
+    }
+  };
+  var editButton = (card) => {
+    const button2 = el2("button", "card-edit-btn");
+    button2.type = "button";
+    button2.dataset.id = card.id;
+    button2.title = "Editar t\xEDtulo";
+    button2.setAttribute("aria-label", `Editar el t\xEDtulo de ${card.name || "la tarjeta"}`);
+    button2.disabled = state.busy;
+    button2.append(icon2("edit"));
+    button2.addEventListener("click", (event) => {
+      event.stopPropagation();
+      startEdit(card);
+    });
+    return button2;
+  };
+  var renderTitle = (card) => {
+    if (state.editId === card.id) return renderEditor(card);
+    const title = el2("div", "card-name card-name-editable", card.name || "Sin t\xEDtulo");
+    title.setAttribute("role", "button");
+    title.tabIndex = 0;
+    title.title = "Editar t\xEDtulo";
+    title.setAttribute("aria-label", `Editar el t\xEDtulo de ${card.name || "la tarjeta"}`);
+    title.addEventListener("click", () => startEdit(card));
+    title.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      startEdit(card);
+    });
+    return title;
   };
   var act = async (id) => {
     if (state.busy) return;
@@ -2078,9 +2225,15 @@ ${GUEST_UI_LOOK_CSS}`;
     }, 0);
   };
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.menuOpen) {
+    if (event.key !== "Escape") return;
+    if (state.menuOpen) {
       event.preventDefault();
       closeSessionMenu();
+      return;
+    }
+    if (state.editId) {
+      event.preventDefault();
+      cancelEdit();
     }
   });
   var createSession = async (current) => {
@@ -2268,6 +2421,7 @@ ${GUEST_UI_LOOK_CSS}`;
     }
     if (current.sessionId) head.append(openButton(current.sessionId));
     head.append(el2("span", "card-head-spacer"));
+    head.append(editButton(current));
     head.append(deleteButton(current));
     if (state.data?.backlogId) {
       const back = el2("button", "session-back");
@@ -2281,7 +2435,7 @@ ${GUEST_UI_LOOK_CSS}`;
     }
     head.append(tickButton("Completar tarjeta", "Completar", () => act(`complete-${current.id}`)));
     const body = el2("div", "card-body");
-    body.append(el2("div", "card-name", current.name || "Sin t\xEDtulo"));
+    body.append(renderTitle(current));
     card.append(head, body);
     if (state.askSession === current.id && !current.sessionId) {
       const row = el2("div", "card-pending");
@@ -2308,19 +2462,21 @@ ${GUEST_UI_LOOK_CSS}`;
   var renderIdea = (idea) => {
     const card = el2("div", "card");
     const body = el2("div", "card-body");
-    body.append(el2("div", "card-name", idea.name || "Sin t\xEDtulo"));
+    body.append(renderTitle(idea));
     const meta = el2("span", "card-meta");
     const startIdea = () => {
       if (state.data?.project?.autoSession) state.askSession = idea.id;
       void act(`start-${idea.id}`);
     };
-    meta.append(deleteButton(idea), tickButton("Empezar idea", "Empezar", startIdea));
+    meta.append(editButton(idea), deleteButton(idea), tickButton("Empezar idea", "Empezar", startIdea));
     card.append(body, meta);
     return card;
   };
   var renderSignature = "";
   var render = () => {
     if (state.picking || state.menuOpen) return;
+    const openEditor = root.querySelector(".card-edit-input");
+    if (state.editId && openEditor?.dataset.id === state.editId) return;
     const signature = JSON.stringify([
       state.data,
       state.adding,
@@ -2330,7 +2486,8 @@ ${GUEST_UI_LOOK_CSS}`;
       state.confirmId,
       state.askSession,
       state.pendingDelete?.card.id || "",
-      state.sessionsAt
+      state.sessionsAt,
+      state.editId
     ]);
     if (signature === renderSignature) return;
     renderSignature = signature;

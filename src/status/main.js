@@ -12,9 +12,10 @@ const ICONS = {
   back: '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
   trash: '<path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 12h10l1-12"/>',
   open: '<path d="M14 4h6v6M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
+  edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/>',
 };
 
-const state = { data: null, error: '', busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: '', confirmId: '', askSession: '', pendingDelete: null, sessions: [], sessionsProjectId: '', sessionsAt: 0 };
+const state = { data: null, error: '', busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: '', confirmId: '', askSession: '', pendingDelete: null, sessions: [], sessionsProjectId: '', sessionsAt: 0, editId: '', editDraft: '' };
 let confirmTimer = null;
 let poll = null;
 let inFlight = false;
@@ -83,6 +84,177 @@ const openButton = (sessionId) => {
     }
   });
   return button;
+};
+
+// Inline title editor for the Work Status. It is the only way to rename a card
+// from this section without opening the side panel or a session.
+const renderEditor = (card) => {
+  const wrap = el('div', 'card-edit');
+  const input = el('input', 'card-edit-input');
+  input.type = 'text';
+  input.value = state.editDraft;
+  input.dataset.id = card.id;
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.setAttribute('aria-label', 'Título de la tarjeta');
+
+  let saving = false;
+  let finished = false;
+
+  const clearError = () => {
+    wrap.querySelector('.card-edit-error')?.remove();
+    input.removeAttribute('aria-invalid');
+    input.removeAttribute('aria-describedby');
+  };
+
+  // The service rejects an empty title with its own message; showing it in
+  // place keeps the card intact and the typed text available for a retry.
+  const showError = (message) => {
+    clearError();
+    const error = el('div', 'card-edit-error', message);
+    error.id = 'card-edit-error';
+    error.setAttribute('role', 'alert');
+    wrap.append(error);
+    input.setAttribute('aria-invalid', 'true');
+    input.setAttribute('aria-describedby', 'card-edit-error');
+  };
+
+  const commit = async (fromKeyboard) => {
+    if (saving || finished) return;
+    saving = true;
+    state.busy = true;
+    input.disabled = true;
+    input.setAttribute('aria-busy', 'true');
+    clearError();
+    try {
+      await api('PATCH', '/card', { id: card.id, name: input.value.trim() });
+      finished = true;
+      state.busy = false;
+      if (state.editId === card.id) {
+        state.editId = '';
+        state.editDraft = '';
+      }
+      await load(true);
+      // The editor no longer exists: put the keyboard back on its pencil so a
+      // keyboard user does not lose the place in the list.
+      focusEditButton(card.id);
+      return;
+    } catch (error) {
+      saving = false;
+      state.busy = false;
+      input.disabled = false;
+      input.removeAttribute('aria-busy');
+      showError(error.message || 'No se pudo guardar el título.');
+      if (fromKeyboard) {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    }
+  };
+
+  const cancel = () => {
+    if (finished) return;
+    finished = true;
+    cancelEdit(card.id);
+  };
+
+  input.addEventListener('input', () => {
+    state.editDraft = input.value;
+    clearError();
+  });
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void commit(true);
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancel();
+    }
+  });
+  input.addEventListener('blur', () => {
+    // A closed editor (Escape or a successful save) must not save on removal.
+    if (state.editId !== card.id) return;
+    void commit(false);
+  });
+
+  wrap.append(input);
+  return wrap;
+};
+
+// Ends any open inline edit without saving: Escape, or another card taking
+// over the editor. The typed text is dropped and the card keeps its title.
+const cancelEdit = (cardId) => {
+  if (!state.editId) return false;
+  if (cardId && state.editId !== cardId) return false;
+  const id = state.editId;
+  state.editId = '';
+  state.editDraft = '';
+  render();
+  focusEditButton(id);
+  return true;
+};
+
+const startEdit = (card) => {
+  if (state.busy) return;
+  const open = root.querySelector('.card-edit-input');
+  if (open) {
+    // The open editor keeps the section until it saves or cancels: swapping it
+    // for another card would drop its inline validation error.
+    open.focus();
+    if (open.dataset.id === card.id) open.select();
+    return;
+  }
+  state.editId = card.id;
+  state.editDraft = card.name || '';
+  render();
+  requestAnimationFrame(() => {
+    const input = root.querySelector('.card-edit-input');
+    if (!input || input.dataset.id !== card.id) return;
+    input.focus();
+    input.select();
+  });
+};
+
+const focusEditButton = (cardId) => {
+  for (const button of root.querySelectorAll('.card-edit-btn')) {
+    if (button.dataset.id !== cardId) continue;
+    button.focus();
+    return;
+  }
+};
+
+const editButton = (card) => {
+  const button = el('button', 'card-edit-btn');
+  button.type = 'button';
+  button.dataset.id = card.id;
+  button.title = 'Editar título';
+  button.setAttribute('aria-label', `Editar el título de ${card.name || 'la tarjeta'}`);
+  button.disabled = state.busy;
+  button.append(icon('edit'));
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    startEdit(card);
+  });
+  return button;
+};
+
+// The title itself is the second entry point to the same editor.
+const renderTitle = (card) => {
+  if (state.editId === card.id) return renderEditor(card);
+  const title = el('div', 'card-name card-name-editable', card.name || 'Sin título');
+  title.setAttribute('role', 'button');
+  title.tabIndex = 0;
+  title.title = 'Editar título';
+  title.setAttribute('aria-label', `Editar el título de ${card.name || 'la tarjeta'}`);
+  title.addEventListener('click', () => startEdit(card));
+  title.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    startEdit(card);
+  });
+  return title;
 };
 
 const act = async (id) => {
@@ -283,9 +455,16 @@ const openSessionMenu = async (current, anchor) => {
 };
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && state.menuOpen) {
+  if (event.key !== 'Escape') return;
+  if (state.menuOpen) {
     event.preventDefault();
     closeSessionMenu();
+    return;
+  }
+  // Escape also leaves the inline editor, even when focus moved away from it.
+  if (state.editId) {
+    event.preventDefault();
+    cancelEdit();
   }
 });
 
@@ -484,6 +663,7 @@ const renderCurrent = (current) => {
 
   if (current.sessionId) head.append(openButton(current.sessionId));
   head.append(el('span', 'card-head-spacer'));
+  head.append(editButton(current));
   head.append(deleteButton(current));
   if (state.data?.backlogId) {
     const back = el('button', 'session-back');
@@ -498,7 +678,7 @@ const renderCurrent = (current) => {
   head.append(tickButton('Completar tarjeta', 'Completar', () => act(`complete-${current.id}`)));
 
   const body = el('div', 'card-body');
-  body.append(el('div', 'card-name', current.name || 'Sin título'));
+  body.append(renderTitle(current));
   card.append(head, body);
 
   if (state.askSession === current.id && !current.sessionId) {
@@ -527,13 +707,13 @@ const renderCurrent = (current) => {
 const renderIdea = (idea) => {
   const card = el('div', 'card');
   const body = el('div', 'card-body');
-  body.append(el('div', 'card-name', idea.name || 'Sin título'));
+  body.append(renderTitle(idea));
   const meta = el('span', 'card-meta');
   const startIdea = () => {
     if (state.data?.project?.autoSession) state.askSession = idea.id;
     void act(`start-${idea.id}`);
   };
-  meta.append(deleteButton(idea), tickButton('Empezar idea', 'Empezar', startIdea));
+  meta.append(editButton(idea), deleteButton(idea), tickButton('Empezar idea', 'Empezar', startIdea));
   card.append(body, meta);
   return card;
 };
@@ -542,6 +722,10 @@ let renderSignature = '';
 
 const render = () => {
   if (state.picking || state.menuOpen) return;
+  // An open title editor owns its DOM: the 800 ms poll must not rebuild the
+  // list while editing, or it would drop the focus and the typed text.
+  const openEditor = root.querySelector('.card-edit-input');
+  if (state.editId && openEditor?.dataset.id === state.editId) return;
   const signature = JSON.stringify([
     state.data,
     state.adding,
@@ -552,6 +736,7 @@ const render = () => {
     state.askSession,
     state.pendingDelete?.card.id || '',
     state.sessionsAt,
+    state.editId,
   ]);
   if (signature === renderSignature) return;
   renderSignature = signature;

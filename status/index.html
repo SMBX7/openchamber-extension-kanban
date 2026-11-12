@@ -85,6 +85,7 @@
       html[data-style="brutalism"] .tick,
       html[data-style="brutalism"] .open,
       html[data-style="brutalism"] .card-delete,
+      html[data-style="brutalism"] .card-edit-btn,
       html[data-style="brutalism"] .session-create,
       html[data-style="brutalism"] .session-back,
       html[data-style="brutalism"] .summary-add,
@@ -106,6 +107,7 @@
       }
       html[data-style="brutalism"] .mode-pill,
       html[data-style="brutalism"] .idea-input,
+      html[data-style="brutalism"] .card-edit-input,
       html[data-style="brutalism"] .session-pick,
       html[data-style="brutalism"] .session-menu {
         background: var(--oc-elevated);
@@ -159,6 +161,7 @@
 
 
       html[data-style="glass"] .idea-input,
+      html[data-style="glass"] .card-edit-input,
       html[data-style="glass"] .session-pick,
       html[data-style="glass"] .mode-pill:not(.on) {
         background-color: color-mix(in srgb, var(--oc-elevated) 55%, transparent);
@@ -181,6 +184,7 @@
 
       html[data-style="glass"] .summary-add:hover,
       html[data-style="glass"] .session-back:hover,
+      html[data-style="glass"] .card-edit-btn:hover,
       html[data-style="glass"] .session-pick:hover,
       html[data-style="glass"] .session-menu button:hover {
         background: rgba(255, 255, 255, .07);
@@ -386,6 +390,53 @@
         white-space: normal; overflow-wrap: anywhere; hyphens: auto;
         font-size: 12px; line-height: 1.35;
       }
+      .card-name-editable { cursor: text; }
+      .card-name-editable:hover {
+        text-decoration: underline;
+        text-decoration-style: dotted;
+        text-underline-offset: 2px;
+      }
+      .card-edit { flex: 1 1 auto; min-width: 0; width: 100%; display: flex; flex-direction: column; gap: 3px; }
+      .card-edit-input {
+        width: 100%; min-width: 0; padding: 3px 6px;
+        font-family: inherit; font-size: 12px; line-height: 1.3;
+        color: var(--oc-fg); background: var(--oc-elevated);
+        border: 1px solid color-mix(in srgb, var(--oc-info) 55%, var(--oc-border));
+        border-radius: var(--radius-btn); outline: none;
+        box-shadow: var(--relief-inset);
+      }
+      .card-edit-input:focus {
+        border-color: var(--oc-info);
+        box-shadow: var(--relief-inset), 0 0 0 1px color-mix(in srgb, var(--oc-info) 55%, transparent);
+      }
+      .card-edit-error {
+        font-size: 10.5px; line-height: 1.3;
+        color: var(--oc-error-text, var(--oc-error));
+        overflow-wrap: anywhere;
+      }
+      .card-edit-btn {
+        width: 22px; height: 22px; flex: none; display: grid; place-items: center;
+        padding: 0; line-height: 0;
+        border: 1px solid var(--oc-border); border-radius: var(--radius-btn);
+        background: var(--oc-elevated); color: var(--oc-muted);
+        box-shadow: var(--relief-btn);
+        opacity: 0;
+        transition: opacity .12s, color .12s, background .12s, border-color .12s;
+      }
+      /* Shown on hover or keyboard focus; always reachable with Tab. */
+      .card:hover .card-edit-btn,
+      .card:focus-within .card-edit-btn,
+      .card-edit-btn:focus-visible { opacity: 1; }
+      .card-edit-btn:hover {
+        color: var(--oc-fg);
+        border-color: color-mix(in srgb, var(--oc-fg) 25%, var(--oc-border));
+        background: var(--oc-hover);
+      }
+      .card-edit-btn:active { box-shadow: var(--relief-inset); }
+      .card-edit-btn .icon { width: 12px; height: 12px; }
+      /* `button:disabled` would otherwise reveal the pencil at half opacity
+         whenever another action is in flight; keep it out of the way instead. */
+      .card-edit-btn:disabled { opacity: 0; }
       .card-meta { flex: none; display: flex; align-items: center; gap: 3px; }
       .state {
         color: var(--oc-muted); font-size: 10px; white-space: nowrap;
