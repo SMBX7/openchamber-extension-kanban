@@ -538,9 +538,26 @@ const renderIdea = (idea) => {
   return card;
 };
 
+let renderSignature = '';
+
 const render = () => {
   if (state.picking || state.menuOpen) return;
+  const signature = JSON.stringify([
+    state.data,
+    state.adding,
+    state.draft,
+    state.busy,
+    state.error,
+    state.confirmId,
+    state.askSession,
+    state.pendingDelete?.card.id || '',
+    state.sessionsAt,
+  ]);
+  if (signature === renderSignature) return;
+  renderSignature = signature;
   const data = state.data;
+  const previousScroll = root.querySelector('.status-scroll');
+  const scrollTop = previousScroll ? previousScroll.scrollTop : 0;
   root.replaceChildren();
   const wrap = el('div', 'status');
   if (!data) {
@@ -585,6 +602,8 @@ const render = () => {
   if (state.error) scroll.append(el('div', 'error', state.error));
   wrap.append(scroll);
   root.append(wrap);
+  const nextScroll = root.querySelector('.status-scroll');
+  if (nextScroll && scrollTop) nextScroll.scrollTop = scrollTop;
 };
 
 const load = async (force = false) => {

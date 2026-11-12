@@ -3159,7 +3159,7 @@ ${card.description}`.toLowerCase();
     sesionesBox.append(
       fact("IDEAS", "el + de la columna crea una tarjeta, el l\xE1piz la edita y la papelera la borra con dos toques. El tic la pasa a EN PROGRESO."),
       fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el +; en autom\xE1tico te pregunta antes de abrirla."),
-      fact("HECHO", "la sesi\xF3n recibe el cierre y se detiene. Igual en manual y en autom\xE1tico.")
+      fact("HECHO", "la tarjeta queda terminada. Las sesiones se cierran cuando pulses el bot\xF3n de la columna HECHO.")
     );
     sesionesBox.append(el2("p", "settings-note", "Al cerrar se borra el v\xEDnculo: si vuelves a mover la tarjeta, empieza una sesi\xF3n nueva. La sesi\xF3n detenida sigue en la lista para que la archives."));
     sesiones.append(sesionesBox);
@@ -3370,11 +3370,36 @@ ${card.description}`.toLowerCase();
     for (const column of board.querySelectorAll(".column.drop-target")) column.classList.remove("drop-target");
   };
   var attachDropTarget = (column, cardsEl, listId) => {
-    const showTopLine = () => {
+    const otherCards = () => [...cardsEl.querySelectorAll(".card")].filter((node) => node.dataset.cardId !== state.dragId);
+    const lineIndexAt = (event) => {
+      const cards = otherCards();
+      const y = event.clientY;
+      let index = cards.length;
+      for (let i = 0; i < cards.length; i += 1) {
+        const rect = cards[i].getBoundingClientRect();
+        if (y < rect.top + rect.height / 2) {
+          index = i;
+          break;
+        }
+      }
+      return { cards, index };
+    };
+    const fullIndex = (cards, index) => {
+      const list = state.snapshot?.lists.find((entry) => entry.id === listId);
+      const all = list?.cards || [];
+      const nextId2 = cards[index]?.dataset.cardId || "";
+      let at = nextId2 ? all.findIndex((card) => card.id === nextId2) : all.length;
+      if (at < 0) at = all.length;
+      const from = all.findIndex((card) => card.id === state.dragId);
+      if (from >= 0 && from < at) at -= 1;
+      return Math.max(0, at);
+    };
+    const showLine = (cards, index) => {
       for (const line2 of cardsEl.querySelectorAll(".drop-line")) line2.remove();
       const line = el2("div", "drop-line");
-      const first = [...cardsEl.querySelectorAll(".card")].find((card) => card.dataset.cardId !== state.dragId);
-      if (first) cardsEl.insertBefore(line, first);
+      const before = cards[index];
+      if (before) cardsEl.insertBefore(line, before);
+      else if (cards.length) cards[cards.length - 1].after(line);
       else cardsEl.append(line);
     };
     const onDragOver = (event) => {
@@ -3382,16 +3407,19 @@ ${card.description}`.toLowerCase();
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
       column.classList.add("drop-target");
-      showTopLine();
+      const { cards, index } = lineIndexAt(event);
+      showLine(cards, index);
     };
     const onDrop = (event) => {
       if (!state.dragId) return;
       event.preventDefault();
       const cardId = state.dragId;
+      const { cards, index } = lineIndexAt(event);
+      const target = fullIndex(cards, index);
       clearDropDecorations();
       state.dragging = false;
       state.dragId = "";
-      void moveCard(cardId, listId, 0);
+      void moveCard(cardId, listId, target);
     };
     cardsEl.addEventListener("dragover", onDragOver);
     cardsEl.addEventListener("drop", onDrop);
@@ -3406,16 +3434,13 @@ ${card.description}`.toLowerCase();
     });
     column.addEventListener("drop", (event) => {
       if (event.target.closest(".cards")) return;
-      if (!state.dragId) return;
-      event.preventDefault();
-      const cardId = state.dragId;
-      clearDropDecorations();
-      state.dragging = false;
-      state.dragId = "";
-      void moveCard(cardId, listId, 0);
+      onDrop(event);
     });
     column.addEventListener("dragleave", (event) => {
-      if (!column.contains(event.relatedTarget)) column.classList.remove("drop-target");
+      if (!column.contains(event.relatedTarget)) {
+        column.classList.remove("drop-target");
+        for (const line of column.querySelectorAll(".drop-line")) line.remove();
+      }
     });
   };
   var createDefaultColumns = async (button2) => {
@@ -3435,6 +3460,22 @@ ${card.description}`.toLowerCase();
     }
     renderAll();
   };
+  var closeDoneSessions = async (button2) => {
+    if (button2) button2.disabled = true;
+    try {
+      const answer = await api("POST", "/sessions/close-done");
+      const count = Number(answer?.count) || 0;
+      if (count) {
+        toast("success", `Cerrando ${count} sesi\xF3n${count === 1 ? "" : "es"} de HECHO.`);
+      } else {
+        toast("info", "No hay sesiones que cerrar en HECHO.");
+      }
+    } catch (error) {
+      toast("error", error.message);
+    }
+    if (button2) button2.disabled = false;
+    await refresh(true);
+  };
   var renderBoard = () => {
     const board = state.refs?.board;
     if (!board) return;
@@ -3449,6 +3490,7 @@ ${card.description}`.toLowerCase();
         atBottom: overflowing && cards.scrollHeight - cards.scrollTop - cards.clientHeight <= 2
       });
     }
+    const boardScrollLeft = board.scrollLeft;
     board.replaceChildren();
     if (!snapshot) return;
     if (!snapshot.lists.length) {
@@ -3542,7 +3584,22 @@ ${card.description}`.toLowerCase();
       addCard.setAttribute("aria-label", `Crear tarjeta en ${list.name}`);
       addCard.append(makeIcon("plus"));
       addCard.addEventListener("click", () => openComposer(list.id));
-      column.append(head, cardsEl, addCard, composer);
+      let closeDone = null;
+      if (list.id === snapshot.doneListId) {
+        const linked = list.cards.filter((card) => state.sessions?.[card.id]).length;
+        if (linked) {
+          closeDone = el2("button", "ghost-btn done-close");
+          closeDone.type = "button";
+          closeDone.title = "Cerrar las sesiones de las tarjetas en HECHO";
+          closeDone.setAttribute("aria-label", closeDone.title);
+          closeDone.append(
+            makeIcon("close"),
+            el2("span", "", linked === 1 ? "Cerrar sesi\xF3n" : `Cerrar ${linked} sesiones`)
+          );
+          closeDone.addEventListener("click", () => void closeDoneSessions(closeDone));
+        }
+      }
+      column.append(head, ...closeDone ? [closeDone] : [], cardsEl, addCard, composer);
       attachDropTarget(column, cardsEl, list.id);
       board.append(column);
       if (state.composerListId === list.id) {
@@ -3556,6 +3613,7 @@ ${card.description}`.toLowerCase();
       if (!cards) continue;
       cards.scrollTop = saved.atBottom ? cards.scrollHeight : saved.top;
     }
+    board.scrollLeft = boardScrollLeft;
   };
   var startListRename = (column, list, nameButton) => {
     if (column.querySelector(".col-name-input")) return;
@@ -3627,8 +3685,17 @@ ${card.description}`.toLowerCase();
     try {
       const answer = await api("POST", "/card/move", { id: cardId, listId, index: bounded });
       await refresh(true);
-      if (answer?.sessionId) {
-        toast("success", `Sesi\xF3n creada en ${answer.project || "el proyecto del tablero"}.`);
+      if (answer?.sent) {
+        toast("success", `Mensaje enviado a la sesi\xF3n de ${answer.project || "el proyecto del tablero"}.`);
+        try {
+          await host.openSession(answer.sessionId);
+        } catch {
+          toast("error", "El mensaje se envi\xF3, pero no se pudo abrir la sesi\xF3n.");
+        }
+      } else if (answer?.sessionError) {
+        toast("error", `No se pudo enviar el mensaje a la sesi\xF3n: ${answer.sessionError}`);
+      } else if (answer?.sessionId) {
+        toast("success", answer.reused ? "Sesi\xF3n abierta." : `Sesi\xF3n creada en ${answer.project || "el proyecto del tablero"}.`);
         try {
           await host.openSession(answer.sessionId);
         } catch {
@@ -3640,10 +3707,6 @@ ${card.description}`.toLowerCase();
         toast("info", "Delegaci\xF3n manual: abre la tarjeta y pulsa Crear sesi\xF3n.");
       } else if (answer?.needsMapping) {
         toast("error", "Asigna un proyecto a este tablero para crear la sesi\xF3n.");
-      } else if (answer?.sessionError) {
-        toast("error", `No se pudo crear la sesi\xF3n: ${answer.sessionError}`);
-      } else if (answer?.linked) {
-        toast("success", "Sesi\xF3n enlazada: se cerrar\xE1 al guardar Engram.");
       }
     } catch (error) {
       toast("error", error.message);

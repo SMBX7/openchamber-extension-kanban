@@ -2318,9 +2318,25 @@ ${GUEST_UI_LOOK_CSS}`;
     card.append(body, meta);
     return card;
   };
+  var renderSignature = "";
   var render = () => {
     if (state.picking || state.menuOpen) return;
+    const signature = JSON.stringify([
+      state.data,
+      state.adding,
+      state.draft,
+      state.busy,
+      state.error,
+      state.confirmId,
+      state.askSession,
+      state.pendingDelete?.card.id || "",
+      state.sessionsAt
+    ]);
+    if (signature === renderSignature) return;
+    renderSignature = signature;
     const data = state.data;
+    const previousScroll = root.querySelector(".status-scroll");
+    const scrollTop = previousScroll ? previousScroll.scrollTop : 0;
     root.replaceChildren();
     const wrap = el2("div", "status");
     if (!data) {
@@ -2365,6 +2381,8 @@ ${GUEST_UI_LOOK_CSS}`;
     if (state.error) scroll.append(el2("div", "error", state.error));
     wrap.append(scroll);
     root.append(wrap);
+    const nextScroll = root.querySelector(".status-scroll");
+    if (nextScroll && scrollTop) nextScroll.scrollTop = scrollTop;
   };
   var load = async (force = false) => {
     if (state.adding && !force) return;

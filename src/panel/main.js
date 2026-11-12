@@ -1503,7 +1503,7 @@ const openSettings = () => {
   sesionesBox.append(
     fact('IDEAS', 'el + de la columna crea una tarjeta, el lápiz la edita y la papelera la borra con dos toques. El tic la pasa a EN PROGRESO.'),
     fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el +; en automático te pregunta antes de abrirla.'),
-    fact('HECHO', 'la sesión recibe el cierre y se detiene. Igual en manual y en automático.'),
+    fact('HECHO', 'la tarjeta queda terminada. Las sesiones se cierran cuando pulses el botón de la columna HECHO.'),
   );
   sesionesBox.append(el('p', 'settings-note', 'Al cerrar se borra el vínculo: si vuelves a mover la tarjeta, empieza una sesión nueva. La sesión detenida sigue en la lista para que la archives.'));
   sesiones.append(sesionesBox);
@@ -1742,11 +1742,40 @@ const clearDropDecorations = () => {
 };
 
 const attachDropTarget = (column, cardsEl, listId) => {
-  const showTopLine = () => {
+  const otherCards = () =>
+    [...cardsEl.querySelectorAll('.card')].filter((node) => node.dataset.cardId !== state.dragId);
+
+  const lineIndexAt = (event) => {
+    const cards = otherCards();
+    const y = event.clientY;
+    let index = cards.length;
+    for (let i = 0; i < cards.length; i += 1) {
+      const rect = cards[i].getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) {
+        index = i;
+        break;
+      }
+    }
+    return { cards, index };
+  };
+
+  const fullIndex = (cards, index) => {
+    const list = state.snapshot?.lists.find((entry) => entry.id === listId);
+    const all = list?.cards || [];
+    const nextId = cards[index]?.dataset.cardId || '';
+    let at = nextId ? all.findIndex((card) => card.id === nextId) : all.length;
+    if (at < 0) at = all.length;
+    const from = all.findIndex((card) => card.id === state.dragId);
+    if (from >= 0 && from < at) at -= 1;
+    return Math.max(0, at);
+  };
+
+  const showLine = (cards, index) => {
     for (const line of cardsEl.querySelectorAll('.drop-line')) line.remove();
     const line = el('div', 'drop-line');
-    const first = [...cardsEl.querySelectorAll('.card')].find((card) => card.dataset.cardId !== state.dragId);
-    if (first) cardsEl.insertBefore(line, first);
+    const before = cards[index];
+    if (before) cardsEl.insertBefore(line, before);
+    else if (cards.length) cards[cards.length - 1].after(line);
     else cardsEl.append(line);
   };
 
@@ -1755,17 +1784,20 @@ const attachDropTarget = (column, cardsEl, listId) => {
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
     column.classList.add('drop-target');
-    showTopLine();
+    const { cards, index } = lineIndexAt(event);
+    showLine(cards, index);
   };
 
   const onDrop = (event) => {
     if (!state.dragId) return;
     event.preventDefault();
     const cardId = state.dragId;
+    const { cards, index } = lineIndexAt(event);
+    const target = fullIndex(cards, index);
     clearDropDecorations();
     state.dragging = false;
     state.dragId = '';
-    void moveCard(cardId, listId, 0);
+    void moveCard(cardId, listId, target);
   };
 
   cardsEl.addEventListener('dragover', onDragOver);
@@ -1781,16 +1813,13 @@ const attachDropTarget = (column, cardsEl, listId) => {
   });
   column.addEventListener('drop', (event) => {
     if (event.target.closest('.cards')) return;
-    if (!state.dragId) return;
-    event.preventDefault();
-    const cardId = state.dragId;
-    clearDropDecorations();
-    state.dragging = false;
-    state.dragId = '';
-    void moveCard(cardId, listId, 0);
+    onDrop(event);
   });
   column.addEventListener('dragleave', (event) => {
-    if (!column.contains(event.relatedTarget)) column.classList.remove('drop-target');
+    if (!column.contains(event.relatedTarget)) {
+      column.classList.remove('drop-target');
+      for (const line of column.querySelectorAll('.drop-line')) line.remove();
+    }
   });
 };
 
@@ -1812,6 +1841,23 @@ const createDefaultColumns = async (button) => {
   renderAll();
 };
 
+const closeDoneSessions = async (button) => {
+  if (button) button.disabled = true;
+  try {
+    const answer = await api('POST', '/sessions/close-done');
+    const count = Number(answer?.count) || 0;
+    if (count) {
+      toast('success', `Cerrando ${count} sesión${count === 1 ? '' : 'es'} de HECHO.`);
+    } else {
+      toast('info', 'No hay sesiones que cerrar en HECHO.');
+    }
+  } catch (error) {
+    toast('error', error.message);
+  }
+  if (button) button.disabled = false;
+  await refresh(true);
+};
+
 const renderBoard = () => {
   const board = state.refs?.board;
   if (!board) return;
@@ -1826,6 +1872,7 @@ const renderBoard = () => {
       atBottom: overflowing && cards.scrollHeight - cards.scrollTop - cards.clientHeight <= 2,
     });
   }
+  const boardScrollLeft = board.scrollLeft;
   board.replaceChildren();
   if (!snapshot) return;
   if (!snapshot.lists.length) {
@@ -1928,7 +1975,23 @@ const renderBoard = () => {
     addCard.append(makeIcon('plus'));
     addCard.addEventListener('click', () => openComposer(list.id));
 
-    column.append(head, cardsEl, addCard, composer);
+    let closeDone = null;
+    if (list.id === snapshot.doneListId) {
+      const linked = list.cards.filter((card) => state.sessions?.[card.id]).length;
+      if (linked) {
+        closeDone = el('button', 'ghost-btn done-close');
+        closeDone.type = 'button';
+        closeDone.title = 'Cerrar las sesiones de las tarjetas en HECHO';
+        closeDone.setAttribute('aria-label', closeDone.title);
+        closeDone.append(
+          makeIcon('close'),
+          el('span', '', linked === 1 ? 'Cerrar sesión' : `Cerrar ${linked} sesiones`),
+        );
+        closeDone.addEventListener('click', () => void closeDoneSessions(closeDone));
+      }
+    }
+
+    column.append(head, ...(closeDone ? [closeDone] : []), cardsEl, addCard, composer);
     attachDropTarget(column, cardsEl, list.id);
     board.append(column);
 
@@ -1944,6 +2007,7 @@ const renderBoard = () => {
     if (!cards) continue;
     cards.scrollTop = saved.atBottom ? cards.scrollHeight : saved.top;
   }
+  board.scrollLeft = boardScrollLeft;
 };
 
 
@@ -2023,8 +2087,17 @@ const moveCard = async (cardId, listId, index) => {
   try {
     const answer = await api('POST', '/card/move', { id: cardId, listId, index: bounded });
     await refresh(true);
-    if (answer?.sessionId) {
-      toast('success', `Sesión creada en ${answer.project || 'el proyecto del tablero'}.`);
+    if (answer?.sent) {
+      toast('success', `Mensaje enviado a la sesión de ${answer.project || 'el proyecto del tablero'}.`);
+      try {
+        await host.openSession(answer.sessionId);
+      } catch {
+        toast('error', 'El mensaje se envió, pero no se pudo abrir la sesión.');
+      }
+    } else if (answer?.sessionError) {
+      toast('error', `No se pudo enviar el mensaje a la sesión: ${answer.sessionError}`);
+    } else if (answer?.sessionId) {
+      toast('success', answer.reused ? 'Sesión abierta.' : `Sesión creada en ${answer.project || 'el proyecto del tablero'}.`);
       try {
         await host.openSession(answer.sessionId);
       } catch {
@@ -2036,10 +2109,6 @@ const moveCard = async (cardId, listId, index) => {
       toast('info', 'Delegación manual: abre la tarjeta y pulsa Crear sesión.');
     } else if (answer?.needsMapping) {
       toast('error', 'Asigna un proyecto a este tablero para crear la sesión.');
-    } else if (answer?.sessionError) {
-      toast('error', `No se pudo crear la sesión: ${answer.sessionError}`);
-    } else if (answer?.linked) {
-      toast('success', 'Sesión enlazada: se cerrará al guardar Engram.');
     }
   } catch (error) {
     toast('error', error.message);
@@ -2052,8 +2121,12 @@ const completeCard = async (cardId, node) => {
   if (node) node.classList.add('leaving');
   try {
     const result = await api('POST', '/card/complete', { id: cardId });
-    toast('success', result.already ? 'Ya estaba en HECHO.' : `«${card?.name || 'Tarjeta'}» movida a HECHO.`);
-    if (result.linked) toast('success', 'Sesión enlazada: se cerrará al guardar Engram.');
+    const hasSession = Boolean(state.sessions?.[cardId]);
+    const moved = result.already ? 'Ya estaba en HECHO.' : `«${card?.name || 'Tarjeta'}» movida a HECHO.`;
+    toast(
+      'success',
+      hasSession ? `${moved} La sesión sigue abierta hasta que la cierres en HECHO.` : moved,
+    );
     await refresh(true);
   } catch (error) {
     toast('error', error.message);

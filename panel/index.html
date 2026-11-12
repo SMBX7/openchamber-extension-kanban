@@ -825,6 +825,21 @@
         display: grid; place-items: center; opacity: .55; transition: opacity .12s, color .12s, background .12s;
       }
       .add-card:hover { opacity: 1; color: var(--oc-fg); background: var(--oc-hover); }
+      .done-close {
+        justify-content: center;
+        width: 100%;
+        margin: 0 0 7px;
+        color: var(--oc-warning-text, var(--oc-warning));
+        border-color: color-mix(in srgb, var(--oc-warning) 45%, var(--oc-border));
+        background: color-mix(in srgb, var(--oc-warning) 10%, transparent);
+        font-size: 10.5px;
+      }
+      .done-close:hover {
+        color: var(--oc-warning-text, var(--oc-warning));
+        background: color-mix(in srgb, var(--oc-warning) 18%, transparent);
+      }
+      .done-close .icon { width: 11px; height: 11px; }
+
       .column.composing .add-card { display: none; }
       .composer { display: none; padding: 2px 2px 0; }
       .column.composing .composer { display: block; }
