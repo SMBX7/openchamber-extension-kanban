@@ -403,15 +403,6 @@ var clearClosePending = (cardId) => {
   writeLinks(data);
   return true;
 };
-var linksForSession = (sessionId) => {
-  const session = String(sessionId || "");
-  return Object.entries(readLinks().links).filter(([, link]) => link.sessionId === session);
-};
-var pendingCloseForSession = (sessionId) => {
-  const session = String(sessionId || "");
-  const entry = Object.entries(readLinks().links).find(([, link]) => link.closePending && link.sessionId === session);
-  return entry || null;
-};
 var removeLink = (cardId) => {
   const id = String(cardId || "");
   const data = readLinks();
@@ -1665,7 +1656,7 @@ try {
 } catch {
   serviceHost = null;
 }
-var closePrompt = (title) => `La tarjeta \xAB${title || "sin t\xEDtulo"}\xBB se ha movido a HECHO. La tarea est\xE1 terminada. Cierra esta sesi\xF3n.`;
+var closePrompt = (title) => `La tarjeta \xAB${title || "sin t\xEDtulo"}\xBB est\xE1 en HECHO y la tarea ha terminado. Cierra esta sesi\xF3n.`;
 var sendClosePrompt = async (cardId, link) => {
   if (!serviceHost) return false;
   try {
@@ -1695,34 +1686,7 @@ var triggerClose = async (cardId) => {
 };
 var handleSessionEvent = async (event) => {
   const sessionId = event?.session?.id;
-  let pending = sessionId ? pendingCloses.get(sessionId) : null;
-  if (!pending && sessionId && event.type === "turn-finished") {
-    const entry = pendingCloseForSession(sessionId);
-    if (entry) {
-      const [cardId, link] = entry;
-      await sendClosePrompt(cardId, link);
-      pending = pendingCloses.get(sessionId) || null;
-      if (pending) return;
-    }
-    const links = linksForSession(sessionId);
-    for (const [cardId, link] of links) {
-      const boardId = link.boardId || readConfig().boardId;
-      if (!boardId) continue;
-      try {
-        const snapshot = await getSnapshot({ boardId, fresh: true });
-        const card = flattenCards(snapshot).find((entry2) => entry2.id === cardId);
-        if (!card) {
-          removeLink(cardId);
-          continue;
-        }
-        if (card.listId === snapshot.doneListId) {
-          await sendClosePrompt(cardId, link);
-          return;
-        }
-      } catch {
-      }
-    }
-  }
+  const pending = sessionId ? pendingCloses.get(sessionId) : null;
   if (!pending) return;
   if (event.type === "turn-finished") {
     if (pending.phase === "wait-idle") {
@@ -1845,8 +1809,6 @@ var startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
   const boardId = await boardIdOf(config);
   const project = getBoardProject(boardId);
   if (!project) throw new PlankaError("Asigna un proyecto al tablero en el panel de Kanban.", { kind: "validation" });
-  const existing = getLink(cardId);
-  if (existing) return { sessionId: existing.sessionId, project: project.name };
   const snapshot = await getSnapshot({ boardId, fresh: true });
   const card = flattenCards(snapshot).find((entry) => entry.id === String(cardId));
   if (!card) throw new PlankaError("Esa tarjeta ya no existe.", { kind: "not-found", status: 404 });
@@ -1856,11 +1818,26 @@ var startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
     await client().moveCard(card.id, workList.id, void 0, boardId);
     invalidate();
   }
+  const existing = getLink(cardId);
+  if (existing) {
+    if (!serviceHost) return { sessionId: existing.sessionId, project: project.name };
+    try {
+      await serviceHost.sessions.send(existing.sessionId, sessionPrompt(card, snapshot.board, project));
+      return { sessionId: existing.sessionId, sent: true, project: project.name };
+    } catch (error) {
+      return {
+        sessionId: existing.sessionId,
+        sent: false,
+        sessionError: error.message,
+        project: project.name
+      };
+    }
+  }
   if (!forceSession) {
     return { moved: true, autoPending: project.autoSession === true, project: project.name };
   }
   const started = await startWorkSession(card, snapshot.board, project, boardId);
-  return { sessionId: started.sessionId, project: project.name };
+  return { sessionId: started.sessionId, sent: true, project: project.name };
 };
 var moveCardToBacklog = async (cardId) => {
   const config = readConfig();
@@ -1901,7 +1878,6 @@ var handleStatusAction = async (body) => {
     const boardId = await boardIdOf(config);
     await client().completeCard(cardId, boardId);
     invalidate();
-    await triggerClose(cardId);
     return;
   }
   throw new PlankaError("Acci\xF3n no reconocida.", { kind: "validation" });
@@ -2400,18 +2376,28 @@ var routes = {
     invalidate();
     const snapshot = await getSnapshot({ boardId }).catch(() => null);
     if (snapshot?.doneListId !== listId) clearClosePending(id);
-    let linked = false;
     let sessionId = "";
     let needsMapping = false;
     let manual = false;
     let autoPending = false;
+    let sent = false;
+    let reused = false;
     let sessionError = "";
-    if (snapshot?.doneListId === listId) {
-      linked = await triggerClose(id);
-    } else if (workList && listId === workList.id && beforeCard?.listId !== workList.id) {
+    if (workList && listId === workList.id && beforeCard?.listId !== workList.id) {
       const existing = getLink(id);
       if (existing) {
+        reused = true;
         sessionId = existing.sessionId;
+        const project = getBoardProject(boardId);
+        if (project?.autoSession === true) {
+          try {
+            const result = await startCardFromStatus(id);
+            sent = result.sent === true;
+            if (result.sessionError) sessionError = result.sessionError;
+          } catch (error) {
+            sessionError = error.message;
+          }
+        }
       } else {
         const project = getBoardProject(boardId);
         if (!project) {
@@ -2425,11 +2411,12 @@ var routes = {
     }
     return {
       card: item,
-      linked,
       sessionId,
       needsMapping,
       manual,
       autoPending,
+      sent,
+      reused,
       sessionError,
       project: getBoardProject(boardId)?.name || ""
     };
@@ -2477,6 +2464,22 @@ var routes = {
     pendingCloses.delete(sessionId);
     return result;
   },
+  // Closes the sessions of the cards already in HECHO, only when the person
+  // asks for it. Moving a card to HECHO no longer closes anything.
+  "POST /sessions/close-done": async () => {
+    requireConnected();
+    const config = readConfig();
+    const boardId = await boardIdOf(config);
+    const snapshot = await getSnapshot({ boardId, fresh: true });
+    const doneList = snapshot.lists.find((list) => list.id === snapshot.doneListId);
+    if (!doneList) return { count: 0 };
+    let count = 0;
+    for (const card of doneList.cards) {
+      if (!getLink(card.id)) continue;
+      if (await triggerClose(card.id)) count += 1;
+    }
+    return { count };
+  },
   "POST /card/complete": async (body) => {
     requireConnected();
     const id = String(body.id || "");
@@ -2485,8 +2488,7 @@ var routes = {
     const boardId = await boardIdOf(config);
     const result = await client().completeCard(id, boardId);
     invalidate();
-    const linked = result.already ? false : await triggerClose(id);
-    return { ...result, linked };
+    return result;
   },
   "POST /card/pending": async (body) => {
     requireConnected();

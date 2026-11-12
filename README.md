@@ -94,7 +94,7 @@ browser. If you use OpenChamber remotely, the file lands on that machine.
 - **Delete**: the trash. You have to press it **twice**; then you get five seconds to
   **Undo** (Deshacer) in the bar at the top.
 - **Move**: drag the card inside a column or to another one.
-- **Complete**: the tick sends it to DONE and closes its session.
+- **Complete**: the tick sends it to DONE. The session stays open; close it with the button in the DONE column when you are done reviewing.
 - **Search** with the magnifier.
 - **Stopped** (Paradas) filters cards in IN PROGRESS **with no session**. It is how you
   see what has been parked for a long time and decide whether to pick it up or send it
@@ -134,7 +134,7 @@ moving the card shows the prompt and you decide right there.
 
 Everything else works the same in both modes:
 
-- Moving to **DONE** asks the session to close, and it stops.
+- Moving to **DONE** leaves the session open. The DONE column has a **close sessions** button for when you are ready.
 - Moving back to **IDEAS** stops the session and releases the card.
 - Because the card is released, moving it again starts a **new** session, without the
   previous conversation.

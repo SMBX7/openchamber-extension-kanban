@@ -1153,15 +1153,6 @@ var setLink = (cardId, sessionId, meta = {}) => {
   writeLinks(data);
   return data.links[id];
 };
-var markClosePending = (cardId) => {
-  const id = String(cardId || "");
-  const data = readLinks();
-  if (!data.links[id]) return false;
-  data.links[id].closePending = true;
-  data.links[id].closePendingAt = (/* @__PURE__ */ new Date()).toISOString();
-  writeLinks(data);
-  return true;
-};
 var clearClosePending = (cardId) => {
   const id = String(cardId || "");
   const data = readLinks();
@@ -1409,8 +1400,7 @@ var callTool = async (name, args = {}) => {
     }
     const updated = await client.updateCard(card.id, patch, boardId);
     if (targetList) {
-      if (targetList.id === (await client.readBoard(boardId)).doneListId) markClosePending(card.id);
-      else clearClosePending(card.id);
+      if (targetList.id !== (await client.readBoard(boardId)).doneListId) clearClosePending(card.id);
     }
     return textResult({ updated: true, id: card.id, card: updated });
   }
@@ -1419,15 +1409,13 @@ var callTool = async (name, args = {}) => {
     const { list } = await resolveList(client, boardId, args.list);
     const index = Number.isInteger(args.position) ? args.position : void 0;
     await client.moveCard(card.id, list.id, index, boardId);
-    if (list.id === board.doneListId) markClosePending(card.id);
-    else clearClosePending(card.id);
+    if (list.id !== board.doneListId) clearClosePending(card.id);
     return textResult({ moved: true, id: card.id, name: card.name, list: list.name });
   }
   if (name === "kanban_complete_card") {
     const { card } = await resolveCard(client, boardId, args.card);
     const result = await client.completeCard(card.id, boardId);
-    const closePending = !result.already && markClosePending(card.id);
-    return textResult({ completed: true, id: card.id, name: card.name, already: result.already, closePending });
+    return textResult({ completed: true, id: card.id, name: card.name, already: result.already });
   }
   if (name === "kanban_delete_card") {
     const { card } = await resolveCard(client, boardId, args.card);

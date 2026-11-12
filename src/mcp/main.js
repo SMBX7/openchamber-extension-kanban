@@ -2,7 +2,7 @@
 // config.json as the service; cards are addressed by id or by part of a title.
 import { readConfig } from '../shared/config.js';
 import { LOCAL_BOARD_ID, LocalClient } from '../shared/local.js';
-import { clearClosePending, markClosePending, removeLink, setLink } from '../shared/links.js';
+import { clearClosePending, removeLink, setLink } from '../shared/links.js';
 import {
   PlankaClient,
   PlankaError,
@@ -254,8 +254,7 @@ const callTool = async (name, args = {}) => {
     }
     const updated = await client.updateCard(card.id, patch, boardId);
     if (targetList) {
-      if (targetList.id === (await client.readBoard(boardId)).doneListId) markClosePending(card.id);
-      else clearClosePending(card.id);
+      if (targetList.id !== (await client.readBoard(boardId)).doneListId) clearClosePending(card.id);
     }
     return textResult({ updated: true, id: card.id, card: updated });
   }
@@ -265,16 +264,14 @@ const callTool = async (name, args = {}) => {
     const { list } = await resolveList(client, boardId, args.list);
     const index = Number.isInteger(args.position) ? args.position : undefined;
     await client.moveCard(card.id, list.id, index, boardId);
-    if (list.id === board.doneListId) markClosePending(card.id);
-    else clearClosePending(card.id);
+    if (list.id !== board.doneListId) clearClosePending(card.id);
     return textResult({ moved: true, id: card.id, name: card.name, list: list.name });
   }
 
   if (name === 'kanban_complete_card') {
     const { card } = await resolveCard(client, boardId, args.card);
     const result = await client.completeCard(card.id, boardId);
-    const closePending = !result.already && markClosePending(card.id);
-    return textResult({ completed: true, id: card.id, name: card.name, already: result.already, closePending });
+    return textResult({ completed: true, id: card.id, name: card.name, already: result.already });
   }
 
   if (name === 'kanban_delete_card') {

@@ -87,7 +87,7 @@ navegador. Si usas OpenChamber en remoto, el archivo aparece en ese equipo.
 - **Borrar**: la papelera. Hay que pulsarla **dos veces**; después tienes cinco
   segundos para **Deshacer** en la barra de arriba.
 - **Mover**: arrastra la tarjeta dentro de una columna o a otra.
-- **Completar**: el tic la manda a HECHO y cierra su sesión.
+- **Completar**: el tic la manda a HECHO. La sesión sigue abierta; ciérrala con el botón de la columna HECHO cuando termines de revisar.
 - **Buscar** con la lupa.
 - **Paradas** filtra las tarjetas que están en EN PROGRESO **sin sesión**. Es la forma
   de ver lo que llevas tiempo aparcado y decidir si lo retomas o lo devuelves a ideas.
@@ -127,7 +127,7 @@ tarjeta sale el aviso y decides ahí mismo.
 
 Lo demás pasa igual en los dos modos:
 
-- Al pasar a **HECHO**, la sesión recibe el cierre y se detiene.
+- Al pasar a **HECHO**, la sesión sigue abierta. La columna HECHO tiene un botón para cerrar las sesiones cuando quieras.
 - Al volver a **IDEAS**, la sesión se detiene y se suelta la tarjeta.
 - Como la tarjeta se suelta, si la vuelves a mover empieza una sesión **nueva**, sin
   arrastrar la conversación anterior.
