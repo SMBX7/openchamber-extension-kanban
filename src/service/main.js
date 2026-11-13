@@ -9,7 +9,7 @@ import { basename, join } from 'node:path';
 import { createServiceHost, SESSION_EVENTS_PATH, readSessionEventRequest } from '@openchamber/sdk';
 import { ROOT, clearConfig, isConnected, readConfig, saveConfig } from '../shared/config.js';
 import { clearClosePending, getLink, linksForSession, listLinks, removeLink, setLink } from '../shared/links.js';
-import { getBoardProject, setBoardProject } from '../shared/board-projects.js';
+import { getBoardProject, listBoardProjects, setBoardProject } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
 import { LOCAL_BOARD_ID, LocalClient, exportBoard, importBoard } from '../shared/local.js';
 import { PlankaClient, PlankaError, flattenCards, searchCards } from '../shared/planka.js';
@@ -770,6 +770,10 @@ const routes = {
   'GET /mapping': async (_body, url) => ({
     project: getBoardProject(url.searchParams.get('boardId') || ''),
   }),
+
+  // Every board's link in one read, so the panel can narrow the board selector
+  // to the active project without one request per board.
+  'GET /mappings': async () => ({ mappings: listBoardProjects() }),
 
   'POST /mapping': async (body) => {
     requireConnected();
