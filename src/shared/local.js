@@ -699,7 +699,7 @@ export const exportBoard = (format = 'json', projectKey = '') => {
   return `${JSON.stringify(store, null, 2)}\n`;
 };
 
-export const importBoard = (raw, projectKey = '') => {
+export const importBoard = async (raw, projectKey = '') => {
   let parsed;
   try {
     parsed = JSON.parse(String(raw || ''));
@@ -710,7 +710,8 @@ export const importBoard = (raw, projectKey = '') => {
     throw new PlankaError('Ese tablero no tiene columnas.', { kind: 'validation' });
   }
   const store = normaliseStore(parsed);
-  writeStore(store, localBoardPath(projectKey));
+  // Import is the last writer that skipped the cross-process lock.
+  await withLock(projectKey, () => writeStore(store, localBoardPath(projectKey)));
   return view(store);
 };
 
