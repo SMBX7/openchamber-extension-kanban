@@ -77,5 +77,55 @@ const renamed = await client().updateCard('c1', { id: 'c1', name: 'Renombrada' }
 assert.equal(renamed.name, 'Renombrada');
 assert.deepEqual(JSON.parse(bodies[0]), { name: 'Renombrada' });
 
+// One board with a checklist, used by the task and checklist scenarios.
+const boardWithChecklist = {
+  item: { id: 'b1', name: 'Tablero' },
+  included: {
+    lists: [{ id: 'l1', name: 'IDEAS', position: 65536, type: 'active' }],
+    cards: [{ id: 'c1', listId: 'l1', name: 'Tarjeta', position: 65536 }],
+    labels: [],
+    cardLabels: [],
+    taskLists: [{ id: 'tl1', cardId: 'c1', name: 'Pasos', position: 65536 }],
+    tasks: [
+      { id: 't1', taskListId: 'tl1', name: 'Masa', position: 65536, isCompleted: false },
+      { id: 't2', taskListId: 'tl1', name: 'Horno', position: 131072, isCompleted: false },
+    ],
+  },
+};
+
+// A new task goes after the last one of its checklist. Reading the first board
+// of the account instead of the selected one loses the checklist and puts the
+// task at the top, while the local board appends it.
+calls.length = 0;
+bodies.length = 0;
+queue = [
+  { status: 200, body: boardWithChecklist },
+  { status: 200, body: { item: { id: 't3' } } },
+];
+await client().addTask('tl1', 'Enfriar', 'b1');
+assert.deepEqual(
+  calls.map((call) => `${call.method} ${call.url}`),
+  ['GET http://planka.test/api/boards/b1', 'POST http://planka.test/api/task-lists/tl1/tasks'],
+);
+assert.equal(JSON.parse(bodies[1]).position, 196608);
+
+// A blank checklist name falls back to "Checklist", the name the local board
+// gives it; sending an empty name makes Planka reject the request.
+calls.length = 0;
+bodies.length = 0;
+queue = [
+  { status: 200, body: boardWithChecklist },
+  { status: 200, body: { item: { id: 'tl2', name: 'Checklist' } } },
+];
+await client().addChecklist('c1', '   ', 'b1');
+assert.equal(JSON.parse(bodies[1]).name, 'Checklist');
+
+// An empty title is refused before any request, exactly as the local board
+// does; Planka would otherwise create a nameless card.
+calls.length = 0;
+queue = [];
+await assert.rejects(() => client().createCard('l1', '   ', 'b1'), /El título no puede quedar vacío/);
+assert.equal(calls.length, 0);
+
 rmSync(dir, { recursive: true, force: true });
-console.log('planka routes: 7 assertions ok');
+console.log('planka routes: 12 assertions ok');

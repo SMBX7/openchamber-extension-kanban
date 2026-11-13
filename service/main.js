@@ -829,6 +829,8 @@ var PlankaClient = class {
     return { board, card };
   }
   async createCard(listId, name, boardId, options = {}) {
+    const title = String(name || "").trim().slice(0, 1024);
+    if (!title) throw new PlankaError("El t\xEDtulo no puede quedar vac\xEDo.", { kind: "validation" });
     const board = await this.readBoard(boardId);
     const list = board.lists.find((item) => item.id === String(listId));
     if (!list) throw new PlankaError("Esa columna ya no existe en Planka.", { kind: "not-found", status: 404 });
@@ -837,7 +839,7 @@ var PlankaClient = class {
       method: "POST",
       body: {
         type: "project",
-        name: String(name || "").trim().slice(0, 1024),
+        name: title,
         position,
         ...options.description ? { description: String(options.description) } : {},
         ...options.dueDate ? { dueDate: dueTimestamp(options.dueDate) } : {}
@@ -944,7 +946,7 @@ var PlankaClient = class {
     const position = card.taskLists.length ? Math.max(...card.taskLists.map((item) => item.position || 0)) + POSITION_STEP2 : POSITION_STEP2;
     const created = await this.request(`/api/cards/${encode(cardId)}/task-lists`, {
       method: "POST",
-      body: { name: String(name || "Checklist").trim().slice(0, 128), position }
+      body: { name: String(name || "Checklist").trim().slice(0, 128) || "Checklist", position }
     });
     const taskListId = created?.item?.id;
     const added = [];
@@ -963,9 +965,8 @@ var PlankaClient = class {
     }
     return { taskList: created?.item ?? null, tasks: added };
   }
-  async addTask(taskListId, name) {
-    const boardId = await this.resolveBoardId();
-    const board = await this.readBoard(boardId);
+  async addTask(taskListId, name, boardId) {
+    const board = await this.readBoard(await this.resolveBoardId(boardId));
     const taskList = board.lists.flatMap((list) => list.cards).flatMap((card) => card.taskLists).find((item) => item.id === String(taskListId));
     const position = taskList && taskList.tasks.length ? Math.max(...taskList.tasks.map((task) => task.position || 0)) + POSITION_STEP2 : POSITION_STEP2;
     const data = await this.request(`/api/task-lists/${encode(taskListId)}/tasks`, {
@@ -1514,8 +1515,10 @@ var LocalClient = class {
       const done = lists.find((list) => DONE_NAME2.test(list.name)) || lists[lists.length - 1];
       if (!done) throw new PlankaError("Este tablero no tiene una columna HECHO.", { kind: "validation" });
       if (card.listId === done.id) return { item: null, already: true };
+      card.position = topPosition2(
+        store.cards.filter((item) => item.listId === done.id && item.id !== card.id)
+      );
       card.listId = done.id;
-      card.position = topPosition2(store.cards.filter((item) => item.listId === done.id));
       return { item: card, already: false };
     });
   }
@@ -1583,7 +1586,9 @@ var LocalClient = class {
       return { taskList, tasks: added };
     });
   }
-  async addTask(taskListId, name) {
+  // Same surface as PlankaClient.addTask: the board is the store this client
+  // already holds, so the third argument is accepted and unused.
+  async addTask(taskListId, name, boardId) {
     return mutate(this.projectKey, (store) => {
       const taskList = store.taskLists.find((item) => item.id === String(taskListId));
       if (!taskList) throw new PlankaError("Esa checklist ya no existe.", { kind: "not-found", status: 404 });
@@ -2259,14 +2264,14 @@ var routes = {
     const downloads = (0, import_node_path6.join)((0, import_node_os4.homedir)(), "Downloads");
     const dir = (0, import_node_fs6.existsSync)(downloads) ? downloads : ROOT;
     const file = (0, import_node_path6.join)(dir, `kanban-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.${format}`);
-    (0, import_node_fs6.writeFileSync)(file, exportBoard(format), { mode: 384 });
+    (0, import_node_fs6.writeFileSync)(file, exportBoard(format, currentProject()), { mode: 384 });
     return { path: file.replace((0, import_node_os4.homedir)(), "~"), name: (0, import_node_path6.basename)(file), format };
   },
   "POST /local/import": async (body) => {
     if (readConfig().source !== "local") {
       throw new PlankaError("Restaurar solo vale en el tablero local.", { kind: "validation" });
     }
-    importBoard(body?.data);
+    importBoard(body?.data, currentProject());
     invalidate();
     return { ok: true };
   },
@@ -2699,11 +2704,12 @@ var routes = {
     return result;
   },
   "POST /task": async (body) => {
-    requireConnected();
+    const config = requireConnected();
     const taskListId = String(body.taskListId || "");
     const name = String(body.name || "").trim();
     if (!taskListId || !name) throw new PlankaError("La tarea necesita checklist y nombre.", { kind: "validation" });
-    const item = await client().addTask(taskListId, name);
+    const boardId = await boardIdOf(config);
+    const item = await client().addTask(taskListId, name, boardId);
     invalidate();
     return { task: item };
   },

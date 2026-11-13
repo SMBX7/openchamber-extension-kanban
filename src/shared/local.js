@@ -483,8 +483,13 @@ export class LocalClient {
       const done = lists.find((list) => DONE_NAME.test(list.name)) || lists[lists.length - 1];
       if (!done) throw new PlankaError('Este tablero no tiene una columna HECHO.', { kind: 'validation' });
       if (card.listId === done.id) return { item: null, already: true };
+      // The top position is read from the column the card is arriving in,
+      // without the card itself: including it would halve the column's first
+      // position and drift away from what Planka computes.
+      card.position = topPosition(
+        store.cards.filter((item) => item.listId === done.id && item.id !== card.id),
+      );
       card.listId = done.id;
-      card.position = topPosition(store.cards.filter((item) => item.listId === done.id));
       return { item: card, already: false };
     });
   }
@@ -557,7 +562,9 @@ export class LocalClient {
     });
   }
 
-  async addTask(taskListId, name) {
+  // Same surface as PlankaClient.addTask: the board is the store this client
+  // already holds, so the third argument is accepted and unused.
+  async addTask(taskListId, name, boardId) {
     return mutate(this.projectKey, (store) => {
       const taskList = store.taskLists.find((item) => item.id === String(taskListId));
       if (!taskList) throw new PlankaError('Esa checklist ya no existe.', { kind: 'not-found', status: 404 });
