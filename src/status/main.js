@@ -16,7 +16,7 @@ const ICONS = {
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
 };
 
-const state = { data: null, error: '', busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: '', confirmId: '', askSession: '', pendingDelete: null, sessions: [], sessionsProjectId: '', sessionsAt: 0, editId: '', editDraft: '' };
+const state = { data: null, error: '', busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: '', confirmId: '', askSession: '', pendingDelete: null, sessions: [], sessionsProjectId: '', sessionsAt: 0, directory: '', editId: '', editDraft: '' };
 let confirmTimer = null;
 let poll = null;
 let inFlight = false;
@@ -42,10 +42,16 @@ const parseBody = (text) => {
   }
 };
 
+const withDirectory = (path) => {
+  if (!state.directory) return path;
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}directory=${encodeURIComponent(state.directory)}`;
+};
+
 const api = async (method, path, body) => {
   const result = await host.serviceRequest({
     method,
-    path,
+    path: withDirectory(path),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = parseBody(result.body);
@@ -860,11 +866,19 @@ const startPolling = () => {
 };
 
 host.onReady((context) => {
+  state.directory = context.directory || '';
   applyHostReady(context, document.documentElement);
   if (state.booted) return;
   state.booted = true;
   void load(true);
   startPolling();
+});
+
+host.onDirectory((directory) => {
+  const next = directory || '';
+  if (next === state.directory) return;
+  state.directory = next;
+  if (state.booted) void load(true);
 });
 
 document.addEventListener('visibilitychange', () => {

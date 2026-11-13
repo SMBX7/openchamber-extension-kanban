@@ -1840,7 +1840,7 @@ ${GUEST_UI_LOOK_CSS}`;
     edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>'
   };
-  var state = { data: null, error: "", busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: "", confirmId: "", askSession: "", pendingDelete: null, sessions: [], sessionsProjectId: "", sessionsAt: 0, editId: "", editDraft: "" };
+  var state = { data: null, error: "", busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: "", confirmId: "", askSession: "", pendingDelete: null, sessions: [], sessionsProjectId: "", sessionsAt: 0, directory: "", editId: "", editDraft: "" };
   var confirmTimer = null;
   var poll = null;
   var inFlight = false;
@@ -1862,10 +1862,15 @@ ${GUEST_UI_LOOK_CSS}`;
       return {};
     }
   };
+  var withDirectory = (path) => {
+    if (!state.directory) return path;
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}directory=${encodeURIComponent(state.directory)}`;
+  };
   var api = async (method, path, body) => {
     const result = await host.serviceRequest({
       method,
-      path,
+      path: withDirectory(path),
       body: body === void 0 ? void 0 : JSON.stringify(body)
     });
     const data = parseBody(result.body);
@@ -2600,11 +2605,18 @@ ${GUEST_UI_LOOK_CSS}`;
     }, POLL_MS);
   };
   host.onReady((context) => {
+    state.directory = context.directory || "";
     applyHostReady(context, document.documentElement);
     if (state.booted) return;
     state.booted = true;
     void load(true);
     startPolling();
+  });
+  host.onDirectory((directory) => {
+    const next = directory || "";
+    if (next === state.directory) return;
+    state.directory = next;
+    if (state.booted) void load(true);
   });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && !state.adding) void load(true);

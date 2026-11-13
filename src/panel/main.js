@@ -37,6 +37,7 @@ const state = {
   projects: [],
   plankaProjects: [],
   session: null,
+  directory: '',
   snapshot: null,
   sessions: {},
   search: '',
@@ -113,12 +114,19 @@ const parseBody = (text) => {
   }
 };
 
+// The guest service cannot see the active project, so every request carries it.
+const withDirectory = (path) => {
+  if (!state.directory) return path;
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}directory=${encodeURIComponent(state.directory)}`;
+};
+
 const api = async (method, path, body) => {
   let result;
   try {
     result = await host.serviceRequest({
       method,
-      path,
+      path: withDirectory(path),
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (error) {
@@ -367,6 +375,7 @@ const isPaused = () =>
 
 host.onReady((context) => {
   state.features = context.features || {};
+  state.directory = context.directory || '';
   applyHostReady(context, document.documentElement);
   if (context.surface === 'popover') {
     renderPopover(context);
@@ -377,6 +386,15 @@ host.onReady((context) => {
   if (state.booted) return;
   state.booted = true;
   void boot();
+});
+
+host.onDirectory((directory) => {
+  const next = directory || '';
+  if (next === state.directory) return;
+  state.directory = next;
+  if (!state.booted) return;
+  void closeSheet();
+  void refresh(true);
 });
 
 const configWithRetry = async () => {

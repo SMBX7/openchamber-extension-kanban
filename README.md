@@ -71,6 +71,8 @@ machine.
 - It is yours only: not visible from your phone or another computer.
 - You can go back to Planka whenever you want; you will not have to log in again.
 - Planka and local are separate boards: nothing is copied between them.
+- **One board per project**: each OpenChamber project keeps its own local board. A
+  project with no board starts empty; going back restores its lists and cards.
 
 The local board can be exported:
 
