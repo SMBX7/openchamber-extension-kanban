@@ -2560,7 +2560,12 @@ ${GUEST_UI_LOOK_CSS}`;
         el2("div", "muted", "Este tablero no tiene columnas. Pulsa + para crearlas y a\xF1adir una idea.")
       );
     } else {
-      scroll.append(renderCurrent(data.current));
+      const working = Array.isArray(data.working) ? data.working : [];
+      if (working.length) {
+        for (const card of working) scroll.append(renderCurrent(card));
+      } else {
+        scroll.append(renderCurrent(data.current));
+      }
       if (state.adding && data.backlogId) scroll.append(renderAddRow());
       for (const idea of data.ideas || []) {
         if (state.pendingDelete?.card.id === idea.id) continue;
@@ -2617,6 +2622,18 @@ ${GUEST_UI_LOOK_CSS}`;
     if (next === state.directory) return;
     state.directory = next;
     if (state.booted) void load(true);
+  });
+  var lifecycleSeen = /* @__PURE__ */ new Set();
+  host.onSessionLifecycle((event) => {
+    if (!event?.sessionId || !event.phase) return;
+    if (event.phase === "completed" && !lifecycleSeen.has(event.sessionId)) return;
+    if (event.phase === "completed" || event.phase === "failure") lifecycleSeen.delete(event.sessionId);
+    else lifecycleSeen.add(event.sessionId);
+    void api("POST", "/session/lifecycle", {
+      sessionId: event.sessionId,
+      phase: event.phase
+    }).catch(() => {
+    });
   });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && !state.adding) void load(true);
