@@ -22,6 +22,7 @@ const ICONS = {
   compress: '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
   expand: '<path d="m13 7 5 5-5 5"/><path d="m6 7 5 5-5 5"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
+  sort: '<path d="M7 4v16"/><path d="m4 17 3 3 3-3"/><path d="M13 6h7M13 11h5M13 16h3"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 15a1.65 1.65 0 0 0-1.51-1H2a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 3.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6h.09A1.65 1.65 0 0 0 9.1 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09A1.65 1.65 0 0 0 21 10.1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/>',
 };
 
@@ -53,6 +54,8 @@ const state = {
   stoppedOnly: false,
   dragId: '',
   dragging: false,
+  sorting: false,
+  sortPop: null,
   composerListId: '',
   saving: 0,
   fetching: false,
@@ -361,6 +364,75 @@ const matchesFilters = (card) => {
   return true;
 };
 
+/* --- Ideas priority sort (pure helpers) ---------------------------- */
+/* IDEAS is ordered by the four criteria the user gave. The extension reads
+   each card's text and picks a level; nothing is stored per card and no
+   session is opened. The list is the only one that can be sorted. */
+
+// Levels, most important first. The order of this array is the order that
+// wins a tie between two levels, and it is what the popover shows.
+const SORT_CRITERIA = [
+  {
+    key: 'flow',
+    label: 'Fallos que rompen el flujo',
+    hint: 'Rompe, no deja, se pierde, error…',
+    pattern: /\b(rompe|rompen|roto|rota|fallo|fallos|falla|fallas|error|errores|bug|bugs|crash|bloquea|bloqueado|bloqueada|imposible|se pierde|se pasa|se mueve|se queda|se cierra|salta|vuelve a|en vez de|deberia|no deja|no me deja|no funciona|no guarda|no carga|no abre|no se puede|no puedo|desaparece)\b/g,
+  },
+  {
+    key: 'parity',
+    label: 'Paridad local/Planka',
+    hint: 'Local, Planka, servidor, sincronizar…',
+    pattern: /\b(planka|local|paridad|paralelo|sincroniz\w*|servidor|remoto|nube|dos modos|modo local|mismo comportamiento|tambien en|igual en|los dos|ambos)\b/g,
+  },
+  {
+    key: 'ux',
+    label: 'UX grande',
+    hint: 'Interfaz, panel, botones, arrastrar…',
+    pattern: /\b(ux|usabilidad|interfaz|experiencia|diseno|visual|pantalla|panel|lateral|ventana|boton|botones|clic|clics|arrastr\w*|mover|ordenar|filtrado|complicad\w*|lio|lioso|confus\w*|entiendo|entiende|accesib\w*|movil|responsive|columna|columnas)\b/g,
+  },
+  {
+    key: 'polish',
+    label: 'Pulido y arquitectura',
+    hint: 'Refactor, código, tests, rendimiento…',
+    pattern: /\b(refactor\w*|arquitectura|arquitect\w*|codigo|limpia\w*|limpiar|duplicad\w*|rendimiento|lento|test|tests|pruebas|documentacion|estructura|nombres|pulir|pulido|deuda|mantener|json|persist\w*|almacen\w*|migrac\w*|guard\w*)\b/g,
+  },
+];
+
+const SORT_UNCLASSIFIED = SORT_CRITERIA.length;
+
+const normalizeCardText = (text) =>
+  String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+// Score every level and keep the strongest one; the first level wins a tie.
+// A card with no signal keeps its place after the classified ones.
+const classifyCard = (card) => {
+  const text = normalizeCardText(`${card?.name || ''}\n${card?.description || ''}`);
+  let level = SORT_UNCLASSIFIED;
+  let best = 0;
+  SORT_CRITERIA.forEach((criterion, index) => {
+    const matches = text.match(criterion.pattern);
+    const score = matches ? matches.length : 0;
+    if (score > best) {
+      best = score;
+      level = index;
+    }
+  });
+  return level;
+};
+
+// Stable: cards on the same level, and cards without a level, keep their
+// current order.
+const sortCardsByPriority = (cards) =>
+  cards
+    .map((card, index) => ({ card, index, level: classifyCard(card) }))
+    .sort((a, b) => a.level - b.level || a.index - b.index)
+    .map((entry) => entry.card);
+
+/* --- end Ideas priority sort --------------------------------------- */
+
 const isPaused = () =>
   state.view !== 'board' ||
   Boolean(state.sheetId) ||
@@ -531,6 +603,7 @@ const showLogin = (message = '') => {
   state.view = 'login';
   stopPolling();
   closeSheet();
+  closeSortPopover();
   const config = state.config || {};
   const wrapper = el('div', 'center');
   const card = el('div', 'login-card');
@@ -1826,6 +1899,194 @@ const closeDoneSessions = async (button) => {
   await refresh(true);
 };
 
+const IDEAS_NAME = /^ideas?$/i;
+
+// IDEAS is the backlog: the list named IDEAS when it exists, otherwise the one
+// that is neither EN PROGRESO nor HECHO (the same rule the service uses).
+const ideasListId = () => {
+  const snapshot = state.snapshot;
+  if (!snapshot?.lists?.length) return '';
+  const named = snapshot.lists.find((list) => IDEAS_NAME.test(String(list.name || '').trim()));
+  if (named) return named.id;
+  const backlog = snapshot.lists.find(
+    (list) => list.id !== snapshot.workListId && list.id !== snapshot.doneListId,
+  );
+  return backlog?.id || '';
+};
+
+const closeSortPopover = () => {
+  const pop = state.sortPop;
+  if (!pop) return;
+  pop.node.remove();
+  if (pop.anchor?.isConnected) {
+    pop.anchor.setAttribute('aria-expanded', 'false');
+    pop.anchor.classList.remove('open');
+  }
+  state.sortPop = null;
+};
+
+const sortIdeasByPriority = async (listId, action, status) => {
+  if (state.sorting) return;
+  const list = findList(listId);
+  if (!list) {
+    closeSortPopover();
+    return;
+  }
+  const targetIds = sortCardsByPriority(list.cards).map((card) => card.id);
+  const currentIds = list.cards.map((card) => card.id);
+  if (targetIds.join('|') === currentIds.join('|')) {
+    status.textContent = 'Ya está ordenada por prioridad.';
+    return;
+  }
+
+  state.sorting = true;
+  state.saving += 1;
+  action.disabled = true;
+  action.textContent = 'Ordenando…';
+  status.textContent = `${targetIds.length} tarjetas · guardando el orden…`;
+
+  let moved = 0;
+  try {
+    // One moveCard per card that is out of place; each one persists in Planka
+    // or in the local board. The list is re-read after every move because
+    // moveCard refreshes the snapshot.
+    for (let index = 0; index < targetIds.length; index += 1) {
+      const live = findList(listId);
+      // The board changed under the sort (another project or board): stop.
+      if (!live) {
+        closeSortPopover();
+        return;
+      }
+      if (live.cards[index]?.id === targetIds[index]) continue;
+      await moveCard(targetIds[index], listId, index);
+      moved += 1;
+    }
+  } finally {
+    state.sorting = false;
+    state.saving -= 1;
+    action.disabled = false;
+    action.textContent = 'Ordenar IDEAS';
+  }
+
+  // moveCard reports its own failure with a toast, so the saved order is the
+  // only honest proof that every move landed.
+  const saved = (findList(listId)?.cards || []).map((card) => card.id).join('|');
+  if (moved && saved === targetIds.join('|')) {
+    status.textContent = 'Orden aplicado y guardado en el tablero.';
+    toast('success', 'IDEAS ordenadas por prioridad.');
+    // The order is saved; the popover has done its job.
+    closeSortPopover();
+  } else if (moved) {
+    status.textContent = 'No se pudo guardar el orden completo. Prueba otra vez.';
+    toast('error', 'No se pudo guardar el orden de IDEAS.');
+  } else {
+    status.textContent = 'Ya está ordenada por prioridad.';
+  }
+};
+
+const openSortPopover = (anchor, listId) => {
+  closeSortPopover();
+  const node = el('div', 'sort-pop');
+  node.setAttribute('role', 'dialog');
+  node.setAttribute('aria-label', 'Ordenar IDEAS por prioridad');
+
+  const head = el('div', 'sort-pop-head');
+  head.append(el('span', 'sort-pop-title', 'Ordenar por prioridad'));
+  const close = el('button', 'sort-pop-close');
+  close.type = 'button';
+  close.title = 'Cerrar';
+  close.setAttribute('aria-label', 'Cerrar el orden de IDEAS');
+  close.append(makeIcon('close'));
+  head.append(close);
+
+  const note = el(
+    'p',
+    'sort-pop-note',
+    'Solo IDEAS. Cada tarjeta se clasifica por su título y sus detalles; las que empatan mantienen su orden.',
+  );
+
+  const criteria = el('ol', 'sort-criteria');
+  SORT_CRITERIA.forEach((criterion, index) => {
+    const item = el('li', 'sort-criterion');
+    const text = el('span', 'sort-criterion-text');
+    text.append(
+      el('span', 'sort-criterion-label', criterion.label),
+      el('span', 'sort-criterion-hint', criterion.hint),
+    );
+    item.append(el('span', 'sort-step', String(index + 1)), text);
+    criteria.append(item);
+  });
+
+  const foot = el('div', 'sort-pop-foot');
+  const action = el('button', 'btn-mint sort-run', 'Ordenar IDEAS');
+  action.type = 'button';
+  const status = el('div', 'sort-pop-status', 'El orden se guarda en el tablero.');
+  foot.append(action, status);
+
+  node.append(head, note, criteria, foot);
+  document.body.append(node);
+
+  const width = Math.min(268, window.innerWidth - 16);
+  node.style.width = `${width}px`;
+  const rect = anchor.getBoundingClientRect();
+  node.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+  const below = rect.bottom + 6;
+  if (below + node.offsetHeight <= window.innerHeight - 8) {
+    node.style.top = `${below}px`;
+  } else {
+    node.style.top = `${Math.max(8, rect.top - node.offsetHeight - 6)}px`;
+  }
+
+  anchor.setAttribute('aria-expanded', 'true');
+  anchor.classList.add('open');
+  state.sortPop = { node, anchor };
+
+  close.addEventListener('click', () => closeSortPopover());
+  action.addEventListener('click', () => void sortIdeasByPriority(listId, action, status));
+  node.addEventListener('click', (event) => event.stopPropagation());
+};
+
+const buildSortControl = (list) => {
+  const button = el('button', 'col-sort');
+  button.type = 'button';
+  button.title = 'Ordenar IDEAS por prioridad';
+  button.setAttribute('aria-label', 'Ordenar IDEAS por prioridad');
+  button.setAttribute('aria-haspopup', 'dialog');
+  button.setAttribute('aria-expanded', 'false');
+  button.append(makeIcon('sort'), el('span', 'col-sort-label', 'Ordenar'));
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (state.sortPop) {
+      closeSortPopover();
+      return;
+    }
+    openSortPopover(button, list.id);
+  });
+  return button;
+};
+
+document.addEventListener('click', (event) => {
+  const pop = state.sortPop;
+  if (!pop) return;
+  if (pop.node.contains(event.target) || event.target.closest?.('.col-sort')) return;
+  closeSortPopover();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeSortPopover();
+});
+
+// The popover is fixed; a scroll would leave it behind the header.
+document.addEventListener(
+  'scroll',
+  () => {
+    if (!state.sorting) closeSortPopover();
+  },
+  true,
+);
+
+window.addEventListener('resize', () => closeSortPopover());
+
 const renderBoard = () => {
   const board = state.refs?.board;
   if (!board) return;
@@ -1943,7 +2204,10 @@ const renderBoard = () => {
     addCard.append(makeIcon('plus'));
     addCard.addEventListener('click', () => openComposer(list.id));
     // The + sits next to the column title; the count keeps the far right.
-    head.append(addCard, count);
+    // Only IDEAS can be ordered by priority, and its chip sits next to the count.
+    head.append(addCard);
+    if (list.id === ideasListId()) head.append(buildSortControl(list));
+    head.append(count);
 
     let closeDone = null;
     if (list.id === snapshot.doneListId) {

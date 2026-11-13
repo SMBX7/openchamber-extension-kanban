@@ -86,6 +86,10 @@
       html[data-style="neumorphism"] .menu-select-menu {
         box-shadow: 8px 8px 22px rgba(0, 0, 0, .38), -4px -4px 14px rgba(255, 255, 255, .035);
       }
+      html[data-style="neumorphism"] .sort-pop {
+        box-shadow: 8px 8px 22px rgba(0, 0, 0, .38), -4px -4px 14px rgba(255, 255, 255, .035);
+      }
+      html[data-style="neumorphism"] .sort-step { box-shadow: var(--relief-inset); }
 
       /* Brutalismo: gris claro, esquinas rectas, sombras sólidas */
       html[data-style="brutalism"] {
@@ -156,9 +160,16 @@
       }
       html[data-style="brutalism"] .mode-card::before { border-radius: 0; }
       html[data-style="brutalism"] .menu-select-menu,
-      html[data-style="brutalism"] .undo-bar {
+      html[data-style="brutalism"] .undo-bar,
+      html[data-style="brutalism"] .sort-pop {
         border: 2px solid var(--brutal-line);
         box-shadow: 4px 4px 0 var(--brutal-line);
+      }
+      html[data-style="brutalism"] .col-sort {
+        border: 2px solid var(--brutal-line);
+        background: var(--oc-elevated);
+        color: var(--oc-fg);
+        opacity: 1;
       }
 
 
@@ -269,6 +280,15 @@
         -webkit-backdrop-filter: blur(18px) saturate(150%);
         backdrop-filter: blur(18px) saturate(150%);
       }
+      html[data-style="glass"] .sort-pop {
+        background:
+          linear-gradient(150deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)),
+          color-mix(in srgb, var(--oc-elevated) 78%, transparent);
+        border-color: rgba(255, 255, 255, .18);
+        -webkit-backdrop-filter: blur(18px) saturate(150%);
+        backdrop-filter: blur(18px) saturate(150%);
+      }
+      html[data-style="glass"] .col-sort { border-radius: 10px; }
 
 
       html[data-style="glass"] .add-card,
@@ -731,6 +751,19 @@
       }
       .column:hover .col-add, .col-add:focus-visible, .column.composing .col-add { opacity: 1; }
       .col-add:hover { background: var(--oc-hover); color: var(--oc-fg); }
+      /* Ordenar: only IDEAS. A small chip next to the title; the rail keeps
+         the icon alone so the header never crowds. */
+      .col-sort {
+        display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+        flex: none; height: 21px; padding: 0 6px; line-height: 0;
+        border: 0; border-radius: 7px; background: transparent; color: var(--oc-muted);
+        font-size: 9.5px; letter-spacing: .04em; white-space: nowrap; opacity: .62;
+        transition: opacity .12s ease, background-color .12s ease, color .12s ease;
+      }
+      .col-sort .icon { width: 12px; height: 12px; }
+      .col-sort:hover, .col-sort:focus-visible, .col-sort.open {
+        opacity: 1; color: var(--oc-fg); background: var(--oc-hover);
+      }
 
       .cards {
         flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
@@ -848,6 +881,47 @@
         background: color-mix(in srgb, var(--oc-warning) 18%, transparent);
       }
       .done-close .icon { width: 11px; height: 11px; }
+
+      /* ---------- ordenar IDEAS ---------- */
+      .sort-pop {
+        position: fixed; z-index: 85; display: flex; flex-direction: column; gap: 8px;
+        padding: 10px 11px 11px; border-radius: 12px;
+        background: var(--oc-elevated); border: 1px solid var(--oc-border);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, .34);
+        color: var(--oc-fg); font-size: 11.5px; line-height: 1.45;
+        animation: sort-pop-in .14s ease-out;
+      }
+      @keyframes sort-pop-in {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: none; }
+      }
+      .sort-pop-head { display: flex; align-items: center; gap: 6px; }
+      .sort-pop-title { flex: 1 1 auto; font-size: 11.5px; font-weight: 600; }
+      .sort-pop-close {
+        flex: none; width: 20px; height: 20px; padding: 0; line-height: 0;
+        border: 0; border-radius: 6px; background: transparent; color: var(--oc-muted);
+        display: grid; place-items: center;
+      }
+      .sort-pop-close:hover { background: var(--oc-hover); color: var(--oc-fg); }
+      .sort-pop-close .icon { width: 11px; height: 11px; }
+      .sort-pop-note { margin: 0; color: var(--oc-muted); font-size: 10.5px; }
+      .sort-criteria {
+        margin: 0; padding: 0; list-style: none;
+        display: flex; flex-direction: column; gap: 5px;
+      }
+      .sort-criterion { display: flex; align-items: flex-start; gap: 7px; }
+      .sort-step {
+        flex: none; width: 16px; height: 16px; border-radius: 5px;
+        display: grid; place-items: center; font-size: 9.5px; font-weight: 700;
+        color: var(--mint-text, var(--oc-success));
+        background: color-mix(in srgb, var(--mint) 16%, transparent);
+      }
+      .sort-criterion-text { min-width: 0; display: flex; flex-direction: column; }
+      .sort-criterion-label { font-size: 11px; color: var(--oc-fg); }
+      .sort-criterion-hint { font-size: 9.5px; color: var(--oc-muted); }
+      .sort-pop-foot { display: flex; flex-direction: column; gap: 5px; }
+      .sort-run { width: 100%; padding: 6px 10px; }
+      .sort-pop-status { font-size: 9.5px; color: var(--oc-muted); }
 
       .column.composing .add-card { display: none; }
       .composer { display: none; padding: 2px 2px 0; }
@@ -1002,6 +1076,8 @@
       .panel-board .col-head { gap: 5px; padding: 0 3px 7px; }
       .panel-board .col-dot { width: 6px; height: 6px; }
       .panel-board .col-name { font-size: 10px; letter-spacing: .06em; }
+      .panel-board .col-sort { width: 21px; padding: 0; }
+      .panel-board .col-sort-label { display: none; }
       .panel-board .col-count { font-size: 9.5px; }
       .panel-board .cards { gap: 6px; padding: 3px 5px 8px; border-radius: 9px; }
       .panel-board .card { padding: 7px 8px; }
