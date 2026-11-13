@@ -1161,6 +1161,39 @@ var readLinks = () => {
     return empty();
   }
 };
+var withLock2 = (work) => {
+  (0, import_node_fs3.mkdirSync)(DIR, { recursive: true, mode: 448 });
+  const lock = `${FILE}.lock`;
+  const deadline = Date.now() + 2500;
+  let handle = null;
+  while (handle === null) {
+    try {
+      handle = (0, import_node_fs3.openSync)(lock, "wx");
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      try {
+        if (Date.now() - (0, import_node_fs3.statSync)(lock).mtimeMs > 5e3) {
+          (0, import_node_fs3.unlinkSync)(lock);
+          continue;
+        }
+      } catch {
+      }
+      if (Date.now() > deadline) throw new Error("No se pudo bloquear el archivo de enlaces.");
+    }
+  }
+  try {
+    return work();
+  } finally {
+    try {
+      (0, import_node_fs3.closeSync)(handle);
+    } catch {
+    }
+    try {
+      (0, import_node_fs3.unlinkSync)(lock);
+    } catch {
+    }
+  }
+};
 var writeLinks = (data) => {
   (0, import_node_fs3.mkdirSync)(DIR, { recursive: true, mode: 448 });
   const temp = (0, import_node_path3.join)(DIR, `.links-${process.pid}.tmp`);
@@ -1176,33 +1209,39 @@ var setLink = (cardId, sessionId, meta = {}) => {
   const id = String(cardId || "");
   const session = String(sessionId || "").trim();
   if (!id || !session) throw new Error("La tarjeta y la sesi\xF3n son obligatorias.");
-  const data = readLinks();
-  data.links[id] = {
-    sessionId: session,
-    boardId: String(meta.boardId || ""),
-    title: String(meta.title || "").slice(0, 200),
-    sessionTitle: String(meta.sessionTitle || meta.title || session).slice(0, 120),
-    linkedAt: (/* @__PURE__ */ new Date()).toISOString()
-  };
-  writeLinks(data);
-  return data.links[id];
+  return withLock2(() => {
+    const data = readLinks();
+    data.links[id] = {
+      sessionId: session,
+      boardId: String(meta.boardId || ""),
+      title: String(meta.title || "").slice(0, 200),
+      sessionTitle: String(meta.sessionTitle || meta.title || session).slice(0, 120),
+      linkedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    writeLinks(data);
+    return data.links[id];
+  });
 };
 var clearClosePending = (cardId) => {
   const id = String(cardId || "");
-  const data = readLinks();
-  if (!data.links[id]?.closePending) return false;
-  delete data.links[id].closePending;
-  delete data.links[id].closePendingAt;
-  writeLinks(data);
-  return true;
+  return withLock2(() => {
+    const data = readLinks();
+    if (!data.links[id]?.closePending) return false;
+    delete data.links[id].closePending;
+    delete data.links[id].closePendingAt;
+    writeLinks(data);
+    return true;
+  });
 };
 var removeLink = (cardId) => {
   const id = String(cardId || "");
-  const data = readLinks();
-  if (!data.links[id]) return false;
-  delete data.links[id];
-  writeLinks(data);
-  return true;
+  return withLock2(() => {
+    const data = readLinks();
+    if (!data.links[id]) return false;
+    delete data.links[id];
+    writeLinks(data);
+    return true;
+  });
 };
 
 // src/mcp/main.js

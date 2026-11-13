@@ -368,6 +368,39 @@ var readLinks = () => {
     return empty();
   }
 };
+var withLock = (work) => {
+  (0, import_node_fs2.mkdirSync)(DIR, { recursive: true, mode: 448 });
+  const lock = `${FILE}.lock`;
+  const deadline = Date.now() + 2500;
+  let handle = null;
+  while (handle === null) {
+    try {
+      handle = (0, import_node_fs2.openSync)(lock, "wx");
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      try {
+        if (Date.now() - (0, import_node_fs2.statSync)(lock).mtimeMs > 5e3) {
+          (0, import_node_fs2.unlinkSync)(lock);
+          continue;
+        }
+      } catch {
+      }
+      if (Date.now() > deadline) throw new Error("No se pudo bloquear el archivo de enlaces.");
+    }
+  }
+  try {
+    return work();
+  } finally {
+    try {
+      (0, import_node_fs2.closeSync)(handle);
+    } catch {
+    }
+    try {
+      (0, import_node_fs2.unlinkSync)(lock);
+    } catch {
+    }
+  }
+};
 var writeLinks = (data) => {
   (0, import_node_fs2.mkdirSync)(DIR, { recursive: true, mode: 448 });
   const temp = (0, import_node_path2.join)(DIR, `.links-${process.pid}.tmp`);
@@ -384,33 +417,43 @@ var setLink = (cardId, sessionId, meta = {}) => {
   const id = String(cardId || "");
   const session = String(sessionId || "").trim();
   if (!id || !session) throw new Error("La tarjeta y la sesi\xF3n son obligatorias.");
-  const data = readLinks();
-  data.links[id] = {
-    sessionId: session,
-    boardId: String(meta.boardId || ""),
-    title: String(meta.title || "").slice(0, 200),
-    sessionTitle: String(meta.sessionTitle || meta.title || session).slice(0, 120),
-    linkedAt: (/* @__PURE__ */ new Date()).toISOString()
-  };
-  writeLinks(data);
-  return data.links[id];
+  return withLock(() => {
+    const data = readLinks();
+    data.links[id] = {
+      sessionId: session,
+      boardId: String(meta.boardId || ""),
+      title: String(meta.title || "").slice(0, 200),
+      sessionTitle: String(meta.sessionTitle || meta.title || session).slice(0, 120),
+      linkedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    writeLinks(data);
+    return data.links[id];
+  });
 };
 var clearClosePending = (cardId) => {
   const id = String(cardId || "");
-  const data = readLinks();
-  if (!data.links[id]?.closePending) return false;
-  delete data.links[id].closePending;
-  delete data.links[id].closePendingAt;
-  writeLinks(data);
-  return true;
+  return withLock(() => {
+    const data = readLinks();
+    if (!data.links[id]?.closePending) return false;
+    delete data.links[id].closePending;
+    delete data.links[id].closePendingAt;
+    writeLinks(data);
+    return true;
+  });
+};
+var linksForSession = (sessionId) => {
+  const session = String(sessionId || "");
+  return Object.entries(readLinks().links).filter(([, link]) => link.sessionId === session);
 };
 var removeLink = (cardId) => {
   const id = String(cardId || "");
-  const data = readLinks();
-  if (!data.links[id]) return false;
-  delete data.links[id];
-  writeLinks(data);
-  return true;
+  return withLock(() => {
+    const data = readLinks();
+    if (!data.links[id]) return false;
+    delete data.links[id];
+    writeLinks(data);
+    return true;
+  });
 };
 var listLinks = () => readLinks().links;
 
@@ -1243,7 +1286,7 @@ var readStore = (projectKey = "") => {
     return emptyStore();
   }
 };
-var withLock = async (projectKey, work) => {
+var withLock2 = async (projectKey, work) => {
   const lock = lockPath(projectKey);
   const deadline = Date.now() + 2500;
   let handle = null;
@@ -1279,7 +1322,7 @@ var withLock = async (projectKey, work) => {
     }
   }
 };
-var mutate = (projectKey, work) => withLock(projectKey, () => {
+var mutate = (projectKey, work) => withLock2(projectKey, () => {
   const store = readStore(projectKey);
   const result = work(store);
   writeStore(store, localBoardPath(projectKey));
@@ -2243,19 +2286,19 @@ var routes = {
     const backlogCards = withoutPendingCards(backlog);
     const total = snapshot.lists.reduce((sum, list) => sum + withoutPendingCards(list).length, 0);
     const completed = doneCards.length;
-    const currentCard = workCards[0] || null;
-    let current = null;
-    if (currentCard) {
-      const state = await sessionStateFor(currentCard.id);
-      const link = getLink(currentCard.id);
-      current = {
-        id: currentCard.id,
-        name: currentCard.name,
+    const working = [];
+    for (const card of workCards) {
+      const state = await sessionStateFor(card.id);
+      const link = getLink(card.id);
+      working.push({
+        id: card.id,
+        name: card.name,
         state: state.state,
         tone: state.tone,
         sessionId: link?.sessionId || ""
-      };
+      });
     }
+    const current = working[0] || null;
     return {
       connected: true,
       board: { id: snapshot.board.id, name: snapshot.board.name },
@@ -2269,6 +2312,7 @@ var routes = {
         autoSession: project.autoSession === true
       } : null,
       current,
+      working,
       ideas: backlogCards.slice(0, 50).map((card) => ({ id: card.id, name: card.name })),
       backlogId: backlog?.id || "",
       backlogName: backlog?.name || ""
@@ -2310,6 +2354,37 @@ var routes = {
     if (!cardId) throw new PlankaError("Falta la tarjeta.", { kind: "validation" });
     removeLink(cardId);
     return { ok: true };
+  },
+  // The panel/status frames report the lifecycle of their session. The cards
+  // linked to it follow the work: EN PROGRESO while it runs, HECHO when it
+  // finishes. This is independent of the manual/auto session setting.
+  "POST /session/lifecycle": async (body) => {
+    requireConnected();
+    const sessionId = String(body.sessionId || "");
+    const phase = String(body.phase || "");
+    if (!sessionId || !phase) return { ok: false, moved: 0 };
+    const links = linksForSession(sessionId);
+    if (!links.length) return { ok: true, moved: 0 };
+    const config = readConfig();
+    const boardId = await boardIdOf(config);
+    const snapshot = await getSnapshot({ boardId, fresh: true });
+    const workList = workListFor(snapshot);
+    if (!workList) return { ok: true, moved: 0 };
+    let moved = 0;
+    for (const [cardId] of links) {
+      try {
+        if (phase === "completed") {
+          await client().completeCard(cardId, boardId);
+          moved += 1;
+        } else if (phase === "started") {
+          await client().moveCard(cardId, workList.id, void 0, boardId);
+          moved += 1;
+        }
+      } catch {
+      }
+    }
+    if (moved) invalidate();
+    return { ok: true, moved };
   },
   "GET /snapshot": async (_body, url) => {
     const boardId = url.searchParams.get("boardId") || "";

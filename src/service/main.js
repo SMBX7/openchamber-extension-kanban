@@ -8,7 +8,7 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { createServiceHost, SESSION_EVENTS_PATH, readSessionEventRequest } from '@openchamber/sdk';
 import { ROOT, clearConfig, isConnected, readConfig, saveConfig } from '../shared/config.js';
-import { clearClosePending, getLink, listLinks, removeLink, setLink } from '../shared/links.js';
+import { clearClosePending, getLink, linksForSession, listLinks, removeLink, setLink } from '../shared/links.js';
 import { getBoardProject, setBoardProject } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
 import { LOCAL_BOARD_ID, LocalClient, exportBoard, importBoard } from '../shared/local.js';
@@ -646,19 +646,21 @@ const routes = {
     const backlogCards = withoutPendingCards(backlog);
     const total = snapshot.lists.reduce((sum, list) => sum + withoutPendingCards(list).length, 0);
     const completed = doneCards.length;
-    const currentCard = workCards[0] || null;
-    let current = null;
-    if (currentCard) {
-      const state = await sessionStateFor(currentCard.id);
-      const link = getLink(currentCard.id);
-      current = {
-        id: currentCard.id,
-        name: currentCard.name,
+    // Every card in the work column, not just the first: the Work Status must
+    // match the board column.
+    const working = [];
+    for (const card of workCards) {
+      const state = await sessionStateFor(card.id);
+      const link = getLink(card.id);
+      working.push({
+        id: card.id,
+        name: card.name,
         state: state.state,
         tone: state.tone,
         sessionId: link?.sessionId || '',
-      };
+      });
     }
+    const current = working[0] || null;
     return {
       connected: true,
       board: { id: snapshot.board.id, name: snapshot.board.name },
@@ -674,6 +676,7 @@ const routes = {
           }
         : null,
       current,
+      working,
       ideas: backlogCards.slice(0, 50).map((card) => ({ id: card.id, name: card.name })),
       backlogId: backlog?.id || '',
       backlogName: backlog?.name || '',
@@ -720,6 +723,39 @@ const routes = {
     if (!cardId) throw new PlankaError('Falta la tarjeta.', { kind: 'validation' });
     removeLink(cardId);
     return { ok: true };
+  },
+
+  // The panel/status frames report the lifecycle of their session. The cards
+  // linked to it follow the work: EN PROGRESO while it runs, HECHO when it
+  // finishes. This is independent of the manual/auto session setting.
+  'POST /session/lifecycle': async (body) => {
+    requireConnected();
+    const sessionId = String(body.sessionId || '');
+    const phase = String(body.phase || '');
+    if (!sessionId || !phase) return { ok: false, moved: 0 };
+    const links = linksForSession(sessionId);
+    if (!links.length) return { ok: true, moved: 0 };
+    const config = readConfig();
+    const boardId = await boardIdOf(config);
+    const snapshot = await getSnapshot({ boardId, fresh: true });
+    const workList = workListFor(snapshot);
+    if (!workList) return { ok: true, moved: 0 };
+    let moved = 0;
+    for (const [cardId] of links) {
+      try {
+        if (phase === 'completed') {
+          await client().completeCard(cardId, boardId);
+          moved += 1;
+        } else if (phase === 'started') {
+          await client().moveCard(cardId, workList.id, undefined, boardId);
+          moved += 1;
+        }
+      } catch {
+        // A card deleted meanwhile must not stop the other linked cards.
+      }
+    }
+    if (moved) invalidate();
+    return { ok: true, moved };
   },
 
   'GET /snapshot': async (_body, url) => {

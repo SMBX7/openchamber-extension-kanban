@@ -397,6 +397,22 @@ host.onDirectory((directory) => {
   void refresh(true);
 });
 
+// The linked cards follow the session: EN PROGRESO while it works, HECHO when
+// it finishes. The service owns the move; both frames may report it safely.
+// The first event after boot is the session's current state, so an idle boot
+// must not complete the cards: act on `completed` only after seeing `started`.
+const lifecycleSeen = new Set();
+host.onSessionLifecycle((event) => {
+  if (!event?.sessionId || !event.phase) return;
+  if (event.phase === 'completed' && !lifecycleSeen.has(event.sessionId)) return;
+  if (event.phase === 'completed' || event.phase === 'failure') lifecycleSeen.delete(event.sessionId);
+  else lifecycleSeen.add(event.sessionId);
+  void api('POST', '/session/lifecycle', {
+    sessionId: event.sessionId,
+    phase: event.phase,
+  }).catch(() => {});
+});
+
 const configWithRetry = async () => {
   let lastError;
   for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -1869,7 +1885,7 @@ const renderBoard = () => {
     });
     const visible = list.cards.filter((card) => !state.hiddenCards.has(card.id) && matchesFilters(card));
     const count = el('span', 'col-count', String(visible.length));
-    head.append(dot, name, count);
+    head.append(dot, name);
 
     const cardsEl = el('div', 'cards');
     if (!visible.length) {
@@ -1926,6 +1942,8 @@ const renderBoard = () => {
     addCard.setAttribute('aria-label', `Crear tarjeta en ${list.name}`);
     addCard.append(makeIcon('plus'));
     addCard.addEventListener('click', () => openComposer(list.id));
+    // The + sits next to the column title; the count keeps the far right.
+    head.append(addCard, count);
 
     let closeDone = null;
     if (list.id === snapshot.doneListId) {
@@ -1943,7 +1961,7 @@ const renderBoard = () => {
       }
     }
 
-    column.append(head, ...(closeDone ? [closeDone] : []), cardsEl, addCard, composer);
+    column.append(head, ...(closeDone ? [closeDone] : []), cardsEl, composer);
     attachDropTarget(column, cardsEl, list.id);
     board.append(column);
 
@@ -2111,44 +2129,13 @@ const buildSheet = (card) => {
   sessionSection.append(el('span', 'section-label', 'Sesión'));
   const sessionRow = el('div', 'sheet-session');
   const sessionSelect = el('select', 'session-select');
-  sessionSelect.setAttribute('aria-label', 'Sesión enlazada a la tarjeta');
+  sessionSelect.setAttribute('aria-label', 'Sesión asignada a la tarjeta');
   const sessionRemove = el('button', 'ghost-btn', 'Quitar');
   sessionRemove.type = 'button';
   sessionRemove.style.display = 'none';
-  const sessionStart = el('button', 'btn-mint session-start', 'Crear sesión');
-  sessionStart.type = 'button';
-  sessionStart.style.display = 'none';
-  const sessionOpen = el('button', 'btn-mint session-open', 'Abrir sesión');
-  sessionOpen.type = 'button';
-  sessionOpen.style.display = 'none';
   const sessionNote = el('div', 'session-note', 'Cargando sesiones…');
   sessionRow.append(sessionSelect, sessionRemove);
-  sessionSection.append(sessionRow, sessionStart, sessionOpen, sessionNote);
-
-  const checklistSection = el('div', 'checklist');
-  const checklistHead = el('div', 'checklist-head');
-  checklistHead.append(el('span', 'section-label', 'Checklist'));
-  const progress = el('div', 'progress');
-  const progressFill = el('i');
-  progress.append(progressFill);
-  const countLabel = el('span', 'count', '');
-  checklistHead.append(progress, countLabel);
-  const checklistHint = el(
-    'p',
-    'sheet-hint',
-    'Los pasos para terminar esta tarjeta. Marca cada uno cuando lo tengas hecho.',
-  );
-  const checklistBody = el('div');
-  checklistBody.style.display = 'flex';
-  checklistBody.style.flexDirection = 'column';
-  checklistBody.style.gap = '10px';
-  const checklistAdd = el('div', 'task-add');
-  const checklistName = el('input');
-  checklistName.placeholder = 'Nueva checklist';
-  const checklistButton = el('button', '', 'Añadir');
-  checklistButton.type = 'button';
-  checklistAdd.append(checklistName, checklistButton);
-  checklistSection.append(checklistHead, checklistHint, checklistBody, checklistAdd);
+  sessionSection.append(sessionRow, sessionNote);
 
   const descriptionSection = el('div');
   descriptionSection.append(el('span', 'section-label', 'Detalles'));
@@ -2184,7 +2171,7 @@ const buildSheet = (card) => {
   });
   deleteSection.append(remove);
 
-  scroll.append(sessionSection, checklistSection, descriptionSection, deleteSection);
+  scroll.append(sessionSection, descriptionSection, deleteSection);
 
   const foot = el('div', 'sheet-foot');
   const saveState = el('span', 'save-state', '');
@@ -2202,19 +2189,11 @@ const buildSheet = (card) => {
     sheet,
     title,
     growTitle,
-    checklistBody,
-    progressFill,
-    countLabel,
-    checklistName,
-    description,
-    saveState,
     sessionSelect,
     sessionRemove,
-    sessionStart,
-    sessionOpen,
     sessionNote,
-    link: null,
-    sessions: [],
+    description,
+    saveState,
     pending: new Set(),
   };
   state.sheet = session;
@@ -2241,95 +2220,6 @@ const buildSheet = (card) => {
     setSaveState('Sin guardar');
   });
 
-  const addTask = async (taskListId, input) => {
-    const name = input.value.trim();
-    if (!name) return;
-    try {
-      await api('POST', '/task', { taskListId, name });
-      input.value = '';
-      await rereadSheet();
-    } catch (error) {
-      toast('error', error.message);
-    }
-  };
-
-  const checkTask = async (task) => {
-    try {
-      await api('PATCH', '/task', { id: task.id, isCompleted: !task.isCompleted });
-      await rereadSheet();
-    } catch (error) {
-      toast('error', error.message);
-    }
-  };
-
-  const addChecklist = async () => {
-    const name = checklistName.value.trim() || 'Checklist';
-    try {
-      await api('POST', '/checklist', { cardId: session.card.id, name });
-      checklistName.value = '';
-      await rereadSheet();
-    } catch (error) {
-      toast('error', error.message);
-    }
-  };
-
-  checklistButton.addEventListener('click', () => void addChecklist());
-  checklistName.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      void addChecklist();
-    }
-  });
-
-  session.renderChecklist = () => {
-    const taskLists = session.card.taskLists || [];
-    const total = taskLists.reduce((sum, taskList) => sum + taskList.tasks.length, 0);
-    const done = taskLists.reduce(
-      (sum, taskList) => sum + taskList.tasks.filter((task) => task.isCompleted).length,
-      0,
-    );
-    session.progressFill.style.width = `${total ? Math.round((done / total) * 100) : 0}%`;
-    session.countLabel.textContent = total ? `${done}/${total}` : '0/0';
-    checklistBody.replaceChildren();
-    if (!taskLists.length) {
-      checklistBody.append(el('div', 'compact-empty', 'Sin checklist.'));
-      return;
-    }
-    for (const taskList of taskLists) {
-      const block = el('div', 'task-list');
-      block.append(el('div', 'task-list-name', taskList.name));
-      for (const task of taskList.tasks) {
-        const row = el('div', `task-row${task.isCompleted ? ' done' : ''}`);
-        const check = el('button', 'task-check');
-        check.type = 'button';
-        check.setAttribute('role', 'checkbox');
-        check.setAttribute('aria-checked', task.isCompleted ? 'true' : 'false');
-        check.setAttribute('aria-label', task.name);
-        check.append(makeIcon('check'));
-        check.addEventListener('click', () => void checkTask(task));
-        row.append(check, el('span', 'task-name', task.name));
-        block.append(row);
-      }
-      const add = el('div', 'task-add');
-      const input = el('input');
-      input.placeholder = 'Añadir tarea';
-      input.setAttribute('aria-label', `Añadir tarea a ${taskList.name}`);
-      const button = el('button', '', 'Añadir');
-      button.type = 'button';
-      button.addEventListener('click', () => void addTask(taskList.id, input));
-      input.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          void addTask(taskList.id, input);
-        }
-      });
-      add.append(input, button);
-      block.append(add);
-      checklistBody.append(block);
-    }
-  };
-
-  session.renderChecklist();
 
   close.addEventListener('click', () => void closeSheet());
   backdrop.addEventListener('click', () => void closeSheet());
@@ -2337,7 +2227,7 @@ const buildSheet = (card) => {
   confirm.addEventListener('click', () => void confirmSheet());
 
   root.append(backdrop, sheet);
-  void loadSessionBlock(session);
+  void loadSessionSheet(session);
   requestAnimationFrame(() => {
     backdrop.classList.add('open');
     sheet.classList.add('open');
@@ -2349,116 +2239,78 @@ const buildSheet = (card) => {
   return session;
 };
 
-const loadSessionBlock = async (session) => {
-  if (!session) return;
+const loadSessionSheet = async (sheet) => {
+  if (!sheet) return;
   let link = null;
   try {
-    const answer = await api('GET', `/link?cardId=${encodeURIComponent(session.card.id)}`);
+    const answer = await api('GET', `/link?cardId=${encodeURIComponent(sheet.card.id)}`);
     link = answer.link || null;
   } catch {
     link = null;
   }
-  if (state.sheet !== session) return;
-  session.link = link;
+  if (state.sheet !== sheet) return;
 
-  const mapping = state.snapshot?.project || null;
-  const options = [{ id: '', title: 'Sin sesión', activity: '' }];
-  const add = (id, title, activity = '') => {
+  const options = [{ id: '', title: 'Sin sesión' }];
+  const add = (id, title) => {
     if (!id || options.some((option) => option.id === id)) return;
-    options.push({ id, title: title || id, activity });
+    options.push({ id, title: title || id });
   };
-
-  if (state.session?.id) add(state.session.id, state.session.title || 'Esta sesión', '');
+  const mapping = state.snapshot?.project || null;
   if (mapping?.projectId) {
     try {
       const snapshot = await host.listSessions(mapping.projectId);
-      const sessions = (snapshot?.sessions || [])
-        .filter((entry) => !entry.archivedAt)
+      const list = Array.isArray(snapshot?.sessions) ? snapshot.sessions : [];
+      for (const entry of list
+        .filter((item) => !item.archivedAt)
         .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))
-        .slice(0, 30);
-      for (const entry of sessions) add(entry.id, entry.title || entry.id, entry.activity || '');
+        .slice(0, 40)) {
+        add(entry.id, entry.title || entry.id);
+      }
     } catch {
       // The current session is still offered.
     }
   }
-  if (link?.sessionId) add(link.sessionId, link.sessionTitle || link.title || link.sessionId, '');
-  if (state.sheet !== session) return;
+  if (state.session?.id) add(state.session.id, state.session.title || 'Esta sesión');
+  if (link?.sessionId) add(link.sessionId, link.sessionTitle || link.sessionId);
+  if (state.sheet !== sheet) return;
 
-  session.sessions = options;
-  session.sessionSelect.replaceChildren();
-  for (const option of options) {
-    const label = option.title.length > 60 ? `${option.title.slice(0, 59)}…` : option.title;
-    const suffix = option.activity === 'running' ? ' · trabajando' : '';
-    session.sessionSelect.append(new Option(`${label}${suffix}`, option.id));
-  }
-  const isDone = session.card.listId === state.snapshot?.doneListId;
-  session.sessionSelect.value = link?.sessionId || '';
-  session.sessionRemove.style.display = link ? '' : 'none';
-  session.sessionStart.style.display = !link && mapping && !isDone ? '' : 'none';
-  session.sessionStart.textContent = mapping ? `Crear sesión en ${mapping.name}` : 'Crear sesión';
-  session.sessionOpen.style.display = link ? '' : 'none';
-  session.sessionStart.onclick = async () => {
-    try {
-      const answer = await api('POST', '/session/start', { cardId: session.card.id });
-      toast('success', `Sesión creada en ${answer.project || mapping?.name || 'el proyecto'}.`);
-      if (answer.sessionId) {
-        try {
-          await host.openSession(answer.sessionId);
-        } catch {
-          toast('error', 'La sesión se creó, pero no se pudo abrir.');
-        }
-      }
-    } catch (error) {
-      toast('error', error.message);
-    }
-  };
-  session.sessionOpen.onclick = async () => {
-    if (!link?.sessionId) return;
-    try {
-      await host.openSession(link.sessionId);
-      await closeSheet();
-    } catch {
-      toast('error', 'No se pudo abrir la sesión enlazada.');
-    }
-  };
-  session.sessionNote.textContent = link
-    ? 'Sesión enlazada. Al pasar la tarjeta a HECHO se cerrará esta sesión.'
-    : isDone
-      ? 'Tarjeta completada. Sin sesión enlazada.'
-      : mapping
-        ? 'Sin sesión enlazada. Si ya tienes una abierta para esta tarjeta, selecciónala aquí.'
-        : 'Sin proyecto asignado al tablero. Puedes enlazar la sesión actual.';
+  sheet.sessionSelect.replaceChildren();
+  for (const option of options) sheet.sessionSelect.append(new Option(option.title, option.id));
+  sheet.sessionSelect.value = link?.sessionId || '';
+  sheet.sessionRemove.style.display = link ? '' : 'none';
+  sheet.sessionNote.textContent = link
+    ? 'Sesión asignada. Mientras trabaja, la tarjeta va a EN PROGRESO; al terminar, a HECHO.'
+    : 'Sin sesión asignada. Elige una para vincularla a esta tarjeta.';
 
-  session.sessionSelect.onchange = async () => {
-    const value = session.sessionSelect.value;
+  sheet.sessionSelect.onchange = async () => {
+    const value = sheet.sessionSelect.value;
     try {
-      if (!value) {
-        await api('DELETE', '/link', { cardId: session.card.id });
-        toast('success', 'Sesión desvinculada.');
-      } else {
-        const chosen = session.sessions.find((option) => option.id === value);
-        const answer = await api('POST', '/link', {
-          cardId: session.card.id,
+      if (!value) await api('DELETE', '/link', { cardId: sheet.card.id });
+      else {
+        const chosen = options.find((option) => option.id === value);
+        await api('POST', '/link', {
+          cardId: sheet.card.id,
           sessionId: value,
           sessionTitle: chosen?.title || '',
         });
-        session.link = answer.link || null;
-        toast('success', 'Sesión vinculada a la tarjeta.');
       }
+      await loadSessionStates();
+      await refreshBoardOnly();
+      await loadSessionSheet(sheet);
     } catch (error) {
       toast('error', error.message);
     }
-    await loadSessionBlock(session);
   };
 
-  session.sessionRemove.onclick = async () => {
+  sheet.sessionRemove.onclick = async () => {
     try {
-      await api('DELETE', '/link', { cardId: session.card.id });
-      toast('success', 'Sesión desvinculada.');
+      await api('DELETE', '/link', { cardId: sheet.card.id });
+      await loadSessionStates();
+      await refreshBoardOnly();
+      await loadSessionSheet(sheet);
     } catch (error) {
       toast('error', error.message);
     }
-    await loadSessionBlock(session);
   };
 };
 
@@ -2577,7 +2429,6 @@ const applyServerCard = (server) => {
   if (!pending.has('description') && document.activeElement !== session.description) {
     session.description.value = server.description;
   }
-  session.renderChecklist();
 };
 
 /* ------------------------------------------------------------------ */
