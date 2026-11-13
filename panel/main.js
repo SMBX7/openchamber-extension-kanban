@@ -2427,7 +2427,7 @@ ${card?.description || ""}`);
       }
     });
     if (source === "local") {
-      const localNote = el2("p", "login-note-text", "Las tarjetas se guardan en board.local.json junto a la extensi\xF3n. Las sesiones del agente funcionan igual.");
+      const localNote = el2("p", "login-note-text", "Las tarjetas se guardan en un archivo local por proyecto, junto a la extensi\xF3n. Las sesiones del agente funcionan igual.");
       form.append(toggle, localNote, errorBox, useLocal);
     } else {
       form.append(toggle, emailField, passwordField, urlField, errorBox, note, actions);
@@ -3101,7 +3101,7 @@ ${card?.description || ""}`);
     connRow.append(connDot, el2("span", "settings-line-text", isLocal ? "Tablero local en este equipo" : config.connected ? `${config.email || "Planka"} en ${config.baseUrl || "Planka"}` : "Sin conexi\xF3n con Planka"));
     sourceBox.append(connRow);
     if (isLocal) {
-      sourceBox.append(el2("p", "settings-note", "Guardado en board.local.json, junto a la extensi\xF3n. Solo se ve en este equipo."));
+      sourceBox.append(el2("p", "settings-note", "Guardado en un archivo local por proyecto, junto a la extensi\xF3n. Solo se ve en este equipo."));
       const backup = el2("div", "settings-actions");
       const downloadButton = (format, label) => {
         const button2 = el2("button", "ghost-btn", label);
