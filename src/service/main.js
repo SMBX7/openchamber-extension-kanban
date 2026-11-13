@@ -197,15 +197,15 @@ const short = (value, max = 60) => {
 
 const sessionStateFor = async (cardId) => {
   const link = getLink(cardId);
-  if (!link) return { state: 'sin sesión', tone: 'warning' };
-  if (!serviceHost) return { state: 'sin control', tone: 'muted' };
+  if (!link) return { state: 'sin sesión', tone: 'warning', sessionId: '' };
+  if (!serviceHost) return { state: 'sin control', tone: 'muted', sessionId: link.sessionId };
   try {
     const status = await serviceHost.sessions.status(link.sessionId);
-    if (status.status === 'busy') return { state: 'trabajando', tone: 'success' };
-    if (status.status === 'waiting') return { state: 'esperando', tone: 'warning' };
-    return { state: 'parada', tone: 'muted' };
+    if (status.status === 'busy') return { state: 'trabajando', tone: 'success', sessionId: link.sessionId };
+    if (status.status === 'waiting') return { state: 'esperando', tone: 'warning', sessionId: link.sessionId };
+    return { state: 'parada', tone: 'muted', sessionId: link.sessionId };
   } catch {
-    return { state: 'sesión cerrada', tone: 'muted' };
+    return { state: 'sesión cerrada', tone: 'muted', sessionId: link.sessionId };
   }
 };
 
@@ -976,8 +976,12 @@ const routes = {
     const doneList = snapshot.lists.find((list) => list.id === snapshot.doneListId);
     if (!doneList) return { count: 0 };
     let count = 0;
+    // Several cards can point at the same OpenChamber session; close it once.
+    const seen = new Set();
     for (const card of doneList.cards) {
-      if (!getLink(card.id)) continue;
+      const link = getLink(card.id);
+      if (!link || seen.has(link.sessionId)) continue;
+      seen.add(link.sessionId);
       if (await triggerClose(card.id)) count += 1;
     }
     return { count };

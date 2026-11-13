@@ -3546,7 +3546,13 @@ ${card.description}`.toLowerCase();
       head.append(addCard, count);
       let closeDone = null;
       if (list.id === snapshot.doneListId) {
-        const linked = list.cards.filter((card) => state.sessions?.[card.id]).length;
+        const sessions = /* @__PURE__ */ new Set();
+        for (const card of list.cards) {
+          const session = state.sessions?.[card.id];
+          if (!session) continue;
+          sessions.add(session.sessionId || `card:${card.id}`);
+        }
+        const linked = sessions.size;
         if (linked) {
           closeDone = el2("button", "ghost-btn done-close");
           closeDone.type = "button";

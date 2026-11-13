@@ -1947,7 +1947,14 @@ const renderBoard = () => {
 
     let closeDone = null;
     if (list.id === snapshot.doneListId) {
-      const linked = list.cards.filter((card) => state.sessions?.[card.id]).length;
+      // Count distinct sessions, not cards: three cards can share one session.
+      const sessions = new Set();
+      for (const card of list.cards) {
+        const session = state.sessions?.[card.id];
+        if (!session) continue;
+        sessions.add(session.sessionId || `card:${card.id}`);
+      }
+      const linked = sessions.size;
       if (linked) {
         closeDone = el('button', 'ghost-btn done-close');
         closeDone.type = 'button';
