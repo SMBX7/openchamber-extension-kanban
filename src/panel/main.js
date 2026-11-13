@@ -7,7 +7,6 @@ const root = document.querySelector('#root');
 
 
 const COLUMN_TOKENS = ['var(--oc-info)', 'var(--oc-warning)', 'var(--oc-success)'];
-const SAVE_DEBOUNCE_MS = 650;
 const POLL_MS = 2500;
 const TITLE_REQUIRED = 'El título no puede quedar vacío.';
 
@@ -499,7 +498,7 @@ const loadSnapshot = async () => {
 const showLogin = (message = '') => {
   state.view = 'login';
   stopPolling();
-  closeSheet(true);
+  closeSheet();
   const config = state.config || {};
   const wrapper = el('div', 'center');
   const card = el('div', 'login-card');
@@ -763,7 +762,7 @@ const changeBoardProject = async (projectId) => {
 const showBoard = () => {
   state.view = 'board';
   state.bannerText = '';
-  closeSheet(true);
+  closeSheet();
   if (state.surface === 'page') buildPage();
   else buildPanel();
   renderAll();
@@ -1464,7 +1463,7 @@ const openSettings = () => {
     return row;
   };
   sesionesBox.append(
-    fact('IDEAS', 'el + de la columna crea una tarjeta, el lápiz la edita y la papelera la borra con dos toques. El tic la pasa a EN PROGRESO.'),
+    fact('IDEAS', 'el + de la columna crea una tarjeta, el lápiz edita solo el título y el doble clic abre la tarjeta. La papelera la borra con dos toques y el tic la pasa a EN PROGRESO.'),
     fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el +; en automático te pregunta antes de abrirla.'),
     fact('HECHO', 'la tarjeta queda terminada. Las sesiones se cierran cuando pulses el botón de la columna HECHO.'),
   );
@@ -1576,8 +1575,10 @@ const startCardTitleEdit = (card, node, titleNode) => {
   }
   const original = card.name || '';
   const wasDraggable = node.draggable;
-  const input = el('input', 'card-title-input');
-  input.type = 'text';
+  const cards = node.closest('.cards');
+  const scrollTop = cards ? cards.scrollTop : 0;
+  const input = el('textarea', 'card-title-input');
+  input.rows = 1;
   input.value = original;
   input.maxLength = 1024;
   input.setAttribute('aria-label', 'Título de la tarjeta');
@@ -1587,9 +1588,17 @@ const startCardTitleEdit = (card, node, titleNode) => {
   node.classList.add('editing');
   titleNode.replaceChildren(input);
 
+  // Keep the size of the title being edited: a wrapped title is edited as a
+  // wrapped block, never squeezed into one line.
+  const grow = () => {
+    input.style.height = 'auto';
+    input.style.height = `${input.scrollHeight}px`;
+  };
+
   const showTitle = (text) => {
     titleNode.replaceChildren(document.createTextNode(text || 'Sin título'));
   };
+  const ownsTitle = () => titleNode.querySelector('.card-title-input') === input;
   const leave = () => {
     if (state.editingCard === card.id) state.editingCard = '';
     node.draggable = wasDraggable;
@@ -1599,7 +1608,7 @@ const startCardTitleEdit = (card, node, titleNode) => {
   let finished = false;
   let cancelled = false;
   const finish = async (save) => {
-    if (finished) return;
+    if (finished || !ownsTitle()) return;
     finished = true;
     const value = input.value.trim();
     if (!save || !value) {
@@ -1617,16 +1626,20 @@ const startCardTitleEdit = (card, node, titleNode) => {
     const previous = card.name || '';
     card.name = value;
     node.setAttribute('aria-label', `${value}. Abrir tarjeta`);
-    showTitle(value);
     leave();
+    showTitle(value);
     state.saving += 1;
     try {
       await api('PATCH', '/card', { id: card.id, name: value });
     } catch (error) {
-      card.name = previous;
-      node.setAttribute('aria-label', `${previous || 'Sin título'}. Abrir tarjeta`);
-      showTitle(previous);
       toast('error', error.message);
+      // If another editor took over while this save was in flight, leave its
+      // input alone instead of replacing it with the previous title.
+      if (!state.editingCard) {
+        card.name = previous;
+        node.setAttribute('aria-label', `${previous || 'Sin título'}. Abrir tarjeta`);
+        showTitle(previous);
+      }
     } finally {
       state.saving -= 1;
     }
@@ -1646,11 +1659,21 @@ const startCardTitleEdit = (card, node, titleNode) => {
     }
   });
   input.addEventListener('blur', () => void finish(!cancelled));
+  input.addEventListener('input', grow);
   input.addEventListener('click', (event) => event.stopPropagation());
   input.addEventListener('dblclick', (event) => event.stopPropagation());
 
-  input.focus();
-  input.select();
+  // Selecting the whole title makes the browser scroll the column to the end
+  // of the text. Keep the column where the user left it.
+  requestAnimationFrame(() => {
+    grow();
+    input.focus({ preventScroll: true });
+    input.select();
+    if (cards) cards.scrollTop = scrollTop;
+    requestAnimationFrame(() => {
+      if (cards) cards.scrollTop = scrollTop;
+    });
+  });
 };
 
 const buildCard = (card, listIndex) => {
@@ -1712,11 +1735,22 @@ const buildCard = (card, listIndex) => {
 
   const edit = el('button', 'card-edit');
   edit.type = 'button';
-  edit.title = 'Editar el título';
-  edit.setAttribute('aria-label', `Editar el título de ${card.name}`);
+  edit.title = 'Editar solo el título (doble clic en el título)';
+  edit.setAttribute('aria-label', `Editar solo el título de ${card.name}`);
   edit.append(makeIcon('edit'));
+  // The input blurs (and saves) on mousedown, before this click runs. Remember
+  // that the pencil was pressed while editing so the click closes instead of
+  // reopening a second editor on top of the first save.
+  let pencilEditing = false;
+  edit.addEventListener('pointerdown', () => {
+    pencilEditing = state.editingCard === card.id;
+  });
   edit.addEventListener('click', (event) => {
     event.stopPropagation();
+    if (pencilEditing) {
+      pencilEditing = false;
+      return;
+    }
     startCardTitleEdit(card, node, title);
   });
 
@@ -1752,21 +1786,32 @@ const buildCard = (card, listIndex) => {
     if (state.editingCard === card.id) return;
     openSheet(card.id);
   };
-  node.title = 'Abrir la tarjeta y su descripción';
-  node.addEventListener('click', open);
-  node.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    open();
-  });
+  const editTitle = () => {
+    if (state.editingCard === card.id) return;
+    startCardTitleEdit(card, node, title);
+  };
+  title.title = 'Doble clic para editar solo el título';
+  node.title = 'Doble clic en la tarjeta abre el panel; el lápiz edita el título';
+  node.setAttribute('aria-label', `${card.name}. Doble clic abre la tarjeta; el lápiz edita solo el título.`);
+  // A single click does nothing. Double-click on the title edits only the
+  // title; double-click anywhere else opens the card sheet.
   node.addEventListener('dblclick', (event) => {
+    if (event.target.closest('.card-actions')) return;
     event.preventDefault();
+    if (event.target.closest('.card-title')) {
+      editTitle();
+      return;
+    }
     open();
   });
   node.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       open();
+    }
+    if (event.key === 'F2') {
+      event.preventDefault();
+      editTitle();
     }
   });
   node.addEventListener('dragstart', (event) => {
@@ -2170,24 +2215,6 @@ const moveCard = async (cardId, listId, index) => {
   }
 };
 
-const completeCard = async (cardId, node) => {
-  const card = findCard(cardId)?.card;
-  if (node) node.classList.add('leaving');
-  try {
-    const result = await api('POST', '/card/complete', { id: cardId });
-    const hasSession = Boolean(state.sessions?.[cardId]);
-    const moved = result.already ? 'Ya estaba en HECHO.' : `«${card?.name || 'Tarjeta'}» movida a HECHO.`;
-    toast(
-      'success',
-      hasSession ? `${moved} La sesión sigue abierta hasta que la cierres en HECHO.` : moved,
-    );
-    await refresh(true);
-  } catch (error) {
-    toast('error', error.message);
-    await refresh(true);
-  }
-};
-
 const renderBoardOnly = () => {
   if (state.view === 'board') renderBoard();
 };
@@ -2204,16 +2231,20 @@ const buildSheet = (card) => {
   sheet.setAttribute('aria-label', `Tarjeta ${card.name}`);
 
   const head = el('div', 'sheet-head');
+  const titleWrap = el('div', 'sheet-title-wrap');
+  titleWrap.append(el('span', 'section-label', 'Título'));
   const title = el('input', 'sheet-title');
   title.type = 'text';
   title.value = card.name;
-  title.setAttribute('aria-label', 'Título');
+  title.placeholder = 'Título de la tarjeta';
+  title.setAttribute('aria-label', 'Título de la tarjeta');
+  titleWrap.append(title);
   const close = el('button', 'icon-btn');
   close.type = 'button';
   close.title = 'Cerrar';
   close.setAttribute('aria-label', 'Cerrar');
   close.append(makeIcon('close'));
-  head.append(title, close);
+  head.append(titleWrap, close);
 
   const scroll = el('div', 'sheet-scroll');
 
@@ -2246,7 +2277,7 @@ const buildSheet = (card) => {
   const checklistHint = el(
     'p',
     'sheet-hint',
-    'Los pasos para terminar la tarjeta: márcalos cuando los completes.',
+    'Los pasos para terminar esta tarjeta. Marca cada uno cuando lo tengas hecho.',
   );
   const checklistBody = el('div');
   checklistBody.style.display = 'flex';
@@ -2271,12 +2302,11 @@ const buildSheet = (card) => {
 
   const foot = el('div', 'sheet-foot');
   const saveState = el('span', 'save-state', '');
-  const doneLabel = (listId) => (listId === state.snapshot?.doneListId ? 'En HECHO' : 'Mover a HECHO');
-  const complete = el('button', 'btn-complete');
-  complete.type = 'button';
-  complete.append(makeIcon('check'), el('span', '', doneLabel(card.listId)));
-  complete.disabled = card.listId === state.snapshot?.doneListId;
-  foot.append(saveState, complete);
+  const cancel = el('button', 'ghost-btn sheet-cancel', 'Cancelar');
+  cancel.type = 'button';
+  const confirm = el('button', 'btn-mint sheet-confirm', 'Confirmar');
+  confirm.type = 'button';
+  foot.append(saveState, cancel, confirm);
 
   sheet.append(head, scroll, foot);
 
@@ -2285,14 +2315,12 @@ const buildSheet = (card) => {
     backdrop,
     sheet,
     title,
-    nameSaved: card.name,
     checklistBody,
     progressFill,
     countLabel,
     checklistName,
     description,
     saveState,
-    complete,
     sessionSelect,
     sessionRemove,
     sessionStart,
@@ -2301,35 +2329,28 @@ const buildSheet = (card) => {
     link: null,
     sessions: [],
     pending: new Set(),
-    timer: null,
   };
   state.sheet = session;
 
+  // The sheet is a draft until Confirmar: nothing is written while typing, so
+  // Cancelar can discard every change and close.
   title.addEventListener('input', () => {
-    if (!title.value.trim()) return; // an empty title is rejected on blur
-    session.card.name = title.value;
     session.pending.add('name');
-    scheduleSave();
+    setSaveState('Sin guardar');
   });
   title.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      title.blur();
+      void confirmSheet();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      void closeSheet();
     }
-  });
-  title.addEventListener('blur', () => {
-    if (title.value.trim()) return;
-    session.pending.delete('name');
-    session.card.name = session.nameSaved;
-    title.value = session.nameSaved;
-    setSaveState(TITLE_REQUIRED, 'error');
-    toast('error', TITLE_REQUIRED);
   });
 
   description.addEventListener('input', () => {
-    session.card.description = description.value;
     session.pending.add('description');
-    scheduleSave();
+    setSaveState('Sin guardar');
   });
 
   const addTask = async (taskListId, input) => {
@@ -2424,7 +2445,8 @@ const buildSheet = (card) => {
 
   close.addEventListener('click', () => void closeSheet());
   backdrop.addEventListener('click', () => void closeSheet());
-  complete.addEventListener('click', () => void completeFromSheet());
+  cancel.addEventListener('click', () => void closeSheet());
+  confirm.addEventListener('click', () => void confirmSheet());
 
   root.append(backdrop, sheet);
   void loadSessionBlock(session);
@@ -2505,7 +2527,7 @@ const loadSessionBlock = async (session) => {
     if (!link?.sessionId) return;
     try {
       await host.openSession(link.sessionId);
-      await closeSheet(true);
+      await closeSheet();
     } catch {
       toast('error', 'No se pudo abrir la sesión enlazada.');
     }
@@ -2569,34 +2591,16 @@ const removeSheetNodes = () => {
   session.sheet.remove();
 };
 
-const closeSheet = async (force = false) => {
+const closeSheet = async () => {
   const session = state.sheet;
   if (!session) {
     state.sheetId = '';
     return;
   }
-  if (session.timer) clearTimeout(session.timer);
-  if (!force && session.pending.size) {
-    try {
-      await saveSheet();
-    } catch {
-      // The visible error already told the user.
-    }
-  }
   removeSheetNodes();
   state.sheet = null;
   state.sheetId = '';
   renderBoardOnly();
-};
-
-const scheduleSave = () => {
-  const session = state.sheet;
-  if (!session) return;
-  if (session.timer) clearTimeout(session.timer);
-  session.timer = setTimeout(() => {
-    session.timer = null;
-    void saveSheet();
-  }, SAVE_DEBOUNCE_MS);
 };
 
 const setSaveState = (text, kind = '') => {
@@ -2608,47 +2612,49 @@ const setSaveState = (text, kind = '') => {
 
 const saveSheet = async () => {
   const session = state.sheet;
-  if (!session) return;
-  const fields = [...session.pending];
-  if (!fields.length) return;
-  session.pending.clear();
-  const card = session.card;
+  if (!session) return false;
+  const fields = session.pending;
+  const name = session.title.value.trim();
   // A title or description edit never carries a column: the sheet cannot move
   // the card, so an edit always keeps it in its list and position.
-  const payload = { id: card.id };
-  const name = fields.includes('name') ? session.title.value.trim() : '';
-  if (fields.includes('name') && !name) {
-    session.card.name = session.nameSaved;
-    session.title.value = session.nameSaved;
+  if (fields.has('name') && !name) {
     setSaveState(TITLE_REQUIRED, 'error');
     toast('error', TITLE_REQUIRED);
+    return false;
   }
-  if (name) payload.name = name;
-  if (fields.includes('description')) payload.description = session.description.value;
-  if (Object.keys(payload).length === 1) return;
+  const payload = { id: session.card.id };
+  if (fields.has('name')) payload.name = name;
+  if (fields.has('description')) payload.description = session.description.value;
+  if (Object.keys(payload).length === 1) return true;
 
   state.saving += 1;
   setSaveState('Guardando…');
   try {
     await api('PATCH', '/card', payload);
-    if (payload.name) session.nameSaved = payload.name;
-    const answer = await api('GET', `/card?id=${encodeURIComponent(card.id)}`);
-    applyServerCard(answer.card);
+    session.pending.clear();
+    try {
+      const answer = await api('GET', `/card?id=${encodeURIComponent(session.card.id)}`);
+      applyServerCard(answer.card);
+    } catch {
+      // The PATCH already saved: a failed reread must not block Confirmar.
+    }
     setSaveState('Guardado');
     await refreshBoardOnly();
+    return true;
   } catch (error) {
     setSaveState(error.message, 'error');
     toast('error', error.message);
-    try {
-      const answer = await api('GET', `/card?id=${encodeURIComponent(card.id)}`);
-      applyServerCard(answer.card);
-    } catch {
-      await closeSheet(true);
-    }
+    return false;
   } finally {
     state.saving -= 1;
-    if (state.sheet?.pending.size) scheduleSave();
   }
+};
+
+const confirmSheet = async () => {
+  if (!state.sheet) return;
+  const saved = await saveSheet();
+  if (!saved) return;
+  await closeSheet();
 };
 
 const rereadSheet = async (silent = false) => {
@@ -2664,7 +2670,7 @@ const rereadSheet = async (silent = false) => {
       setSaveState(error.message, 'error');
       toast('error', error.message);
     }
-    if (error.kind === 'not-found') await closeSheet(true);
+    if (error.kind === 'not-found') await closeSheet();
   }
 };
 
@@ -2672,7 +2678,6 @@ const applyServerCard = (server) => {
   const session = state.sheet;
   if (!session || server.id !== session.card.id) return;
   session.card = server;
-  session.nameSaved = server.name;
   mergeCard(server);
 
   const pending = session.pending;
@@ -2683,36 +2688,6 @@ const applyServerCard = (server) => {
     session.description.value = server.description;
   }
   session.renderChecklist();
-
-  const done = server.listId === state.snapshot?.doneListId;
-  session.complete.disabled = done;
-  session.complete.lastChild.textContent = done ? 'En HECHO' : 'Mover a HECHO';
-};
-
-const completeFromSheet = async () => {
-  const session = state.sheet;
-  if (!session) return;
-  const id = session.card.id;
-  const cardNode = state.refs?.board?.querySelector(`[data-card-id="${CSS.escape(id)}"]`);
-  if (cardNode) cardNode.classList.add('leaving');
-  session.sheet.classList.add('closing');
-  session.backdrop.classList.remove('open');
-  const name = session.card.name;
-  const backdrop = session.backdrop;
-  const sheetNode = session.sheet;
-  setTimeout(() => {
-    backdrop.remove();
-    sheetNode.remove();
-  }, 220);
-  state.sheet = null;
-  state.sheetId = '';
-  try {
-    const result = await api('POST', '/card/complete', { id });
-    toast('success', result.already ? 'Ya estaba en HECHO.' : `«${name}» movida a HECHO.`);
-  } catch (error) {
-    toast('error', error.message);
-  }
-  await refresh(true);
 };
 
 /* ------------------------------------------------------------------ */
