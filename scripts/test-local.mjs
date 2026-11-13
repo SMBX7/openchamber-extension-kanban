@@ -2,7 +2,7 @@
 // The extension sources are ESM without "type": "module", so esbuild bundles
 // the module to CJS before requiring it.
 import { build } from 'esbuild';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,7 +22,7 @@ await build({
 });
 
 const require = createRequire(import.meta.url);
-const { LocalClient } = require(bundle);
+const { LocalClient, exportBoard, localBoardPath } = require(bundle);
 
 // The default-column helper lives in its own module so the service and the
 // local client share it; bundle it the same way and exercise it here.
@@ -126,5 +126,82 @@ assert.equal(view.lists.flatMap((list) => list.cards).some((item) => item.id ===
 writeFileSync(process.env.KANBAN_LOCAL_PATH, '{ not json');
 assert.equal((await new LocalClient({}).readBoard()).counts.total, 0);
 
+// S8: one board file per OpenChamber project. KANBAN_LOCAL_PATH keeps working
+// as the base path, and each project gets its own file beside it.
+const projectA = '/home/ana/proyectos/tienda';
+const projectB = '/home/ana/proyectos/blog';
+const pathA = localBoardPath(projectA);
+const pathB = localBoardPath(projectB);
+assert.equal(localBoardPath(''), process.env.KANBAN_LOCAL_PATH, 'the override still names the base board');
+assert.ok(pathA.startsWith(dir), 'project boards stay beside the base path');
+assert.notEqual(pathA, pathB, 'two projects resolve to two files');
+assert.equal(localBoardPath(`${projectA}/`), pathA, 'the same project spelled with a trailing slash is one board');
+
+// The single board file of the current project migrates into its project file
+// with every list, card, label and checklist intact.
+const legacy = {
+  version: 1,
+  board: { id: 'local', name: 'Kanban local' },
+  lists: [
+    { id: 'list-1', name: 'IDEAS', position: 65536 },
+    { id: 'list-2', name: 'EN PROGRESO', position: 131072 },
+    { id: 'list-3', name: 'HECHO', position: 196608 },
+  ],
+  cards: [
+    {
+      id: 'card-legacy',
+      listId: 'list-1',
+      name: 'Vieja tarjeta',
+      description: 'Del tablero de antes',
+      position: 65536,
+      dueDate: '',
+      isDueCompleted: false,
+      createdAt: 1,
+    },
+  ],
+  labels: [{ id: 'label-1', name: 'Urgente', color: 'hsl(0 62% 58%)' }],
+  cardLabels: [{ id: 'cardlabel-1', cardId: 'card-legacy', labelId: 'label-1' }],
+  taskLists: [{ id: 'checklist-1', cardId: 'card-legacy', name: 'Pasos', position: 65536 }],
+  tasks: [
+    { id: 'task-1', taskListId: 'checklist-1', name: 'Masa', isCompleted: true, position: 65536 },
+    { id: 'task-2', taskListId: 'checklist-1', name: 'Horno', isCompleted: false, position: 131072 },
+  ],
+};
+writeFileSync(process.env.KANBAN_LOCAL_PATH, JSON.stringify(legacy));
+
+const migrated = await new LocalClient({ projectKey: projectA }).readBoard();
+assert.equal(migrated.counts.total, 1, 'the old board keeps its card');
+const migratedCard = migrated.lists[0].cards[0];
+assert.equal(migratedCard.name, 'Vieja tarjeta');
+assert.equal(migratedCard.description, 'Del tablero de antes');
+assert.deepEqual(migratedCard.checklist, { total: 2, done: 1 });
+assert.equal(migratedCard.labels.length, 1);
+assert.equal(existsSync(pathA), true, 'the card lives in the project file');
+assert.equal(existsSync(process.env.KANBAN_LOCAL_PATH), false, 'the old single file is moved, not copied');
+assert.equal(existsSync(`${process.env.KANBAN_LOCAL_PATH}.migrated`), true);
+
+// A different project starts empty and keeps its own cards.
+const clientB = new LocalClient({ projectKey: projectB });
+const otherBoard = await clientB.readBoard();
+assert.equal(otherBoard.counts.total, 0, 'a project that never had a board starts empty');
+assert.deepEqual(otherBoard.lists.map((list) => list.name), ['IDEAS', 'EN PROGRESO', 'HECHO']);
+await clientB.createCard(otherBoard.lists[0].id, 'Del blog');
+assert.equal((await clientB.readBoard()).counts.total, 1);
+assert.equal(
+  (await new LocalClient({ projectKey: projectA }).readBoard()).counts.total,
+  1,
+  'returning restores the old project',
+);
+
+// Exports read the board of the project they are asked about.
+assert.ok(exportBoard('json', projectA).includes('Vieja tarjeta'));
+assert.equal(exportBoard('json', projectB).includes('Vieja tarjeta'), false);
+
+// Without a project key the explicit path is written as before.
+const keyless = new LocalClient({});
+await keyless.createCard(migrated.lists[0].id, 'Sin proyecto');
+assert.equal(existsSync(process.env.KANBAN_LOCAL_PATH), true);
+assert.ok(exportBoard('json').includes('Sin proyecto'));
+
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 33 assertions ok');
+console.log('local mode: 53 assertions ok');
