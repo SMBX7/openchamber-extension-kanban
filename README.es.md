@@ -82,11 +82,10 @@ navegador. Si usas OpenChamber en remoto, el archivo aparece en ese equipo.
 ## El panel
 
 - **Crear**: el `+` al final de una columna. Escribes y pulsas `Enter`.
-- **Renombrar solo el título**: pasa el ratón y pulsa el lápiz (o doble clic en el
-  título, o `F2` con la tarjeta enfocada).
-- **Abrir la tarjeta**: doble clic en cualquier otra parte de la tarjeta (o `Enter`).
-  Ahí cambias título, descripción y checklist; **Confirmar** guarda y cierra,
-  **Cancelar** descarta.
+- **Editar la tarjeta**: pasa el ratón y pulsa el lápiz (o `Enter` con la tarjeta
+  enfocada). Ahí cambias título, detalles, checklist y sesión; **Confirmar** guarda
+  y cierra, **Cancelar** descarta, y **Eliminar tarjeta** la borra con los cinco
+  segundos de Deshacer.
 - **Borrar**: la papelera. Hay que pulsarla **dos veces**; después tienes cinco
   segundos para **Deshacer** en la barra de arriba.
 - **Mover**: arrastra la tarjeta dentro de una columna o a otra.

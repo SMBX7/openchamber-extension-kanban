@@ -89,11 +89,10 @@ browser. If you use OpenChamber remotely, the file lands on that machine.
 ## The panel
 
 - **Create**: the `+` at the end of a column. Type and press `Enter`.
-- **Rename the title only**: hover the card and press the pencil (or double-click the
-  title, or press `F2` with the card focused).
-- **Open the card**: double-click anywhere else on it (or press `Enter`). There you
-  change the title, description and checklist; **Confirmar** saves and closes,
-  **Cancelar** discards.
+- **Edit the card**: hover it and press the pencil (or press `Enter` with the card
+  focused). There you change the title, details, checklist and session; **Confirmar**
+  saves and closes, **Cancelar** discards, and **Eliminar tarjeta** deletes it with
+  the five-second Undo.
 - **Delete**: the trash. You have to press it **twice**; then you get five seconds to
   **Undo** (Deshacer) in the bar at the top.
 - **Move**: drag the card inside a column or to another one.
