@@ -615,7 +615,9 @@ const routes = {
     const downloads = join(homedir(), 'Downloads');
     const dir = existsSync(downloads) ? downloads : ROOT;
     const file = join(dir, `kanban-${new Date().toISOString().slice(0, 10)}.${format}`);
-    writeFileSync(file, exportBoard(format), { mode: 0o600 });
+    // The board file is per project (S8): the copy must be the board of the
+    // project asking for it, not the legacy file no project writes any more.
+    writeFileSync(file, exportBoard(format, currentProject()), { mode: 0o600 });
     return { path: file.replace(homedir(), '~'), name: basename(file), format };
   },
 
@@ -623,7 +625,7 @@ const routes = {
     if (readConfig().source !== 'local') {
       throw new PlankaError('Restaurar solo vale en el tablero local.', { kind: 'validation' });
     }
-    importBoard(body?.data);
+    importBoard(body?.data, currentProject());
     invalidate();
     return { ok: true };
   },
@@ -1098,11 +1100,12 @@ const routes = {
   },
 
   'POST /task': async (body) => {
-    requireConnected();
+    const config = requireConnected();
     const taskListId = String(body.taskListId || '');
     const name = String(body.name || '').trim();
     if (!taskListId || !name) throw new PlankaError('La tarea necesita checklist y nombre.', { kind: 'validation' });
-    const item = await client().addTask(taskListId, name);
+    const boardId = await boardIdOf(config);
+    const item = await client().addTask(taskListId, name, boardId);
     invalidate();
     return { task: item };
   },

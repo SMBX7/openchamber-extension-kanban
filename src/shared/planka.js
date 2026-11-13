@@ -295,6 +295,10 @@ export class PlankaClient {
   }
 
   async createCard(listId, name, boardId, options = {}) {
+    const title = String(name || '').trim().slice(0, 1024);
+    // The local board refuses an empty title before touching its file; doing it
+    // here keeps one answer for both sources instead of a nameless card.
+    if (!title) throw new PlankaError('El título no puede quedar vacío.', { kind: 'validation' });
     const board = await this.readBoard(boardId);
     const list = board.lists.find((item) => item.id === String(listId));
     if (!list) throw new PlankaError('Esa columna ya no existe en Planka.', { kind: 'not-found', status: 404 });
@@ -303,7 +307,7 @@ export class PlankaClient {
       method: 'POST',
       body: {
         type: 'project',
-        name: String(name || '').trim().slice(0, 1024),
+        name: title,
         position,
         ...(options.description ? { description: String(options.description) } : {}),
         ...(options.dueDate ? { dueDate: dueTimestamp(options.dueDate) } : {}),
@@ -423,7 +427,7 @@ export class PlankaClient {
     const position = card.taskLists.length ? Math.max(...card.taskLists.map((item) => item.position || 0)) + POSITION_STEP : POSITION_STEP;
     const created = await this.request(`/api/cards/${encode(cardId)}/task-lists`, {
       method: 'POST',
-      body: { name: String(name || 'Checklist').trim().slice(0, 128), position },
+      body: { name: String(name || 'Checklist').trim().slice(0, 128) || 'Checklist', position },
     });
     const taskListId = created?.item?.id;
     const added = [];
@@ -443,9 +447,10 @@ export class PlankaClient {
     return { taskList: created?.item ?? null, tasks: added };
   }
 
-  async addTask(taskListId, name) {
-    const boardId = await this.resolveBoardId();
-    const board = await this.readBoard(boardId);
+  async addTask(taskListId, name, boardId) {
+    // The board the checklist belongs to decides the position; reading the
+    // first board of the account loses it and puts the task at the top.
+    const board = await this.readBoard(await this.resolveBoardId(boardId));
     const taskList = board.lists
       .flatMap((list) => list.cards)
       .flatMap((card) => card.taskLists)

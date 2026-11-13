@@ -2,8 +2,10 @@
 // The extension sources are ESM without "type": "module", so esbuild bundles
 // the module to CJS before requiring it.
 import { build } from 'esbuild';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
@@ -35,7 +37,7 @@ await build({
   format: 'cjs',
   logLevel: 'silent',
 });
-const { DEFAULT_LIST_NAMES, ensureDefaultLists } = require(defaultsBundle);
+const { DEFAULT_LIST_NAMES, ensureDefaultLists, POSITION_STEP } = require(defaultsBundle);
 const client = new LocalClient({});
 
 assert.deepEqual(DEFAULT_LIST_NAMES, ['IDEAS', 'EN PROGRESO', 'HECHO']);
@@ -92,6 +94,17 @@ assert.equal(checklist.tasks.length, 2);
 await client.checkTask(checklist.tasks[0].id, true);
 view = await client.readBoard();
 assert.deepEqual(view.lists[1].cards[0].checklist, { total: 2, done: 1 });
+
+// A new task goes after the last one of its checklist, the order Planka keeps:
+// the service route hands the board to the client for exactly this.
+const extraTask = await client.addTask(checklist.taskList.id, 'Enfriar');
+assert.ok(extraTask.position > checklist.tasks[1].position, 'a new task is appended');
+view = await client.readBoard();
+assert.deepEqual(
+  view.lists[1].cards[0].taskLists[0].tasks.map((task) => task.name),
+  ['Masa', 'Horno', 'Enfriar'],
+);
+assert.deepEqual(view.lists[1].cards[0].checklist, { total: 3, done: 1 });
 
 const labelId = view.labels[0].id;
 assert.equal(await client.toggleLabel(card.id, labelId), true);
@@ -193,6 +206,27 @@ assert.equal(
   'returning restores the old project',
 );
 
+// Completing a card into an empty HECHO gives it the same top position a new
+// card gets (POSITION_STEP), which is what Planka computes: the card is not
+// part of the column it is arriving in, so its old position must not halve the
+// result and drift with every completion.
+const doneProject = '/home/ana/proyectos/hecho';
+const doneClient = new LocalClient({ projectKey: doneProject });
+const doneBoard = await doneClient.readBoard();
+assert.deepEqual(doneBoard.lists.map((list) => list.name), ['IDEAS', 'EN PROGRESO', 'HECHO']);
+const firstDone = await doneClient.createCard(doneBoard.lists[0].id, 'Primera');
+const secondDone = await doneClient.createCard(doneBoard.lists[0].id, 'Segunda');
+await doneClient.completeCard(firstDone.id);
+await doneClient.completeCard(secondDone.id);
+const doneView = await doneClient.readBoard();
+assert.equal(doneView.lists[2].cards.length, 2);
+assert.equal(doneView.lists[2].cards[0].id, secondDone.id, 'the last completed card goes on top');
+assert.equal(
+  doneView.lists[2].cards.find((item) => item.id === firstDone.id).position,
+  POSITION_STEP,
+  'the first card of HECHO keeps the column step',
+);
+
 // Exports read the board of the project they are asked about.
 assert.ok(exportBoard('json', projectA).includes('Vieja tarjeta'));
 assert.equal(exportBoard('json', projectB).includes('Vieja tarjeta'), false);
@@ -203,5 +237,97 @@ await keyless.createCard(migrated.lists[0].id, 'Sin proyecto');
 assert.equal(existsSync(process.env.KANBAN_LOCAL_PATH), true);
 assert.ok(exportBoard('json').includes('Sin proyecto'));
 
+// The service routes scope the local copy to the project that asks for it: the
+// board file is per project (S8) and the panel sends ?directory= on every
+// request, so a copy must read and write that project's file and never the
+// legacy board no project writes any more.
+const ext = join(dir, 'ext');
+const home = join(dir, 'home');
+mkdirSync(home, { recursive: true });
+await build({
+  entryPoints: [new URL('../src/service/main.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: join(ext, 'service', 'main.js'),
+  platform: 'node',
+  format: 'cjs',
+  target: ['node20'],
+  logLevel: 'silent',
+});
+writeFileSync(join(ext, 'config.json'), JSON.stringify({ source: 'local' }));
+
+const freePort = () =>
+  new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.on('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address();
+      probe.close(() => resolve(port));
+    });
+  });
+
+const port = await freePort();
+const service = spawn(process.execPath, [join(ext, 'service', 'main.js')], {
+  env: {
+    ...process.env,
+    HOME: home,
+    KANBAN_LOCAL_PATH: process.env.KANBAN_LOCAL_PATH,
+    OPENCHAMBER_SERVICE_PORT: String(port),
+    OPENCHAMBER_SERVICE_TOKEN: '',
+  },
+  stdio: 'ignore',
+});
+const serviceUrl = (path, directory) =>
+  `http://127.0.0.1:${port}${path}?directory=${encodeURIComponent(directory)}`;
+const post = async (path, directory, body) => {
+  const response = await fetch(serviceUrl(path, directory), {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return response.json();
+};
+
+try {
+  let ready = false;
+  for (let attempt = 0; attempt < 100 && !ready; attempt += 1) {
+    try {
+      ready = (await fetch(`http://127.0.0.1:${port}/health`)).ok;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+  assert.equal(ready, true, 'the service answers /health');
+
+  const copy = await post('/local/export', projectA, { format: 'json' });
+  assert.equal(copy.format, 'json');
+  const exported = readFileSync(join(ext, copy.name), 'utf8');
+  assert.ok(exported.includes('Vieja tarjeta'), 'the copy is the board of the project that asked');
+  assert.equal(exported.includes('Sin proyecto'), false, 'the copy is not the legacy board');
+
+  const restored = await post('/local/import', projectB, { data: exported });
+  assert.equal(restored.ok, true);
+  assert.equal(
+    (await new LocalClient({ projectKey: projectB }).readBoard()).counts.total,
+    1,
+    'the import lands in the project that asked',
+  );
+  assert.equal(
+    (await new LocalClient({ projectKey: projectA }).readBoard()).counts.total,
+    1,
+    'the other project keeps its board',
+  );
+  assert.ok(exportBoard('json').includes('Sin proyecto'), 'the legacy board is untouched');
+} finally {
+  service.kill('SIGTERM');
+  if (service.exitCode === null) {
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 2000);
+      service.on('exit', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
+}
+
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 53 assertions ok');
+console.log('local mode: 68 assertions ok');
