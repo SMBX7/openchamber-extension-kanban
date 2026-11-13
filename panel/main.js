@@ -1856,6 +1856,7 @@ ${GUEST_UI_LOOK_CSS}`;
     view: "boot",
     config: null,
     boards: [],
+    mappings: {},
     projects: [],
     plankaProjects: [],
     session: null,
@@ -2218,7 +2219,7 @@ ${card?.description || ""}`);
     state.directory = next;
     if (!state.booted) return;
     void closeSheet();
-    void refresh(true);
+    void loadMappings().then(() => refresh(true));
   });
   var lifecycleSeen = /* @__PURE__ */ new Set();
   host.onSessionLifecycle((event) => {
@@ -2253,6 +2254,16 @@ ${card?.description || ""}`);
       state.projects = state.projects || [];
     }
     return state.projects;
+  };
+  var loadMappings = async () => {
+    try {
+      const answer = await api("GET", "/mappings");
+      const mappings = answer?.mappings;
+      state.mappings = mappings && typeof mappings === "object" && !Array.isArray(mappings) ? mappings : {};
+    } catch {
+      state.mappings = state.mappings || {};
+    }
+    return state.mappings;
   };
   var applyAppearance = () => {
     const rootEl = document.documentElement;
@@ -2304,6 +2315,7 @@ ${card?.description || ""}`);
         return;
       }
       await loadProjects();
+      await loadMappings();
       await loadAppearance();
       await loadSnapshot();
       await loadSessionStates();
@@ -2463,6 +2475,7 @@ ${card?.description || ""}`);
       if (result.snapshot) state.snapshot = result.snapshot;
       else await loadSnapshot();
       await loadProjects();
+      await loadMappings();
       await loadAppearance();
       await loadSessionStates();
       showBoard();
@@ -2481,6 +2494,8 @@ ${card?.description || ""}`);
             state.config = config;
             state.boards = config.boards || [];
             state.plankaProjects = config.projects || state.plankaProjects;
+            await loadProjects();
+            await loadMappings();
             await loadSnapshot();
             await loadSessionStates();
             showBoard();
@@ -2500,16 +2515,33 @@ ${card?.description || ""}`);
       submit.textContent = "Entrar";
     }
   };
+  var activeProject = () => {
+    if (!state.directory) return null;
+    return state.projects.find((project) => project.directory === state.directory) || null;
+  };
+  var boardsForActiveProject = (boards) => {
+    const project = activeProject();
+    if (!project) return boards;
+    const current = state.snapshot?.board?.id || state.config?.boardId || "";
+    const visible = boards.filter((board) => {
+      const mapping = state.mappings?.[board.id];
+      return !mapping || mapping.projectId === project.id || board.id === current;
+    });
+    return visible.length ? visible : boards;
+  };
   var syncBoardOptions = () => {
     const refs = state.refs;
     if (!refs) return;
     const boards = state.boards.length ? state.boards : state.snapshot ? [{ id: state.snapshot.board.id, name: state.snapshot.board.name }] : [];
+    const visible = boardsForActiveProject(boards);
     const selected = state.snapshot?.board?.id || state.config?.boardId || "";
     const control = refs.boardSelect;
     if (control) {
-      const options = boards.map((board) => ({ value: board.id, label: board.name }));
-      const value = boards.some((board) => board.id === selected) ? selected : control.value || boards[0]?.id || "";
-      control.update(options, value, boards.length < 2);
+      const options = visible.map((board) => ({ value: board.id, label: board.name }));
+      const value = visible.some((board) => board.id === selected) ? selected : control.value || visible[0]?.id || "";
+      control.update(options, value, visible.length < 2);
+      const project = activeProject();
+      control.button.title = project && visible.length < boards.length ? `Tableros de ${project.name} y tableros sin proyecto` : "Todos los tableros";
     }
     if (refs.openButton) refs.openButton.disabled = !state.snapshot?.board?.url;
   };
@@ -2555,6 +2587,7 @@ ${card?.description || ""}`);
         autoSession: snapshot.project?.autoSession === true
       });
       state.snapshot.project = answer.project || null;
+      await loadMappings();
       toast("success", project ? `Tablero asignado a ${project.name}.` : "Proyecto quitado del tablero.");
     } catch (error) {
       toast("error", error.message);
@@ -2773,6 +2806,7 @@ ${card?.description || ""}`);
       try {
         const answer = await api("POST", "/board/create", { name, projectId, projectName });
         state.boards = Array.isArray(answer?.boards) && answer.boards.length ? answer.boards : state.boards;
+        await loadMappings();
         state.config = {
           ...state.config,
           boardId: answer?.board?.id || state.config?.boardId,
@@ -3240,6 +3274,7 @@ ${card?.description || ""}`);
           state.config = config;
           state.boards = config.boards || [];
           state.plankaProjects = config.projects || state.plankaProjects;
+          await loadMappings();
           state.snapshot = await api("GET", "/snapshot?fresh=1");
           renderAll();
           return;
