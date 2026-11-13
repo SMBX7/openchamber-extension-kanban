@@ -2,12 +2,23 @@
 //
 // It implements the same surface and returns the same shapes, so the panel, the
 // Work Status section, the service and the MCP server do not need to know where
-// the data comes from. The board lives in board.local.json next to config.json;
-// writes are atomic and serialised with a lock file because the service and the
-// MCP server are different processes.
-import { chmodSync, closeSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+// the data comes from. Each OpenChamber project owns one board file beside
+// board.local.json, so switching project shows that project's board and leaves
+// the others untouched; writes are atomic and serialised with a lock file
+// because the service and the MCP server are different processes.
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename, dirname, join } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
 import { ROOT } from './config.js';
 import { DEFAULT_LIST_NAMES } from './defaults.js';
 import { PlankaError } from './planka.js';
@@ -21,8 +32,38 @@ const DEFAULT_LABELS = [
   { name: 'Idea', color: 'hsl(210 70% 62%)' },
 ];
 
-const boardPath = () => process.env.KANBAN_LOCAL_PATH || join(ROOT, 'board.local.json');
-const lockPath = () => `${boardPath()}.lock`;
+// The base path: the explicit override for tests, or board.local.json next to
+// config.json. It keeps naming the board used when no project is known.
+const basePath = () => process.env.KANBAN_LOCAL_PATH || join(ROOT, 'board.local.json');
+
+// A readable, collision-free name for the file of one project. The hash keeps
+// two projects with the same folder name apart.
+const projectSlug = (projectKey) => {
+  const text = String(projectKey || '').trim().replace(/[\\/]+$/, '');
+  if (!text) return '';
+  const tail = text.split(/[\\/]+/).filter(Boolean).pop() || 'proyecto';
+  const readable = tail
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^[-.]+|-+$/g, '')
+    .slice(0, 40);
+  const hash = createHash('sha1').update(text).digest('hex').slice(0, 8);
+  return `${readable || 'proyecto'}-${hash}`;
+};
+
+// board.local.json becomes board.local.<project>.json, always beside the base
+// path so KANBAN_LOCAL_PATH keeps deciding where the boards live.
+export const localBoardPath = (projectKey = '') => {
+  const slug = projectSlug(projectKey);
+  if (!slug) return basePath();
+  const base = basePath();
+  const stem = basename(base).toLowerCase().endsWith('.json')
+    ? base.slice(0, -'.json'.length)
+    : base;
+  return join(dirname(base), `${basename(stem)}.${slug}.json`);
+};
+
+const lockPath = (projectKey) => `${localBoardPath(projectKey)}.lock`;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -123,16 +164,7 @@ const normaliseStore = (value) => {
   };
 };
 
-const readStore = () => {
-  try {
-    return normaliseStore(JSON.parse(readFileSync(boardPath(), 'utf8')));
-  } catch {
-    return emptyStore();
-  }
-};
-
-const writeStore = (store) => {
-  const target = boardPath();
+const writeStore = (store, target) => {
   const temp = `${target}.tmp`;
   writeFileSync(temp, `${JSON.stringify(store, null, 2)}\n`, { mode: 0o600 });
   renameSync(temp, target);
@@ -143,17 +175,51 @@ const writeStore = (store) => {
   }
 };
 
-const withLock = async (work) => {
+// Until this version the board was one file for every project. The first
+// project that opens the local board after upgrading keeps that data: its
+// board file is written beside the old one and the old file is moved away, so
+// no other project inherits the same cards. A second process that migrates at
+// the same time writes the same content and loses nothing.
+const migrateLegacyBoard = (projectKey) => {
+  if (!projectSlug(projectKey)) return;
+  const legacy = basePath();
+  const target = localBoardPath(projectKey);
+  if (existsSync(target) || !existsSync(legacy)) return;
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(legacy, 'utf8'));
+  } catch {
+    return;
+  }
+  writeStore(normaliseStore(parsed), target);
+  try {
+    renameSync(legacy, `${legacy}.migrated`);
+  } catch {
+    // The legacy file is kept: nothing is lost and the copy already exists.
+  }
+};
+
+const readStore = (projectKey = '') => {
+  migrateLegacyBoard(projectKey);
+  try {
+    return normaliseStore(JSON.parse(readFileSync(localBoardPath(projectKey), 'utf8')));
+  } catch {
+    return emptyStore();
+  }
+};
+
+const withLock = async (projectKey, work) => {
+  const lock = lockPath(projectKey);
   const deadline = Date.now() + 2500;
   let handle = null;
   while (handle === null) {
     try {
-      handle = openSync(lockPath(), 'wx');
+      handle = openSync(lock, 'wx');
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
       try {
-        if (Date.now() - statSync(lockPath()).mtimeMs > 5000) {
-          unlinkSync(lockPath());
+        if (Date.now() - statSync(lock).mtimeMs > 5000) {
+          unlinkSync(lock);
           continue;
         }
       } catch {
@@ -174,18 +240,18 @@ const withLock = async (work) => {
       // Already closed.
     }
     try {
-      unlinkSync(lockPath());
+      unlinkSync(lock);
     } catch {
       // Someone else cleaned a stale lock.
     }
   }
 };
 
-const mutate = (work) =>
-  withLock(() => {
-    const store = readStore();
+const mutate = (projectKey, work) =>
+  withLock(projectKey, () => {
+    const store = readStore(projectKey);
     const result = work(store);
-    writeStore(store);
+    writeStore(store, localBoardPath(projectKey));
     return result;
   });
 
@@ -310,6 +376,9 @@ export class LocalClient {
   constructor(config = {}) {
     this.boardId = BOARD_ID;
     this.boardName = typeof config?.boardName === 'string' ? config.boardName : '';
+    // The OpenChamber project this client reads and writes. Empty keeps the
+    // single legacy board, which is what an unknown project must not split.
+    this.projectKey = typeof config?.projectKey === 'string' ? config.projectKey.trim() : '';
   }
 
   async login() {
@@ -317,7 +386,7 @@ export class LocalClient {
   }
 
   async getBoards() {
-    const store = readStore();
+    const store = readStore(this.projectKey);
     return [
       {
         id: BOARD_ID,
@@ -334,7 +403,7 @@ export class LocalClient {
   }
 
   async readBoard() {
-    return view(readStore());
+    return view(readStore(this.projectKey));
   }
 
   async findCard(cardId, boardId) {
@@ -345,7 +414,7 @@ export class LocalClient {
   }
 
   async createCard(listId, name, boardId, options = {}) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const list = findListRow(store, listId);
       const title = String(name || '').trim().slice(0, 1024);
       if (!title) throw new PlankaError('El título no puede quedar vacío.', { kind: 'validation' });
@@ -365,7 +434,7 @@ export class LocalClient {
   }
 
   async updateCard(cardId, patch = {}, boardId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const card = findCardRow(store, cardId);
       if (typeof patch.name === 'string') {
         const name = patch.name.trim();
@@ -393,7 +462,7 @@ export class LocalClient {
   }
 
   async moveCard(cardId, listId, index, boardId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const card = findCardRow(store, cardId);
       const list = findListRow(store, listId);
       const target = Number.isInteger(index) ? index : 0;
@@ -408,7 +477,7 @@ export class LocalClient {
   }
 
   async completeCard(cardId, boardId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const card = findCardRow(store, cardId);
       const lists = store.lists.slice().sort(byPosition);
       const done = lists.find((list) => DONE_NAME.test(list.name)) || lists[lists.length - 1];
@@ -421,7 +490,7 @@ export class LocalClient {
   }
 
   async deleteCard(cardId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const id = String(cardId);
       store.cards = store.cards.filter((card) => card.id !== id);
       const taskLists = new Set(store.taskLists.filter((taskList) => taskList.cardId === id).map((item) => item.id));
@@ -433,7 +502,7 @@ export class LocalClient {
   }
 
   async renameList(listId, name) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const list = findListRow(store, listId);
       const trimmed = String(name || '').trim().slice(0, 120);
       if (!trimmed) throw new PlankaError('El nombre de la columna no puede quedar vacío.', { kind: 'validation' });
@@ -447,7 +516,7 @@ export class LocalClient {
   async createList(name) {
     const trimmed = String(name || '').trim().slice(0, 120);
     if (!trimmed) throw new PlankaError('La columna necesita un nombre.', { kind: 'validation' });
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const list = {
         id: uid('list'),
         name: trimmed,
@@ -459,7 +528,7 @@ export class LocalClient {
   }
 
   async addChecklist(cardId, name, boardId, tasks = []) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const card = findCardRow(store, cardId);
       const taskList = {
         id: uid('checklist'),
@@ -489,7 +558,7 @@ export class LocalClient {
   }
 
   async addTask(taskListId, name) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const taskList = store.taskLists.find((item) => item.id === String(taskListId));
       if (!taskList) throw new PlankaError('Esa checklist ya no existe.', { kind: 'not-found', status: 404 });
       const task = {
@@ -505,7 +574,7 @@ export class LocalClient {
   }
 
   async checkTask(taskId, isCompleted) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const task = store.tasks.find((item) => item.id === String(taskId));
       if (!task) throw new PlankaError('Esa tarea ya no existe.', { kind: 'not-found', status: 404 });
       task.isCompleted = Boolean(isCompleted);
@@ -514,7 +583,7 @@ export class LocalClient {
   }
 
   async addLabel(cardId, labelId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const card = findCardRow(store, cardId);
       const label = store.labels.find((item) => item.id === String(labelId));
       if (!label) throw new PlankaError('Esa etiqueta ya no existe.', { kind: 'not-found', status: 404 });
@@ -527,7 +596,7 @@ export class LocalClient {
   }
 
   async removeLabel(cardId, labelId, boardId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const before = store.cardLabels.length;
       store.cardLabels = store.cardLabels.filter(
         (link) => !(link.cardId === String(cardId) && link.labelId === String(labelId)),
@@ -537,7 +606,7 @@ export class LocalClient {
   }
 
   async toggleLabel(cardId, labelId, boardId) {
-    const store = readStore();
+    const store = readStore(this.projectKey);
     const has = store.cardLabels.some(
       (link) => link.cardId === String(cardId) && link.labelId === String(labelId),
     );
@@ -616,14 +685,14 @@ const toCsv = (store) => {
   return `${rows.map((row) => row.map(csvCell).join(',')).join('\n')}\n`;
 };
 
-export const exportBoard = (format = 'json') => {
-  const store = readStore();
+export const exportBoard = (format = 'json', projectKey = '') => {
+  const store = readStore(projectKey);
   if (format === 'md') return toMarkdown(store);
   if (format === 'csv') return toCsv(store);
   return `${JSON.stringify(store, null, 2)}\n`;
 };
 
-export const importBoard = (raw) => {
+export const importBoard = (raw, projectKey = '') => {
   let parsed;
   try {
     parsed = JSON.parse(String(raw || ''));
@@ -634,7 +703,7 @@ export const importBoard = (raw) => {
     throw new PlankaError('Ese tablero no tiene columnas.', { kind: 'validation' });
   }
   const store = normaliseStore(parsed);
-  writeStore(store);
+  writeStore(store, localBoardPath(projectKey));
   return view(store);
 };
 

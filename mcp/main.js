@@ -656,8 +656,23 @@ var DEFAULT_LABELS = [
   { name: "Importante", color: "hsl(38 78% 58%)" },
   { name: "Idea", color: "hsl(210 70% 62%)" }
 ];
-var boardPath = () => process.env.KANBAN_LOCAL_PATH || (0, import_node_path2.join)(ROOT, "board.local.json");
-var lockPath = () => `${boardPath()}.lock`;
+var basePath = () => process.env.KANBAN_LOCAL_PATH || (0, import_node_path2.join)(ROOT, "board.local.json");
+var projectSlug = (projectKey) => {
+  const text = String(projectKey || "").trim().replace(/[\\/]+$/, "");
+  if (!text) return "";
+  const tail = text.split(/[\\/]+/).filter(Boolean).pop() || "proyecto";
+  const readable = tail.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^[-.]+|-+$/g, "").slice(0, 40);
+  const hash = (0, import_node_crypto.createHash)("sha1").update(text).digest("hex").slice(0, 8);
+  return `${readable || "proyecto"}-${hash}`;
+};
+var localBoardPath = (projectKey = "") => {
+  const slug = projectSlug(projectKey);
+  if (!slug) return basePath();
+  const base = basePath();
+  const stem = (0, import_node_path2.basename)(base).toLowerCase().endsWith(".json") ? base.slice(0, -".json".length) : base;
+  return (0, import_node_path2.join)((0, import_node_path2.dirname)(base), `${(0, import_node_path2.basename)(stem)}.${slug}.json`);
+};
+var lockPath = (projectKey) => `${localBoardPath(projectKey)}.lock`;
 var sleep = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
 var byPosition2 = (a, b) => {
   const left = Number.isFinite(a?.position) ? a.position : Number.POSITIVE_INFINITY;
@@ -739,15 +754,7 @@ var normaliseStore = (value) => {
     }))
   };
 };
-var readStore = () => {
-  try {
-    return normaliseStore(JSON.parse((0, import_node_fs2.readFileSync)(boardPath(), "utf8")));
-  } catch {
-    return emptyStore();
-  }
-};
-var writeStore = (store) => {
-  const target = boardPath();
+var writeStore = (store, target) => {
   const temp = `${target}.tmp`;
   (0, import_node_fs2.writeFileSync)(temp, `${JSON.stringify(store, null, 2)}
 `, { mode: 384 });
@@ -757,17 +764,43 @@ var writeStore = (store) => {
   } catch {
   }
 };
-var withLock = async (work) => {
+var migrateLegacyBoard = (projectKey) => {
+  if (!projectSlug(projectKey)) return;
+  const legacy = basePath();
+  const target = localBoardPath(projectKey);
+  if ((0, import_node_fs2.existsSync)(target) || !(0, import_node_fs2.existsSync)(legacy)) return;
+  let parsed;
+  try {
+    parsed = JSON.parse((0, import_node_fs2.readFileSync)(legacy, "utf8"));
+  } catch {
+    return;
+  }
+  writeStore(normaliseStore(parsed), target);
+  try {
+    (0, import_node_fs2.renameSync)(legacy, `${legacy}.migrated`);
+  } catch {
+  }
+};
+var readStore = (projectKey = "") => {
+  migrateLegacyBoard(projectKey);
+  try {
+    return normaliseStore(JSON.parse((0, import_node_fs2.readFileSync)(localBoardPath(projectKey), "utf8")));
+  } catch {
+    return emptyStore();
+  }
+};
+var withLock = async (projectKey, work) => {
+  const lock = lockPath(projectKey);
   const deadline = Date.now() + 2500;
   let handle = null;
   while (handle === null) {
     try {
-      handle = (0, import_node_fs2.openSync)(lockPath(), "wx");
+      handle = (0, import_node_fs2.openSync)(lock, "wx");
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
       try {
-        if (Date.now() - (0, import_node_fs2.statSync)(lockPath()).mtimeMs > 5e3) {
-          (0, import_node_fs2.unlinkSync)(lockPath());
+        if (Date.now() - (0, import_node_fs2.statSync)(lock).mtimeMs > 5e3) {
+          (0, import_node_fs2.unlinkSync)(lock);
           continue;
         }
       } catch {
@@ -787,15 +820,15 @@ var withLock = async (work) => {
     } catch {
     }
     try {
-      (0, import_node_fs2.unlinkSync)(lockPath());
+      (0, import_node_fs2.unlinkSync)(lock);
     } catch {
     }
   }
 };
-var mutate = (work) => withLock(() => {
-  const store = readStore();
+var mutate = (projectKey, work) => withLock(projectKey, () => {
+  const store = readStore(projectKey);
   const result = work(store);
-  writeStore(store);
+  writeStore(store, localBoardPath(projectKey));
   return result;
 });
 var topPosition2 = (cards) => {
@@ -888,12 +921,13 @@ var LocalClient = class {
   constructor(config = {}) {
     this.boardId = BOARD_ID;
     this.boardName = typeof config?.boardName === "string" ? config.boardName : "";
+    this.projectKey = typeof config?.projectKey === "string" ? config.projectKey.trim() : "";
   }
   async login() {
     return { token: "local" };
   }
   async getBoards() {
-    const store = readStore();
+    const store = readStore(this.projectKey);
     return [
       {
         id: BOARD_ID,
@@ -908,7 +942,7 @@ var LocalClient = class {
     return BOARD_ID;
   }
   async readBoard() {
-    return view(readStore());
+    return view(readStore(this.projectKey));
   }
   async findCard(cardId, boardId) {
     const board2 = await this.readBoard(boardId);
@@ -917,7 +951,7 @@ var LocalClient = class {
     return { board: board2, card };
   }
   async createCard(listId, name, boardId, options = {}) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const list = findListRow(store, listId);
       const title = String(name || "").trim().slice(0, 1024);
       if (!title) throw new PlankaError("El t\xEDtulo no puede quedar vac\xEDo.", { kind: "validation" });
@@ -936,7 +970,7 @@ var LocalClient = class {
     });
   }
   async updateCard(cardId, patch = {}, boardId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const card = findCardRow(store, cardId);
       if (typeof patch.name === "string") {
         const name = patch.name.trim();
@@ -963,7 +997,7 @@ var LocalClient = class {
     });
   }
   async moveCard(cardId, listId, index, boardId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const card = findCardRow(store, cardId);
       const list = findListRow(store, listId);
       const target = Number.isInteger(index) ? index : 0;
@@ -977,7 +1011,7 @@ var LocalClient = class {
     });
   }
   async completeCard(cardId, boardId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const card = findCardRow(store, cardId);
       const lists = store.lists.slice().sort(byPosition2);
       const done = lists.find((list) => DONE_NAME2.test(list.name)) || lists[lists.length - 1];
@@ -989,7 +1023,7 @@ var LocalClient = class {
     });
   }
   async deleteCard(cardId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const id = String(cardId);
       store.cards = store.cards.filter((card) => card.id !== id);
       const taskLists = new Set(store.taskLists.filter((taskList) => taskList.cardId === id).map((item) => item.id));
@@ -1000,7 +1034,7 @@ var LocalClient = class {
     });
   }
   async renameList(listId, name) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const list = findListRow(store, listId);
       const trimmed = String(name || "").trim().slice(0, 120);
       if (!trimmed) throw new PlankaError("El nombre de la columna no puede quedar vac\xEDo.", { kind: "validation" });
@@ -1013,7 +1047,7 @@ var LocalClient = class {
   async createList(name) {
     const trimmed = String(name || "").trim().slice(0, 120);
     if (!trimmed) throw new PlankaError("La columna necesita un nombre.", { kind: "validation" });
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const list = {
         id: uid("list"),
         name: trimmed,
@@ -1024,7 +1058,7 @@ var LocalClient = class {
     });
   }
   async addChecklist(cardId, name, boardId, tasks = []) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const card = findCardRow(store, cardId);
       const taskList = {
         id: uid("checklist"),
@@ -1053,7 +1087,7 @@ var LocalClient = class {
     });
   }
   async addTask(taskListId, name) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const taskList = store.taskLists.find((item) => item.id === String(taskListId));
       if (!taskList) throw new PlankaError("Esa checklist ya no existe.", { kind: "not-found", status: 404 });
       const task = {
@@ -1068,7 +1102,7 @@ var LocalClient = class {
     });
   }
   async checkTask(taskId, isCompleted) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const task = store.tasks.find((item) => item.id === String(taskId));
       if (!task) throw new PlankaError("Esa tarea ya no existe.", { kind: "not-found", status: 404 });
       task.isCompleted = Boolean(isCompleted);
@@ -1076,7 +1110,7 @@ var LocalClient = class {
     });
   }
   async addLabel(cardId, labelId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const card = findCardRow(store, cardId);
       const label = store.labels.find((item) => item.id === String(labelId));
       if (!label) throw new PlankaError("Esa etiqueta ya no existe.", { kind: "not-found", status: 404 });
@@ -1088,7 +1122,7 @@ var LocalClient = class {
     });
   }
   async removeLabel(cardId, labelId, boardId) {
-    return mutate((store) => {
+    return mutate(this.projectKey, (store) => {
       const before = store.cardLabels.length;
       store.cardLabels = store.cardLabels.filter(
         (link) => !(link.cardId === String(cardId) && link.labelId === String(labelId))
@@ -1097,7 +1131,7 @@ var LocalClient = class {
     });
   }
   async toggleLabel(cardId, labelId, boardId) {
-    const store = readStore();
+    const store = readStore(this.projectKey);
     const has = store.cardLabels.some(
       (link) => link.cardId === String(cardId) && link.labelId === String(labelId)
     );
