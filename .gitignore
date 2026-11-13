@@ -7,3 +7,8 @@ board.local.json.lock
 board.local.json.tmp
 
 .atl/
+
+board.local.*.json
+board.local.*.json.lock
+board.local.*.json.tmp
+board.local.json.migrated

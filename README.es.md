@@ -68,6 +68,8 @@ con las tres listas y tres etiquetas, guardado en tu equipo.
 - Es solo tuyo: no se ve desde el móvil ni desde otro ordenador.
 - Puedes volver a Planka cuando quieras; no tendrás que entrar otra vez.
 - Planka y local son tableros distintos: no se copian cosas de uno a otro.
+- **Un tablero por proyecto**: cada proyecto de OpenChamber guarda su propio tablero
+  local. Un proyecto nuevo empieza vacío; al volver se recuperan sus listas y tarjetas.
 - **Descargar MD** y **Descargar CSV** escriben el tablero en tu carpeta de Descargas
   como `kanban-AAAA-MM-DD.md` o `.csv`, para leerlo o compartirlo.
 - **Copia JSON** escribe el tablero completo. Es el único formato que se puede volver a

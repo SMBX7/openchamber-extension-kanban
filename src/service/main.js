@@ -3,6 +3,7 @@
 // in memory. The token is persisted by the config module (mode 600).
 import http from 'node:http';
 import { existsSync, writeFileSync } from 'node:fs';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { createServiceHost, SESSION_EVENTS_PATH, readSessionEventRequest } from '@openchamber/sdk';
@@ -19,7 +20,13 @@ const TOKEN = process.env.OPENCHAMBER_SERVICE_TOKEN || '';
 const SNAPSHOT_TTL_MS = 1500;
 
 let sessionPassword = '';
-let cache = { boardId: '', at: 0, data: null, inflight: null };
+let cache = { key: '', boardId: '', at: 0, data: null, inflight: null };
+
+// The active OpenChamber project comes from the calling frame on every request
+// (the guest service has no directory in its environment). Scoping it per
+// request keeps two projects from sharing a board or a cache entry.
+const projectScope = new AsyncLocalStorage();
+const currentProject = () => projectScope.getStore() || '';
 const pendingCloses = new Map();
 
 let serviceHost = null;
@@ -95,7 +102,7 @@ const handleSessionEvent = async (event) => {
 
 const client = () => {
   const config = readConfig();
-  if (config.source === 'local') return new LocalClient(config);
+  if (config.source === 'local') return new LocalClient({ ...config, projectKey: currentProject() });
   return new PlankaClient(config, {
   password: sessionPassword,
   onToken: (token) => {
@@ -122,23 +129,24 @@ const getSnapshot = async ({ boardId = '', fresh = false } = {}) => {
     throw new PlankaError('Conecta Kanban con Planka para ver el tablero.', { kind: 'not-configured', status: 401 });
   }
   const id = await boardIdOf(config, boardId);
+  const key = `${id}:${currentProject()}`;
   const now = Date.now();
-  if (!fresh && cache.data && cache.boardId === id && now - cache.at < SNAPSHOT_TTL_MS) {
+  if (!fresh && cache.data && cache.key === key && now - cache.at < SNAPSHOT_TTL_MS) {
     return cache.data;
   }
-  if (cache.inflight && cache.inflight.id === id) return cache.inflight.promise;
+  if (cache.inflight && cache.inflight.key === key) return cache.inflight.promise;
 
   const promise = client()
     .readBoard(id)
     .then((data) => {
-      cache = { boardId: id, at: Date.now(), data, inflight: null };
+      cache = { key, boardId: id, at: Date.now(), data, inflight: null };
       return data;
     })
     .catch((error) => {
-      if (cache.inflight?.id === id) cache.inflight = null;
+      if (cache.inflight?.key === key) cache.inflight = null;
       throw error;
     });
-  cache.inflight = { id, promise };
+  cache.inflight = { key, promise };
   return promise;
 };
 
@@ -284,14 +292,14 @@ const handleStatusAction = async (body) => {
 };
 
 const invalidate = () => {
-  cache = { boardId: cache.boardId, at: 0, data: null, inflight: null };
+  cache = { key: '', boardId: cache.boardId, at: 0, data: null, inflight: null };
 };
 
 // One in-flight ensure per board: the panel and the Work Status section can ask
 // at the same time, and nobody should end up with duplicate columns.
 const listBuilds = new Map();
 const ensureListsOnce = (boardId) => {
-  const key = `${readConfig().source || 'planka'}:${boardId}`;
+  const key = `${readConfig().source || 'planka'}:${boardId}:${currentProject()}`;
   const running = listBuilds.get(key);
   if (running) return running;
   const task = ensureDefaultLists(client(), boardId).finally(() => {
@@ -1105,6 +1113,7 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', 'http://127.0.0.1');
   const path = url.pathname;
   const method = (req.method || 'GET').toUpperCase();
+  const directory = url.searchParams.get('directory') || '';
 
   if (path === '/health') {
     res.writeHead(200).end('{}');
@@ -1140,7 +1149,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(200).end(JSON.stringify(answer));
   };
 
-  run().catch((error) => {
+  projectScope.run(directory, run).catch((error) => {
     const status = statusOf(error);
     res.writeHead(status).end(
       JSON.stringify({

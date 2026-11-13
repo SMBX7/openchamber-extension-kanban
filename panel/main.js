@@ -1858,6 +1858,7 @@ ${GUEST_UI_LOOK_CSS}`;
     projects: [],
     plankaProjects: [],
     session: null,
+    directory: "",
     snapshot: null,
     sessions: {},
     search: "",
@@ -1926,12 +1927,17 @@ ${GUEST_UI_LOOK_CSS}`;
       return {};
     }
   };
+  var withDirectory = (path) => {
+    if (!state.directory) return path;
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}directory=${encodeURIComponent(state.directory)}`;
+  };
   var api = async (method, path, body) => {
     let result;
     try {
       result = await host.serviceRequest({
         method,
-        path,
+        path: withDirectory(path),
         body: body === void 0 ? void 0 : JSON.stringify(body)
       });
     } catch (error2) {
@@ -2147,6 +2153,7 @@ ${card.description}`.toLowerCase();
   var isPaused = () => state.view !== "board" || Boolean(state.sheetId) || state.dragging || Boolean(state.composerListId) || Boolean(state.createBoard) || state.saving > 0;
   host.onReady((context) => {
     state.features = context.features || {};
+    state.directory = context.directory || "";
     applyHostReady(context, document.documentElement);
     if (context.surface === "popover") {
       renderPopover(context);
@@ -2157,6 +2164,14 @@ ${card.description}`.toLowerCase();
     if (state.booted) return;
     state.booted = true;
     void boot();
+  });
+  host.onDirectory((directory) => {
+    const next = directory || "";
+    if (next === state.directory) return;
+    state.directory = next;
+    if (!state.booted) return;
+    void closeSheet();
+    void refresh(true);
   });
   var configWithRetry = async () => {
     let lastError;

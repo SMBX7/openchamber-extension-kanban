@@ -24,6 +24,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // src/service/main.js
 var import_node_http = __toESM(require("node:http"));
 var import_node_fs6 = require("node:fs");
+var import_node_async_hooks = require("node:async_hooks");
 var import_node_os4 = require("node:os");
 var import_node_path6 = require("node:path");
 
@@ -1682,7 +1683,9 @@ var PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
 var TOKEN = process.env.OPENCHAMBER_SERVICE_TOKEN || "";
 var SNAPSHOT_TTL_MS = 1500;
 var sessionPassword = "";
-var cache = { boardId: "", at: 0, data: null, inflight: null };
+var cache = { key: "", boardId: "", at: 0, data: null, inflight: null };
+var projectScope = new import_node_async_hooks.AsyncLocalStorage();
+var currentProject = () => projectScope.getStore() || "";
 var pendingCloses = /* @__PURE__ */ new Map();
 var serviceHost = null;
 try {
@@ -1750,7 +1753,7 @@ var handleSessionEvent = async (event) => {
 };
 var client = () => {
   const config = readConfig();
-  if (config.source === "local") return new LocalClient(config);
+  if (config.source === "local") return new LocalClient({ ...config, projectKey: currentProject() });
   return new PlankaClient(config, {
     password: sessionPassword,
     onToken: (token) => {
@@ -1773,19 +1776,20 @@ var getSnapshot = async ({ boardId = "", fresh = false } = {}) => {
     throw new PlankaError("Conecta Kanban con Planka para ver el tablero.", { kind: "not-configured", status: 401 });
   }
   const id = await boardIdOf(config, boardId);
+  const key = `${id}:${currentProject()}`;
   const now = Date.now();
-  if (!fresh && cache.data && cache.boardId === id && now - cache.at < SNAPSHOT_TTL_MS) {
+  if (!fresh && cache.data && cache.key === key && now - cache.at < SNAPSHOT_TTL_MS) {
     return cache.data;
   }
-  if (cache.inflight && cache.inflight.id === id) return cache.inflight.promise;
+  if (cache.inflight && cache.inflight.key === key) return cache.inflight.promise;
   const promise = client().readBoard(id).then((data) => {
-    cache = { boardId: id, at: Date.now(), data, inflight: null };
+    cache = { key, boardId: id, at: Date.now(), data, inflight: null };
     return data;
   }).catch((error) => {
-    if (cache.inflight?.id === id) cache.inflight = null;
+    if (cache.inflight?.key === key) cache.inflight = null;
     throw error;
   });
-  cache.inflight = { id, promise };
+  cache.inflight = { key, promise };
   return promise;
 };
 var WORK_LIST_NAME = /(^|\b)(en progreso|en proceso|in progress|doing|en curso|wip)(\b|$)/i;
@@ -1917,11 +1921,11 @@ var handleStatusAction = async (body) => {
   throw new PlankaError("Acci\xF3n no reconocida.", { kind: "validation" });
 };
 var invalidate = () => {
-  cache = { boardId: cache.boardId, at: 0, data: null, inflight: null };
+  cache = { key: "", boardId: cache.boardId, at: 0, data: null, inflight: null };
 };
 var listBuilds = /* @__PURE__ */ new Map();
 var ensureListsOnce = (boardId) => {
-  const key = `${readConfig().source || "planka"}:${boardId}`;
+  const key = `${readConfig().source || "planka"}:${boardId}:${currentProject()}`;
   const running = listBuilds.get(key);
   if (running) return running;
   const task = ensureDefaultLists(client(), boardId).finally(() => {
@@ -2666,6 +2670,7 @@ var server = import_node_http.default.createServer((req, res) => {
   const url = new URL(req.url || "/", "http://127.0.0.1");
   const path = url.pathname;
   const method = (req.method || "GET").toUpperCase();
+  const directory = url.searchParams.get("directory") || "";
   if (path === "/health") {
     res.writeHead(200).end("{}");
     return;
@@ -2698,7 +2703,7 @@ var server = import_node_http.default.createServer((req, res) => {
     const answer = await handler(body, url);
     res.writeHead(200).end(JSON.stringify(answer));
   };
-  run().catch((error) => {
+  projectScope.run(directory, run).catch((error) => {
     const status = statusOf(error);
     res.writeHead(status).end(
       JSON.stringify({

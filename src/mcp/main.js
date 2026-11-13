@@ -34,7 +34,9 @@ const failResult = (message) => ({
 const context = async () => {
   const config = readConfig();
   if (config.source === 'local') {
-    return { client: new LocalClient(config), boardId: LOCAL_BOARD_ID };
+    // The host starts this server in the session's project directory, which is
+    // the key the service also uses for the per-project local board.
+    return { client: new LocalClient({ ...config, projectKey: process.cwd() }), boardId: LOCAL_BOARD_ID };
   }
   if (!config.token) {
     throw new Error('Kanban is not connected to Planka yet. Sign in from the Kanban panel in OpenChamber.');
