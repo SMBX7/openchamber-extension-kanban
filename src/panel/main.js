@@ -710,7 +710,7 @@ const showLogin = (message = '') => {
   });
 
   if (source === 'local') {
-    const localNote = el('p', 'login-note-text', 'Las tarjetas se guardan en board.local.json junto a la extensión. Las sesiones del agente funcionan igual.');
+    const localNote = el('p', 'login-note-text', 'Las tarjetas se guardan en un archivo local por proyecto, junto a la extensión. Las sesiones del agente funcionan igual.');
     form.append(toggle, localNote, errorBox, useLocal);
   } else {
     form.append(toggle, emailField, passwordField, urlField, errorBox, note, actions);
@@ -1487,7 +1487,7 @@ const openSettings = () => {
   sourceBox.append(connRow);
 
   if (isLocal) {
-    sourceBox.append(el('p', 'settings-note', 'Guardado en board.local.json, junto a la extensión. Solo se ve en este equipo.'));
+    sourceBox.append(el('p', 'settings-note', 'Guardado en un archivo local por proyecto, junto a la extensión. Solo se ve en este equipo.'));
     const backup = el('div', 'settings-actions');
     const downloadButton = (format, label) => {
       const button = el('button', 'ghost-btn', label);
