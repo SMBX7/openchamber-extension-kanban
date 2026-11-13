@@ -625,7 +625,7 @@ const routes = {
     if (readConfig().source !== 'local') {
       throw new PlankaError('Restaurar solo vale en el tablero local.', { kind: 'validation' });
     }
-    importBoard(body?.data, currentProject());
+    await importBoard(body?.data, currentProject());
     invalidate();
     return { ok: true };
   },

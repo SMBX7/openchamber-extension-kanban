@@ -1710,7 +1710,7 @@ var exportBoard = (format = "json", projectKey = "") => {
   return `${JSON.stringify(store, null, 2)}
 `;
 };
-var importBoard = (raw, projectKey = "") => {
+var importBoard = async (raw, projectKey = "") => {
   let parsed;
   try {
     parsed = JSON.parse(String(raw || ""));
@@ -1721,7 +1721,7 @@ var importBoard = (raw, projectKey = "") => {
     throw new PlankaError("Ese tablero no tiene columnas.", { kind: "validation" });
   }
   const store = normaliseStore(parsed);
-  writeStore(store, localBoardPath(projectKey));
+  await withLock2(projectKey, () => writeStore(store, localBoardPath(projectKey)));
   return view(store);
 };
 var LOCAL_BOARD_ID = BOARD_ID;
@@ -2271,7 +2271,7 @@ var routes = {
     if (readConfig().source !== "local") {
       throw new PlankaError("Restaurar solo vale en el tablero local.", { kind: "validation" });
     }
-    importBoard(body?.data, currentProject());
+    await importBoard(body?.data, currentProject());
     invalidate();
     return { ok: true };
   },
