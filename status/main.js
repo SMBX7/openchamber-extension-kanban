@@ -1899,13 +1899,17 @@ ${GUEST_UI_LOOK_CSS}`;
   };
   var renderEditor = (card) => {
     const wrap = el2("div", "card-edit");
-    const input = el2("input", "card-edit-input");
-    input.type = "text";
+    const input = el2("textarea", "card-edit-input");
+    input.rows = 1;
     input.value = state.editDraft;
     input.dataset.id = card.id;
     input.autocomplete = "off";
     input.spellcheck = false;
     input.setAttribute("aria-label", "T\xEDtulo de la tarjeta");
+    const grow = () => {
+      input.style.height = "auto";
+      input.style.height = `${input.scrollHeight}px`;
+    };
     let saving = false;
     let finished = false;
     const clearError = () => {
@@ -1960,6 +1964,7 @@ ${GUEST_UI_LOOK_CSS}`;
     input.addEventListener("input", () => {
       state.editDraft = input.value;
       clearError();
+      grow();
     });
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -1977,6 +1982,7 @@ ${GUEST_UI_LOOK_CSS}`;
       void commit(false);
     });
     wrap.append(input);
+    requestAnimationFrame(grow);
     return wrap;
   };
   var cancelEdit = (cardId) => {
@@ -2003,8 +2009,14 @@ ${GUEST_UI_LOOK_CSS}`;
     requestAnimationFrame(() => {
       const input = root.querySelector(".card-edit-input");
       if (!input || input.dataset.id !== card.id) return;
-      input.focus();
+      const scroller = root.querySelector(".status-scroll");
+      const scrollTop = scroller ? scroller.scrollTop : 0;
+      input.focus({ preventScroll: true });
       input.select();
+      if (scroller) scroller.scrollTop = scrollTop;
+      requestAnimationFrame(() => {
+        if (scroller) scroller.scrollTop = scrollTop;
+      });
     });
   };
   var focusEditButton = (cardId) => {
@@ -2031,6 +2043,7 @@ ${GUEST_UI_LOOK_CSS}`;
   var renderTitle = (card) => {
     if (state.editId === card.id) return renderEditor(card);
     const title = el2("div", "card-name card-name-editable", card.name || "Sin t\xEDtulo");
+    title.title = card.name || "";
     title.setAttribute("role", "button");
     title.tabIndex = 0;
     title.title = "Editar t\xEDtulo";

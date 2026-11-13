@@ -1830,7 +1830,6 @@ ${GUEST_UI_LOOK_CSS}`;
   var host = connectHost();
   var root = document.querySelector("#root");
   var COLUMN_TOKENS = ["var(--oc-info)", "var(--oc-warning)", "var(--oc-success)"];
-  var SAVE_DEBOUNCE_MS = 650;
   var POLL_MS = 2500;
   var TITLE_REQUIRED = "El t\xEDtulo no puede quedar vac\xEDo.";
   var ICONS = {
@@ -2264,7 +2263,7 @@ ${card.description}`.toLowerCase();
   var showLogin = (message = "") => {
     state.view = "login";
     stopPolling();
-    closeSheet(true);
+    closeSheet();
     const config = state.config || {};
     const wrapper = el2("div", "center");
     const card = el2("div", "login-card");
@@ -2492,7 +2491,7 @@ ${card.description}`.toLowerCase();
   var showBoard = () => {
     state.view = "board";
     state.bannerText = "";
-    closeSheet(true);
+    closeSheet();
     if (state.surface === "page") buildPage();
     else buildPanel();
     renderAll();
@@ -3121,7 +3120,7 @@ ${card.description}`.toLowerCase();
       return row;
     };
     sesionesBox.append(
-      fact("IDEAS", "el + de la columna crea una tarjeta, el l\xE1piz la edita y la papelera la borra con dos toques. El tic la pasa a EN PROGRESO."),
+      fact("IDEAS", "el + de la columna crea una tarjeta, el l\xE1piz edita solo el t\xEDtulo y el doble clic abre la tarjeta. La papelera la borra con dos toques y el tic la pasa a EN PROGRESO."),
       fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el +; en autom\xE1tico te pregunta antes de abrirla."),
       fact("HECHO", "la tarjeta queda terminada. Las sesiones se cierran cuando pulses el bot\xF3n de la columna HECHO.")
     );
@@ -3216,8 +3215,10 @@ ${card.description}`.toLowerCase();
     }
     const original = card.name || "";
     const wasDraggable = node.draggable;
-    const input = el2("input", "card-title-input");
-    input.type = "text";
+    const cards = node.closest(".cards");
+    const scrollTop = cards ? cards.scrollTop : 0;
+    const input = el2("textarea", "card-title-input");
+    input.rows = 1;
     input.value = original;
     input.maxLength = 1024;
     input.setAttribute("aria-label", "T\xEDtulo de la tarjeta");
@@ -3225,9 +3226,14 @@ ${card.description}`.toLowerCase();
     node.draggable = false;
     node.classList.add("editing");
     titleNode.replaceChildren(input);
+    const grow = () => {
+      input.style.height = "auto";
+      input.style.height = `${input.scrollHeight}px`;
+    };
     const showTitle = (text) => {
       titleNode.replaceChildren(document.createTextNode(text || "Sin t\xEDtulo"));
     };
+    const ownsTitle = () => titleNode.querySelector(".card-title-input") === input;
     const leave = () => {
       if (state.editingCard === card.id) state.editingCard = "";
       node.draggable = wasDraggable;
@@ -3236,7 +3242,7 @@ ${card.description}`.toLowerCase();
     let finished = false;
     let cancelled = false;
     const finish = async (save) => {
-      if (finished) return;
+      if (finished || !ownsTitle()) return;
       finished = true;
       const value = input.value.trim();
       if (!save || !value) {
@@ -3253,16 +3259,18 @@ ${card.description}`.toLowerCase();
       const previous = card.name || "";
       card.name = value;
       node.setAttribute("aria-label", `${value}. Abrir tarjeta`);
-      showTitle(value);
       leave();
+      showTitle(value);
       state.saving += 1;
       try {
         await api("PATCH", "/card", { id: card.id, name: value });
       } catch (error) {
-        card.name = previous;
-        node.setAttribute("aria-label", `${previous || "Sin t\xEDtulo"}. Abrir tarjeta`);
-        showTitle(previous);
         toast("error", error.message);
+        if (!state.editingCard) {
+          card.name = previous;
+          node.setAttribute("aria-label", `${previous || "Sin t\xEDtulo"}. Abrir tarjeta`);
+          showTitle(previous);
+        }
       } finally {
         state.saving -= 1;
       }
@@ -3280,10 +3288,18 @@ ${card.description}`.toLowerCase();
       }
     });
     input.addEventListener("blur", () => void finish(!cancelled));
+    input.addEventListener("input", grow);
     input.addEventListener("click", (event) => event.stopPropagation());
     input.addEventListener("dblclick", (event) => event.stopPropagation());
-    input.focus();
-    input.select();
+    requestAnimationFrame(() => {
+      grow();
+      input.focus({ preventScroll: true });
+      input.select();
+      if (cards) cards.scrollTop = scrollTop;
+      requestAnimationFrame(() => {
+        if (cards) cards.scrollTop = scrollTop;
+      });
+    });
   };
   var buildCard = (card, listIndex) => {
     const node = el2("article", "card");
@@ -3335,11 +3351,19 @@ ${card.description}`.toLowerCase();
     if (meta.childNodes.length) node.append(meta);
     const edit = el2("button", "card-edit");
     edit.type = "button";
-    edit.title = "Editar el t\xEDtulo";
-    edit.setAttribute("aria-label", `Editar el t\xEDtulo de ${card.name}`);
+    edit.title = "Editar solo el t\xEDtulo (doble clic en el t\xEDtulo)";
+    edit.setAttribute("aria-label", `Editar solo el t\xEDtulo de ${card.name}`);
     edit.append(makeIcon("edit"));
+    let pencilEditing = false;
+    edit.addEventListener("pointerdown", () => {
+      pencilEditing = state.editingCard === card.id;
+    });
     edit.addEventListener("click", (event) => {
       event.stopPropagation();
+      if (pencilEditing) {
+        pencilEditing = false;
+        return;
+      }
       startCardTitleEdit(card, node, title);
     });
     const remove = el2("button", "card-delete");
@@ -3373,21 +3397,30 @@ ${card.description}`.toLowerCase();
       if (state.editingCard === card.id) return;
       openSheet(card.id);
     };
-    node.title = "Abrir la tarjeta y su descripci\xF3n";
-    node.addEventListener("click", open);
-    node.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      open();
-    });
+    const editTitle = () => {
+      if (state.editingCard === card.id) return;
+      startCardTitleEdit(card, node, title);
+    };
+    title.title = "Doble clic para editar solo el t\xEDtulo";
+    node.title = "Doble clic en la tarjeta abre el panel; el l\xE1piz edita el t\xEDtulo";
+    node.setAttribute("aria-label", `${card.name}. Doble clic abre la tarjeta; el l\xE1piz edita solo el t\xEDtulo.`);
     node.addEventListener("dblclick", (event) => {
+      if (event.target.closest(".card-actions")) return;
       event.preventDefault();
+      if (event.target.closest(".card-title")) {
+        editTitle();
+        return;
+      }
       open();
     });
     node.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         open();
+      }
+      if (event.key === "F2") {
+        event.preventDefault();
+        editTitle();
       }
     });
     node.addEventListener("dragstart", (event) => {
@@ -3767,16 +3800,20 @@ ${card.description}`.toLowerCase();
     sheet.setAttribute("aria-modal", "true");
     sheet.setAttribute("aria-label", `Tarjeta ${card.name}`);
     const head = el2("div", "sheet-head");
+    const titleWrap = el2("div", "sheet-title-wrap");
+    titleWrap.append(el2("span", "section-label", "T\xEDtulo"));
     const title = el2("input", "sheet-title");
     title.type = "text";
     title.value = card.name;
-    title.setAttribute("aria-label", "T\xEDtulo");
+    title.placeholder = "T\xEDtulo de la tarjeta";
+    title.setAttribute("aria-label", "T\xEDtulo de la tarjeta");
+    titleWrap.append(title);
     const close = el2("button", "icon-btn");
     close.type = "button";
     close.title = "Cerrar";
     close.setAttribute("aria-label", "Cerrar");
     close.append(makeIcon("close"));
-    head.append(title, close);
+    head.append(titleWrap, close);
     const scroll = el2("div", "sheet-scroll");
     const sessionSection = el2("div", "sheet-session-section");
     sessionSection.append(el2("span", "section-label", "Sesi\xF3n"));
@@ -3806,7 +3843,7 @@ ${card.description}`.toLowerCase();
     const checklistHint = el2(
       "p",
       "sheet-hint",
-      "Los pasos para terminar la tarjeta: m\xE1rcalos cuando los completes."
+      "Los pasos para terminar esta tarjeta. Marca cada uno cuando lo tengas hecho."
     );
     const checklistBody = el2("div");
     checklistBody.style.display = "flex";
@@ -3828,26 +3865,23 @@ ${card.description}`.toLowerCase();
     scroll.append(sessionSection, checklistSection, descriptionSection);
     const foot = el2("div", "sheet-foot");
     const saveState = el2("span", "save-state", "");
-    const doneLabel = (listId) => listId === state.snapshot?.doneListId ? "En HECHO" : "Mover a HECHO";
-    const complete = el2("button", "btn-complete");
-    complete.type = "button";
-    complete.append(makeIcon("check"), el2("span", "", doneLabel(card.listId)));
-    complete.disabled = card.listId === state.snapshot?.doneListId;
-    foot.append(saveState, complete);
+    const cancel = el2("button", "ghost-btn sheet-cancel", "Cancelar");
+    cancel.type = "button";
+    const confirm = el2("button", "btn-mint sheet-confirm", "Confirmar");
+    confirm.type = "button";
+    foot.append(saveState, cancel, confirm);
     sheet.append(head, scroll, foot);
     const session = {
       card,
       backdrop,
       sheet,
       title,
-      nameSaved: card.name,
       checklistBody,
       progressFill,
       countLabel,
       checklistName,
       description,
       saveState,
-      complete,
       sessionSelect,
       sessionRemove,
       sessionStart,
@@ -3855,34 +3889,25 @@ ${card.description}`.toLowerCase();
       sessionNote,
       link: null,
       sessions: [],
-      pending: /* @__PURE__ */ new Set(),
-      timer: null
+      pending: /* @__PURE__ */ new Set()
     };
     state.sheet = session;
     title.addEventListener("input", () => {
-      if (!title.value.trim()) return;
-      session.card.name = title.value;
       session.pending.add("name");
-      scheduleSave();
+      setSaveState("Sin guardar");
     });
     title.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        title.blur();
+        void confirmSheet();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        void closeSheet();
       }
     });
-    title.addEventListener("blur", () => {
-      if (title.value.trim()) return;
-      session.pending.delete("name");
-      session.card.name = session.nameSaved;
-      title.value = session.nameSaved;
-      setSaveState(TITLE_REQUIRED, "error");
-      toast("error", TITLE_REQUIRED);
-    });
     description.addEventListener("input", () => {
-      session.card.description = description.value;
       session.pending.add("description");
-      scheduleSave();
+      setSaveState("Sin guardar");
     });
     const addTask = async (taskListId, input) => {
       const name = input.value.trim();
@@ -3970,7 +3995,8 @@ ${card.description}`.toLowerCase();
     session.renderChecklist();
     close.addEventListener("click", () => void closeSheet());
     backdrop.addEventListener("click", () => void closeSheet());
-    complete.addEventListener("click", () => void completeFromSheet());
+    cancel.addEventListener("click", () => void closeSheet());
+    confirm.addEventListener("click", () => void confirmSheet());
     root.append(backdrop, sheet);
     void loadSessionBlock(session);
     requestAnimationFrame(() => {
@@ -4041,7 +4067,7 @@ ${card.description}`.toLowerCase();
       if (!link?.sessionId) return;
       try {
         await host.openSession(link.sessionId);
-        await closeSheet(true);
+        await closeSheet();
       } catch {
         toast("error", "No se pudo abrir la sesi\xF3n enlazada.");
       }
@@ -4094,32 +4120,16 @@ ${card.description}`.toLowerCase();
     session.backdrop.remove();
     session.sheet.remove();
   };
-  var closeSheet = async (force = false) => {
+  var closeSheet = async () => {
     const session = state.sheet;
     if (!session) {
       state.sheetId = "";
       return;
     }
-    if (session.timer) clearTimeout(session.timer);
-    if (!force && session.pending.size) {
-      try {
-        await saveSheet();
-      } catch {
-      }
-    }
     removeSheetNodes();
     state.sheet = null;
     state.sheetId = "";
     renderBoardOnly();
-  };
-  var scheduleSave = () => {
-    const session = state.sheet;
-    if (!session) return;
-    if (session.timer) clearTimeout(session.timer);
-    session.timer = setTimeout(() => {
-      session.timer = null;
-      void saveSheet();
-    }, SAVE_DEBOUNCE_MS);
   };
   var setSaveState = (text, kind = "") => {
     const node = state.sheet?.saveState;
@@ -4129,44 +4139,44 @@ ${card.description}`.toLowerCase();
   };
   var saveSheet = async () => {
     const session = state.sheet;
-    if (!session) return;
-    const fields = [...session.pending];
-    if (!fields.length) return;
-    session.pending.clear();
-    const card = session.card;
-    const payload = { id: card.id };
-    const name = fields.includes("name") ? session.title.value.trim() : "";
-    if (fields.includes("name") && !name) {
-      session.card.name = session.nameSaved;
-      session.title.value = session.nameSaved;
+    if (!session) return false;
+    const fields = session.pending;
+    const name = session.title.value.trim();
+    if (fields.has("name") && !name) {
       setSaveState(TITLE_REQUIRED, "error");
       toast("error", TITLE_REQUIRED);
+      return false;
     }
-    if (name) payload.name = name;
-    if (fields.includes("description")) payload.description = session.description.value;
-    if (Object.keys(payload).length === 1) return;
+    const payload = { id: session.card.id };
+    if (fields.has("name")) payload.name = name;
+    if (fields.has("description")) payload.description = session.description.value;
+    if (Object.keys(payload).length === 1) return true;
     state.saving += 1;
     setSaveState("Guardando\u2026");
     try {
       await api("PATCH", "/card", payload);
-      if (payload.name) session.nameSaved = payload.name;
-      const answer = await api("GET", `/card?id=${encodeURIComponent(card.id)}`);
-      applyServerCard(answer.card);
+      session.pending.clear();
+      try {
+        const answer = await api("GET", `/card?id=${encodeURIComponent(session.card.id)}`);
+        applyServerCard(answer.card);
+      } catch {
+      }
       setSaveState("Guardado");
       await refreshBoardOnly();
+      return true;
     } catch (error) {
       setSaveState(error.message, "error");
       toast("error", error.message);
-      try {
-        const answer = await api("GET", `/card?id=${encodeURIComponent(card.id)}`);
-        applyServerCard(answer.card);
-      } catch {
-        await closeSheet(true);
-      }
+      return false;
     } finally {
       state.saving -= 1;
-      if (state.sheet?.pending.size) scheduleSave();
     }
+  };
+  var confirmSheet = async () => {
+    if (!state.sheet) return;
+    const saved = await saveSheet();
+    if (!saved) return;
+    await closeSheet();
   };
   var rereadSheet = async (silent = false) => {
     const session = state.sheet;
@@ -4181,14 +4191,13 @@ ${card.description}`.toLowerCase();
         setSaveState(error.message, "error");
         toast("error", error.message);
       }
-      if (error.kind === "not-found") await closeSheet(true);
+      if (error.kind === "not-found") await closeSheet();
     }
   };
   var applyServerCard = (server) => {
     const session = state.sheet;
     if (!session || server.id !== session.card.id) return;
     session.card = server;
-    session.nameSaved = server.name;
     mergeCard(server);
     const pending = session.pending;
     if (!pending.has("name") && document.activeElement !== session.title) {
@@ -4198,34 +4207,6 @@ ${card.description}`.toLowerCase();
       session.description.value = server.description;
     }
     session.renderChecklist();
-    const done = server.listId === state.snapshot?.doneListId;
-    session.complete.disabled = done;
-    session.complete.lastChild.textContent = done ? "En HECHO" : "Mover a HECHO";
-  };
-  var completeFromSheet = async () => {
-    const session = state.sheet;
-    if (!session) return;
-    const id = session.card.id;
-    const cardNode = state.refs?.board?.querySelector(`[data-card-id="${CSS.escape(id)}"]`);
-    if (cardNode) cardNode.classList.add("leaving");
-    session.sheet.classList.add("closing");
-    session.backdrop.classList.remove("open");
-    const name = session.card.name;
-    const backdrop = session.backdrop;
-    const sheetNode = session.sheet;
-    setTimeout(() => {
-      backdrop.remove();
-      sheetNode.remove();
-    }, 220);
-    state.sheet = null;
-    state.sheetId = "";
-    try {
-      const result = await api("POST", "/card/complete", { id });
-      toast("success", result.already ? "Ya estaba en HECHO." : `\xAB${name}\xBB movida a HECHO.`);
-    } catch (error) {
-      toast("error", error.message);
-    }
-    await refresh(true);
   };
   var refresh = async (silent = false) => {
     if (state.fetching || state.view !== "board") return;

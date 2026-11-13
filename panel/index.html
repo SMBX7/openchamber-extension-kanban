@@ -757,16 +757,27 @@
       .card-title {
         font-size: 13px; font-weight: 500; line-height: 1.35; color: var(--oc-fg);
         overflow-wrap: break-word; word-break: normal; hyphens: none; white-space: normal;
-        text-wrap: pretty;
+        text-wrap: pretty; cursor: text;
+      }
+      /* Editable only while the pointer is over the card: no permanent noise. */
+      .card:hover .card-title {
+        text-decoration: underline; text-decoration-style: dotted;
+        text-decoration-color: color-mix(in srgb, var(--oc-fg) 50%, transparent);
+        text-underline-offset: 3px;
       }
       .card.editing { cursor: default; user-select: text; -webkit-user-select: text; }
+      .card.editing .card-title { text-decoration: none; }
       .card-title-input {
-        width: 100%; box-sizing: border-box; display: block;
+        /* Leave the floated pencil/trash their own column so the box never
+           runs under them or past the card edge. */
+        width: calc(100% - 28px); box-sizing: border-box; display: block;
         font: inherit; font-size: 13px; line-height: 1.35; font-weight: 500;
         color: var(--oc-fg);
         background: color-mix(in srgb, var(--oc-fg) 7%, transparent);
         border: 1px solid var(--oc-focus, var(--oc-primary)); border-radius: 6px;
-        padding: 2px 5px; margin: -3px -6px; outline: none;
+        padding: 2px 5px; margin: 0; outline: none;
+        resize: none; overflow: hidden; white-space: pre-wrap;
+        overflow-wrap: anywhere; word-break: normal;
       }
       .card-desc {
         margin-top: 4px; font-size: 11px; line-height: 1.45; color: var(--oc-muted);
@@ -790,10 +801,16 @@
       .card-actions {
         float: right; display: flex; flex-direction: column; align-items: center; gap: 2px;
         margin: 0 0 4px 6px; border-radius: 7px;
-        opacity: 0; pointer-events: none;
-        transition: opacity .12s ease;
+        pointer-events: none;
       }
-      .card:hover .card-actions, .card:focus-within .card-actions { opacity: 1; pointer-events: auto; }
+      /* The pencil is the permanent hint that the title is editable; the trash
+         still waits for hover so the card stays quiet. */
+      .card-actions .card-edit { opacity: .38; pointer-events: auto; transition: opacity .12s ease; }
+      .card-actions .card-delete { opacity: 0; transition: opacity .12s ease; }
+      .card:hover .card-actions .card-edit,
+      .card:focus-within .card-actions .card-edit { opacity: 1; }
+      .card:hover .card-actions .card-delete,
+      .card:focus-within .card-actions .card-delete { opacity: 1; pointer-events: auto; }
       .card::after { content: ''; display: block; clear: both; }
       .card-delete {
         width: 20px; height: 20px; padding: 0; line-height: 0;
@@ -883,11 +900,16 @@
       .sheet.open { transform: translateX(0); }
       .sheet.closing { transform: translateX(102%); }
       .sheet-head { display: flex; align-items: flex-start; gap: 8px; padding: 14px 14px 8px; }
+      .sheet-title-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+      .sheet-title-wrap .section-label { margin-bottom: 0; }
       .sheet-title {
-        flex: 1; min-width: 0; background: transparent; border: 0; outline: none;
+        width: 100%; box-sizing: border-box; min-width: 0; outline: none;
+        background: color-mix(in srgb, var(--oc-elevated) 86%, var(--oc-fg) 14%);
+        border: 1px solid transparent; border-radius: 8px;
         font-size: 17px; font-weight: 600; line-height: 1.3; color: var(--oc-fg);
-        padding: 2px 0; resize: none; overflow: hidden;
+        padding: 6px 8px; resize: none; overflow: hidden;
       }
+      .sheet-title:focus { border-color: var(--oc-focus, var(--oc-primary)); }
       .sheet-scroll {
         flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 14px 18px;
         display: flex; flex-direction: column; gap: 16px;
@@ -956,6 +978,8 @@
 
       .sheet-foot { display: flex; align-items: center; gap: 10px; padding: 10px 14px 14px; border-top: 1px solid var(--oc-border); }
       .save-state { font-size: 10.5px; color: var(--oc-muted); margin-right: auto; }
+      .sheet-cancel { margin-left: 0; }
+      .sheet-confirm { padding: 7px 13px; }
       .save-state.error { color: var(--oc-error-text, var(--oc-error)); }
       .btn-complete {
         display: inline-flex; align-items: center; justify-content: center; gap: 6px;

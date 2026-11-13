@@ -90,13 +90,20 @@ const openButton = (sessionId) => {
 // from this section without opening the side panel or a session.
 const renderEditor = (card) => {
   const wrap = el('div', 'card-edit');
-  const input = el('input', 'card-edit-input');
-  input.type = 'text';
+  const input = el('textarea', 'card-edit-input');
+  input.rows = 1;
   input.value = state.editDraft;
   input.dataset.id = card.id;
   input.autocomplete = 'off';
   input.spellcheck = false;
   input.setAttribute('aria-label', 'Título de la tarjeta');
+
+  // The editor must keep the size of the title it replaces: a long title is
+  // edited as a wrapped block, never squeezed into one line.
+  const grow = () => {
+    input.style.height = 'auto';
+    input.style.height = `${input.scrollHeight}px`;
+  };
 
   let saving = false;
   let finished = false;
@@ -161,6 +168,7 @@ const renderEditor = (card) => {
   input.addEventListener('input', () => {
     state.editDraft = input.value;
     clearError();
+    grow();
   });
   input.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
@@ -180,6 +188,7 @@ const renderEditor = (card) => {
   });
 
   wrap.append(input);
+  requestAnimationFrame(grow);
   return wrap;
 };
 
@@ -212,8 +221,15 @@ const startEdit = (card) => {
   requestAnimationFrame(() => {
     const input = root.querySelector('.card-edit-input');
     if (!input || input.dataset.id !== card.id) return;
-    input.focus();
+    const scroller = root.querySelector('.status-scroll');
+    const scrollTop = scroller ? scroller.scrollTop : 0;
+    input.focus({ preventScroll: true });
     input.select();
+    // Selecting all must not move the section to the bottom of the text.
+    if (scroller) scroller.scrollTop = scrollTop;
+    requestAnimationFrame(() => {
+      if (scroller) scroller.scrollTop = scrollTop;
+    });
   });
 };
 
@@ -244,6 +260,7 @@ const editButton = (card) => {
 const renderTitle = (card) => {
   if (state.editId === card.id) return renderEditor(card);
   const title = el('div', 'card-name card-name-editable', card.name || 'Sin título');
+  title.title = card.name || '';
   title.setAttribute('role', 'button');
   title.tabIndex = 0;
   title.title = 'Editar título';
