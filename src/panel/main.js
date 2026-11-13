@@ -50,7 +50,6 @@ const state = {
   hiddenCards: new Set(),
   pendingDelete: null,
   stoppedOnly: false,
-  editingCard: '',
   dragId: '',
   dragging: false,
   composerListId: '',
@@ -357,7 +356,6 @@ const matchesFilters = (card) => {
 const isPaused = () =>
   state.view !== 'board' ||
   Boolean(state.sheetId) ||
-  Boolean(state.editingCard) ||
   state.dragging ||
   Boolean(state.composerListId) ||
   Boolean(state.createBoard) ||
@@ -1463,7 +1461,7 @@ const openSettings = () => {
     return row;
   };
   sesionesBox.append(
-    fact('IDEAS', 'el + de la columna crea una tarjeta, el lápiz edita solo el título y el doble clic abre la tarjeta. La papelera la borra con dos toques y el tic la pasa a EN PROGRESO.'),
+    fact('IDEAS', 'el + de la columna crea una tarjeta. El lápiz abre la tarjeta para editar título, detalles, checklist y sesión, y para borrarla. El tic la pasa a EN PROGRESO.'),
     fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el +; en automático te pregunta antes de abrirla.'),
     fact('HECHO', 'la tarjeta queda terminada. Las sesiones se cierran cuando pulses el botón de la columna HECHO.'),
   );
@@ -1568,114 +1566,6 @@ const cardDraggable = () => !state.search.trim() && state.labels.size === 0;
 
 // Renames the card on the card itself: the pencil never opens the sheet, so a
 // title edit cannot move the card to another column or position.
-const startCardTitleEdit = (card, node, titleNode) => {
-  if (state.editingCard === card.id) {
-    node.querySelector('.card-title-input')?.focus();
-    return;
-  }
-  const original = card.name || '';
-  const wasDraggable = node.draggable;
-  const cards = node.closest('.cards');
-  const scrollTop = cards ? cards.scrollTop : 0;
-  const input = el('textarea', 'card-title-input');
-  input.rows = 1;
-  input.value = original;
-  input.maxLength = 1024;
-  input.setAttribute('aria-label', 'Título de la tarjeta');
-
-  state.editingCard = card.id;
-  node.draggable = false;
-  node.classList.add('editing');
-  titleNode.replaceChildren(input);
-
-  // Keep the size of the title being edited: a wrapped title is edited as a
-  // wrapped block, never squeezed into one line.
-  const grow = () => {
-    input.style.height = 'auto';
-    input.style.height = `${input.scrollHeight}px`;
-  };
-
-  const showTitle = (text) => {
-    titleNode.replaceChildren(document.createTextNode(text || 'Sin título'));
-  };
-  const ownsTitle = () => titleNode.querySelector('.card-title-input') === input;
-  const leave = () => {
-    if (state.editingCard === card.id) state.editingCard = '';
-    node.draggable = wasDraggable;
-    node.classList.remove('editing');
-  };
-
-  let finished = false;
-  let cancelled = false;
-  const finish = async (save) => {
-    if (finished || !ownsTitle()) return;
-    finished = true;
-    const value = input.value.trim();
-    if (!save || !value) {
-      leave();
-      showTitle(original);
-      if (save) toast('error', TITLE_REQUIRED);
-      return;
-    }
-    if (value === original) {
-      leave();
-      showTitle(original);
-      return;
-    }
-
-    const previous = card.name || '';
-    card.name = value;
-    node.setAttribute('aria-label', `${value}. Abrir tarjeta`);
-    leave();
-    showTitle(value);
-    state.saving += 1;
-    try {
-      await api('PATCH', '/card', { id: card.id, name: value });
-    } catch (error) {
-      toast('error', error.message);
-      // If another editor took over while this save was in flight, leave its
-      // input alone instead of replacing it with the previous title.
-      if (!state.editingCard) {
-        card.name = previous;
-        node.setAttribute('aria-label', `${previous || 'Sin título'}. Abrir tarjeta`);
-        showTitle(previous);
-      }
-    } finally {
-      state.saving -= 1;
-    }
-    // Another card may be mid-edit; its own save refreshes the board.
-    if (!state.editingCard) await refresh(true);
-  };
-
-  input.addEventListener('keydown', (event) => {
-    event.stopPropagation();
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      input.blur();
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
-      cancelled = true;
-      input.blur();
-    }
-  });
-  input.addEventListener('blur', () => void finish(!cancelled));
-  input.addEventListener('input', grow);
-  input.addEventListener('click', (event) => event.stopPropagation());
-  input.addEventListener('dblclick', (event) => event.stopPropagation());
-
-  // Selecting the whole title makes the browser scroll the column to the end
-  // of the text. Keep the column where the user left it.
-  requestAnimationFrame(() => {
-    grow();
-    input.focus({ preventScroll: true });
-    input.select();
-    if (cards) cards.scrollTop = scrollTop;
-    requestAnimationFrame(() => {
-      if (cards) cards.scrollTop = scrollTop;
-    });
-  });
-};
-
 const buildCard = (card, listIndex) => {
   const node = el('article', 'card');
   node.tabIndex = 0;
@@ -1735,75 +1625,20 @@ const buildCard = (card, listIndex) => {
 
   const edit = el('button', 'card-edit');
   edit.type = 'button';
-  edit.title = 'Editar solo el título (doble clic en el título)';
-  edit.setAttribute('aria-label', `Editar solo el título de ${card.name}`);
+  edit.title = 'Editar tarjeta';
+  edit.setAttribute('aria-label', `Editar la tarjeta ${card.name}`);
   edit.append(makeIcon('edit'));
-  // The input blurs (and saves) on mousedown, before this click runs. Remember
-  // that the pencil was pressed while editing so the click closes instead of
-  // reopening a second editor on top of the first save.
-  let pencilEditing = false;
-  edit.addEventListener('pointerdown', () => {
-    pencilEditing = state.editingCard === card.id;
-  });
   edit.addEventListener('click', (event) => {
     event.stopPropagation();
-    if (pencilEditing) {
-      pencilEditing = false;
-      return;
-    }
-    startCardTitleEdit(card, node, title);
-  });
-
-  const remove = el('button', 'card-delete');
-  remove.type = 'button';
-  remove.title = 'Eliminar tarjeta';
-  remove.setAttribute('aria-label', `Eliminar ${card.name}`);
-  remove.append(makeIcon('trash'));
-  let confirming = false;
-  let confirmTimer = null;
-  remove.addEventListener('click', async (event) => {
-    event.stopPropagation();
-    if (!confirming) {
-      confirming = true;
-      remove.classList.add('confirming');
-      remove.title = 'Pulsa otra vez para eliminar';
-      remove.setAttribute('aria-label', `Confirmar eliminar ${card.name}`);
-      confirmTimer = setTimeout(() => {
-        confirming = false;
-        remove.classList.remove('confirming');
-        remove.title = 'Eliminar tarjeta';
-        remove.setAttribute('aria-label', `Eliminar ${card.name}`);
-      }, 2500);
-      return;
-    }
-    clearTimeout(confirmTimer);
-    remove.disabled = true;
-    void queueDelete(card, node);
-  });
-  actions.append(edit, remove);
-
-  const open = () => {
-    if (state.editingCard === card.id) return;
     openSheet(card.id);
-  };
-  const editTitle = () => {
-    if (state.editingCard === card.id) return;
-    startCardTitleEdit(card, node, title);
-  };
-  title.title = 'Doble clic para editar solo el título';
-  node.title = 'Doble clic en la tarjeta abre el panel; el lápiz edita el título';
-  node.setAttribute('aria-label', `${card.name}. Doble clic abre la tarjeta; el lápiz edita solo el título.`);
-  // A single click does nothing. Double-click on the title edits only the
-  // title; double-click anywhere else opens the card sheet.
-  node.addEventListener('dblclick', (event) => {
-    if (event.target.closest('.card-actions')) return;
-    event.preventDefault();
-    if (event.target.closest('.card-title')) {
-      editTitle();
-      return;
-    }
-    open();
   });
+  actions.append(edit);
+
+  const open = () => openSheet(card.id);
+  node.title = 'Pulsa el lápiz para editar la tarjeta';
+  node.setAttribute('aria-label', `${card.name}. Pulsa el lápiz para editar la tarjeta.`);
+  // Editing goes through the card sheet only: no inline editor and no
+  // double-click shortcut.
   node.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -1811,7 +1646,7 @@ const buildCard = (card, listIndex) => {
     }
     if (event.key === 'F2') {
       event.preventDefault();
-      editTitle();
+      open();
     }
   });
   node.addEventListener('dragstart', (event) => {
@@ -2233,12 +2068,18 @@ const buildSheet = (card) => {
   const head = el('div', 'sheet-head');
   const titleWrap = el('div', 'sheet-title-wrap');
   titleWrap.append(el('span', 'section-label', 'Título'));
-  const title = el('input', 'sheet-title');
-  title.type = 'text';
+  const title = el('textarea', 'sheet-title');
+  title.rows = 1;
   title.value = card.name;
   title.placeholder = 'Título de la tarjeta';
   title.setAttribute('aria-label', 'Título de la tarjeta');
   titleWrap.append(title);
+  // The title keeps its real size: a long title wraps and grows instead of
+  // scrolling inside one line.
+  const growTitle = () => {
+    title.style.height = 'auto';
+    title.style.height = `${title.scrollHeight}px`;
+  };
   const close = el('button', 'icon-btn');
   close.type = 'button';
   close.title = 'Cerrar';
@@ -2292,13 +2133,40 @@ const buildSheet = (card) => {
   checklistSection.append(checklistHead, checklistHint, checklistBody, checklistAdd);
 
   const descriptionSection = el('div');
-  descriptionSection.append(el('span', 'section-label', 'Descripción'));
+  descriptionSection.append(el('span', 'section-label', 'Detalles'));
   const description = el('textarea', 'description');
   description.value = card.description;
-  description.placeholder = 'Añade una descripción…';
+  description.placeholder = 'Añade detalles…';
   descriptionSection.append(description);
 
-  scroll.append(sessionSection, checklistSection, descriptionSection);
+  const deleteSection = el('div', 'sheet-delete-section');
+  const remove = el('button', 'ghost-btn sheet-delete');
+  remove.type = 'button';
+  remove.append(makeIcon('trash'), el('span', '', 'Eliminar tarjeta'));
+  let confirmingDelete = false;
+  let deleteTimer = null;
+  const resetDelete = () => {
+    confirmingDelete = false;
+    remove.classList.remove('confirming');
+    remove.replaceChildren(makeIcon('trash'), el('span', '', 'Eliminar tarjeta'));
+  };
+  remove.addEventListener('click', () => {
+    if (!confirmingDelete) {
+      confirmingDelete = true;
+      remove.classList.add('confirming');
+      remove.replaceChildren(makeIcon('trash'), el('span', '', 'Pulsa otra vez para eliminar'));
+      deleteTimer = setTimeout(resetDelete, 2500);
+      return;
+    }
+    clearTimeout(deleteTimer);
+    remove.disabled = true;
+    const node = document.querySelector(`[data-card-id="${CSS.escape(card.id)}"]`);
+    void closeSheet();
+    void queueDelete(card, node || document.createElement('div'));
+  });
+  deleteSection.append(remove);
+
+  scroll.append(sessionSection, checklistSection, descriptionSection, deleteSection);
 
   const foot = el('div', 'sheet-foot');
   const saveState = el('span', 'save-state', '');
@@ -2315,6 +2183,7 @@ const buildSheet = (card) => {
     backdrop,
     sheet,
     title,
+    growTitle,
     checklistBody,
     progressFill,
     countLabel,
@@ -2337,6 +2206,7 @@ const buildSheet = (card) => {
   title.addEventListener('input', () => {
     session.pending.add('name');
     setSaveState('Sin guardar');
+    growTitle();
   });
   title.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
@@ -2453,7 +2323,8 @@ const buildSheet = (card) => {
   requestAnimationFrame(() => {
     backdrop.classList.add('open');
     sheet.classList.add('open');
-    title.focus();
+    growTitle();
+    title.focus({ preventScroll: true });
     title.setSelectionRange(title.value.length, title.value.length);
   });
 
@@ -2683,6 +2554,7 @@ const applyServerCard = (server) => {
   const pending = session.pending;
   if (!pending.has('name') && document.activeElement !== session.title) {
     session.title.value = server.name;
+    session.growTitle?.();
   }
   if (!pending.has('description') && document.activeElement !== session.description) {
     session.description.value = server.description;

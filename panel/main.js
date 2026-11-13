@@ -1871,7 +1871,6 @@ ${GUEST_UI_LOOK_CSS}`;
     hiddenCards: /* @__PURE__ */ new Set(),
     pendingDelete: null,
     stoppedOnly: false,
-    editingCard: "",
     dragId: "",
     dragging: false,
     composerListId: "",
@@ -2145,7 +2144,7 @@ ${card.description}`.toLowerCase();
     }
     return true;
   };
-  var isPaused = () => state.view !== "board" || Boolean(state.sheetId) || Boolean(state.editingCard) || state.dragging || Boolean(state.composerListId) || Boolean(state.createBoard) || state.saving > 0;
+  var isPaused = () => state.view !== "board" || Boolean(state.sheetId) || state.dragging || Boolean(state.composerListId) || Boolean(state.createBoard) || state.saving > 0;
   host.onReady((context) => {
     state.features = context.features || {};
     applyHostReady(context, document.documentElement);
@@ -3120,7 +3119,7 @@ ${card.description}`.toLowerCase();
       return row;
     };
     sesionesBox.append(
-      fact("IDEAS", "el + de la columna crea una tarjeta, el l\xE1piz edita solo el t\xEDtulo y el doble clic abre la tarjeta. La papelera la borra con dos toques y el tic la pasa a EN PROGRESO."),
+      fact("IDEAS", "el + de la columna crea una tarjeta. El l\xE1piz abre la tarjeta para editar t\xEDtulo, detalles, checklist y sesi\xF3n, y para borrarla. El tic la pasa a EN PROGRESO."),
       fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el +; en autom\xE1tico te pregunta antes de abrirla."),
       fact("HECHO", "la tarjeta queda terminada. Las sesiones se cierran cuando pulses el bot\xF3n de la columna HECHO.")
     );
@@ -3208,99 +3207,6 @@ ${card.description}`.toLowerCase();
     }
   };
   var cardDraggable = () => !state.search.trim() && state.labels.size === 0;
-  var startCardTitleEdit = (card, node, titleNode) => {
-    if (state.editingCard === card.id) {
-      node.querySelector(".card-title-input")?.focus();
-      return;
-    }
-    const original = card.name || "";
-    const wasDraggable = node.draggable;
-    const cards = node.closest(".cards");
-    const scrollTop = cards ? cards.scrollTop : 0;
-    const input = el2("textarea", "card-title-input");
-    input.rows = 1;
-    input.value = original;
-    input.maxLength = 1024;
-    input.setAttribute("aria-label", "T\xEDtulo de la tarjeta");
-    state.editingCard = card.id;
-    node.draggable = false;
-    node.classList.add("editing");
-    titleNode.replaceChildren(input);
-    const grow = () => {
-      input.style.height = "auto";
-      input.style.height = `${input.scrollHeight}px`;
-    };
-    const showTitle = (text) => {
-      titleNode.replaceChildren(document.createTextNode(text || "Sin t\xEDtulo"));
-    };
-    const ownsTitle = () => titleNode.querySelector(".card-title-input") === input;
-    const leave = () => {
-      if (state.editingCard === card.id) state.editingCard = "";
-      node.draggable = wasDraggable;
-      node.classList.remove("editing");
-    };
-    let finished = false;
-    let cancelled = false;
-    const finish = async (save) => {
-      if (finished || !ownsTitle()) return;
-      finished = true;
-      const value = input.value.trim();
-      if (!save || !value) {
-        leave();
-        showTitle(original);
-        if (save) toast("error", TITLE_REQUIRED);
-        return;
-      }
-      if (value === original) {
-        leave();
-        showTitle(original);
-        return;
-      }
-      const previous = card.name || "";
-      card.name = value;
-      node.setAttribute("aria-label", `${value}. Abrir tarjeta`);
-      leave();
-      showTitle(value);
-      state.saving += 1;
-      try {
-        await api("PATCH", "/card", { id: card.id, name: value });
-      } catch (error) {
-        toast("error", error.message);
-        if (!state.editingCard) {
-          card.name = previous;
-          node.setAttribute("aria-label", `${previous || "Sin t\xEDtulo"}. Abrir tarjeta`);
-          showTitle(previous);
-        }
-      } finally {
-        state.saving -= 1;
-      }
-      if (!state.editingCard) await refresh(true);
-    };
-    input.addEventListener("keydown", (event) => {
-      event.stopPropagation();
-      if (event.key === "Enter") {
-        event.preventDefault();
-        input.blur();
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        cancelled = true;
-        input.blur();
-      }
-    });
-    input.addEventListener("blur", () => void finish(!cancelled));
-    input.addEventListener("input", grow);
-    input.addEventListener("click", (event) => event.stopPropagation());
-    input.addEventListener("dblclick", (event) => event.stopPropagation());
-    requestAnimationFrame(() => {
-      grow();
-      input.focus({ preventScroll: true });
-      input.select();
-      if (cards) cards.scrollTop = scrollTop;
-      requestAnimationFrame(() => {
-        if (cards) cards.scrollTop = scrollTop;
-      });
-    });
-  };
   var buildCard = (card, listIndex) => {
     const node = el2("article", "card");
     node.tabIndex = 0;
@@ -3351,68 +3257,17 @@ ${card.description}`.toLowerCase();
     if (meta.childNodes.length) node.append(meta);
     const edit = el2("button", "card-edit");
     edit.type = "button";
-    edit.title = "Editar solo el t\xEDtulo (doble clic en el t\xEDtulo)";
-    edit.setAttribute("aria-label", `Editar solo el t\xEDtulo de ${card.name}`);
+    edit.title = "Editar tarjeta";
+    edit.setAttribute("aria-label", `Editar la tarjeta ${card.name}`);
     edit.append(makeIcon("edit"));
-    let pencilEditing = false;
-    edit.addEventListener("pointerdown", () => {
-      pencilEditing = state.editingCard === card.id;
-    });
     edit.addEventListener("click", (event) => {
       event.stopPropagation();
-      if (pencilEditing) {
-        pencilEditing = false;
-        return;
-      }
-      startCardTitleEdit(card, node, title);
-    });
-    const remove = el2("button", "card-delete");
-    remove.type = "button";
-    remove.title = "Eliminar tarjeta";
-    remove.setAttribute("aria-label", `Eliminar ${card.name}`);
-    remove.append(makeIcon("trash"));
-    let confirming = false;
-    let confirmTimer = null;
-    remove.addEventListener("click", async (event) => {
-      event.stopPropagation();
-      if (!confirming) {
-        confirming = true;
-        remove.classList.add("confirming");
-        remove.title = "Pulsa otra vez para eliminar";
-        remove.setAttribute("aria-label", `Confirmar eliminar ${card.name}`);
-        confirmTimer = setTimeout(() => {
-          confirming = false;
-          remove.classList.remove("confirming");
-          remove.title = "Eliminar tarjeta";
-          remove.setAttribute("aria-label", `Eliminar ${card.name}`);
-        }, 2500);
-        return;
-      }
-      clearTimeout(confirmTimer);
-      remove.disabled = true;
-      void queueDelete(card, node);
-    });
-    actions.append(edit, remove);
-    const open = () => {
-      if (state.editingCard === card.id) return;
       openSheet(card.id);
-    };
-    const editTitle = () => {
-      if (state.editingCard === card.id) return;
-      startCardTitleEdit(card, node, title);
-    };
-    title.title = "Doble clic para editar solo el t\xEDtulo";
-    node.title = "Doble clic en la tarjeta abre el panel; el l\xE1piz edita el t\xEDtulo";
-    node.setAttribute("aria-label", `${card.name}. Doble clic abre la tarjeta; el l\xE1piz edita solo el t\xEDtulo.`);
-    node.addEventListener("dblclick", (event) => {
-      if (event.target.closest(".card-actions")) return;
-      event.preventDefault();
-      if (event.target.closest(".card-title")) {
-        editTitle();
-        return;
-      }
-      open();
     });
+    actions.append(edit);
+    const open = () => openSheet(card.id);
+    node.title = "Pulsa el l\xE1piz para editar la tarjeta";
+    node.setAttribute("aria-label", `${card.name}. Pulsa el l\xE1piz para editar la tarjeta.`);
     node.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
@@ -3420,7 +3275,7 @@ ${card.description}`.toLowerCase();
       }
       if (event.key === "F2") {
         event.preventDefault();
-        editTitle();
+        open();
       }
     });
     node.addEventListener("dragstart", (event) => {
@@ -3802,12 +3657,16 @@ ${card.description}`.toLowerCase();
     const head = el2("div", "sheet-head");
     const titleWrap = el2("div", "sheet-title-wrap");
     titleWrap.append(el2("span", "section-label", "T\xEDtulo"));
-    const title = el2("input", "sheet-title");
-    title.type = "text";
+    const title = el2("textarea", "sheet-title");
+    title.rows = 1;
     title.value = card.name;
     title.placeholder = "T\xEDtulo de la tarjeta";
     title.setAttribute("aria-label", "T\xEDtulo de la tarjeta");
     titleWrap.append(title);
+    const growTitle = () => {
+      title.style.height = "auto";
+      title.style.height = `${title.scrollHeight}px`;
+    };
     const close = el2("button", "icon-btn");
     close.type = "button";
     close.title = "Cerrar";
@@ -3857,12 +3716,38 @@ ${card.description}`.toLowerCase();
     checklistAdd.append(checklistName, checklistButton);
     checklistSection.append(checklistHead, checklistHint, checklistBody, checklistAdd);
     const descriptionSection = el2("div");
-    descriptionSection.append(el2("span", "section-label", "Descripci\xF3n"));
+    descriptionSection.append(el2("span", "section-label", "Detalles"));
     const description = el2("textarea", "description");
     description.value = card.description;
-    description.placeholder = "A\xF1ade una descripci\xF3n\u2026";
+    description.placeholder = "A\xF1ade detalles\u2026";
     descriptionSection.append(description);
-    scroll.append(sessionSection, checklistSection, descriptionSection);
+    const deleteSection = el2("div", "sheet-delete-section");
+    const remove = el2("button", "ghost-btn sheet-delete");
+    remove.type = "button";
+    remove.append(makeIcon("trash"), el2("span", "", "Eliminar tarjeta"));
+    let confirmingDelete = false;
+    let deleteTimer = null;
+    const resetDelete = () => {
+      confirmingDelete = false;
+      remove.classList.remove("confirming");
+      remove.replaceChildren(makeIcon("trash"), el2("span", "", "Eliminar tarjeta"));
+    };
+    remove.addEventListener("click", () => {
+      if (!confirmingDelete) {
+        confirmingDelete = true;
+        remove.classList.add("confirming");
+        remove.replaceChildren(makeIcon("trash"), el2("span", "", "Pulsa otra vez para eliminar"));
+        deleteTimer = setTimeout(resetDelete, 2500);
+        return;
+      }
+      clearTimeout(deleteTimer);
+      remove.disabled = true;
+      const node = document.querySelector(`[data-card-id="${CSS.escape(card.id)}"]`);
+      void closeSheet();
+      void queueDelete(card, node || document.createElement("div"));
+    });
+    deleteSection.append(remove);
+    scroll.append(sessionSection, checklistSection, descriptionSection, deleteSection);
     const foot = el2("div", "sheet-foot");
     const saveState = el2("span", "save-state", "");
     const cancel = el2("button", "ghost-btn sheet-cancel", "Cancelar");
@@ -3876,6 +3761,7 @@ ${card.description}`.toLowerCase();
       backdrop,
       sheet,
       title,
+      growTitle,
       checklistBody,
       progressFill,
       countLabel,
@@ -3895,6 +3781,7 @@ ${card.description}`.toLowerCase();
     title.addEventListener("input", () => {
       session.pending.add("name");
       setSaveState("Sin guardar");
+      growTitle();
     });
     title.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -4002,7 +3889,8 @@ ${card.description}`.toLowerCase();
     requestAnimationFrame(() => {
       backdrop.classList.add("open");
       sheet.classList.add("open");
-      title.focus();
+      growTitle();
+      title.focus({ preventScroll: true });
       title.setSelectionRange(title.value.length, title.value.length);
     });
     return session;
@@ -4202,6 +4090,7 @@ ${card.description}`.toLowerCase();
     const pending = session.pending;
     if (!pending.has("name") && document.activeElement !== session.title) {
       session.title.value = server.name;
+      session.growTitle?.();
     }
     if (!pending.has("description") && document.activeElement !== session.description) {
       session.description.value = server.description;

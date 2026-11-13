@@ -13,6 +13,7 @@ const ICONS = {
   trash: '<path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 12h10l1-12"/>',
   open: '<path d="M14 4h6v6M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
   edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
 };
 
 const state = { data: null, error: '', busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: '', confirmId: '', askSession: '', pendingDelete: null, sessions: [], sessionsProjectId: '', sessionsAt: 0, editId: '', editDraft: '' };
@@ -212,7 +213,10 @@ const startEdit = (card) => {
     // The open editor keeps the section until it saves or cancels: swapping it
     // for another card would drop its inline validation error.
     open.focus();
-    if (open.dataset.id === card.id) open.select();
+    if (open.dataset.id === card.id) {
+      const end = open.value.length;
+      open.setSelectionRange(end, end);
+    }
     return;
   }
   state.editId = card.id;
@@ -224,8 +228,9 @@ const startEdit = (card) => {
     const scroller = root.querySelector('.status-scroll');
     const scrollTop = scroller ? scroller.scrollTop : 0;
     input.focus({ preventScroll: true });
-    input.select();
-    // Selecting all must not move the section to the bottom of the text.
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+    // Editing must not move the section to the bottom of the text.
     if (scroller) scroller.scrollTop = scrollTop;
     requestAnimationFrame(() => {
       if (scroller) scroller.scrollTop = scrollTop;
@@ -242,6 +247,18 @@ const focusEditButton = (cardId) => {
 };
 
 const editButton = (card) => {
+  if (state.editId === card.id) {
+    const cancel = el('button', 'card-edit-btn card-cancel-btn');
+    cancel.type = 'button';
+    cancel.title = 'Cancelar la edición';
+    cancel.setAttribute('aria-label', 'Cancelar la edición');
+    cancel.append(icon('close'));
+    cancel.addEventListener('click', (event) => {
+      event.stopPropagation();
+      cancelEdit(card.id);
+    });
+    return cancel;
+  }
   const button = el('button', 'card-edit-btn');
   button.type = 'button';
   button.dataset.id = card.id;
@@ -743,6 +760,12 @@ const render = () => {
   // list while editing, or it would drop the focus and the typed text.
   const openEditor = root.querySelector('.card-edit-input');
   if (state.editId && openEditor?.dataset.id === state.editId) return;
+  // Only the current card's session label is drawn, and the host session list
+  // changes its timestamps constantly. Keying on the whole list repainted the
+  // section on every poll (the hover flicker); key on the label instead.
+  const currentSessionId = state.data?.current?.sessionId || '';
+  const currentSession = state.sessions.find((session) => session.id === currentSessionId);
+  const sessionKey = currentSession ? `${currentSession.id}:${currentSession.title || ''}` : '';
   const signature = JSON.stringify([
     state.data,
     state.adding,
@@ -752,7 +775,7 @@ const render = () => {
     state.confirmId,
     state.askSession,
     state.pendingDelete?.card.id || '',
-    state.sessionsAt,
+    sessionKey,
     state.editId,
   ]);
   if (signature === renderSignature) return;
@@ -825,12 +848,8 @@ const load = async (force = false) => {
     inFlight = false;
   }
   render();
-  if (projectId) {
-    const before = state.sessionsAt;
-    void loadSessions(projectId).then(() => {
-      if (state.sessionsAt !== before) render();
-    });
-  }
+  // The next poll picks up the refreshed session label through the signature.
+  if (projectId) void loadSessions(projectId);
 };
 
 const startPolling = () => {

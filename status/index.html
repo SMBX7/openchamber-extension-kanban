@@ -395,12 +395,9 @@
         display: -webkit-box; -webkit-box-orient: vertical;
         -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
       }
-      .card-name-editable { cursor: text; }
-      .card-name-editable:hover {
-        text-decoration: underline;
-        text-decoration-style: dotted;
-        text-underline-offset: 2px;
-      }
+      /* The pencil is the edit affordance; the title itself no longer reacts
+         to hover, so cards do not appear to change while scrolling. */
+      .card-name-editable { cursor: default; }
       .card-edit { flex: 1 1 auto; min-width: 0; width: 100%; display: flex; flex-direction: column; gap: 3px; }
       .card-edit-input {
         display: block; box-sizing: border-box;
@@ -428,7 +425,9 @@
         border: 1px solid var(--oc-border); border-radius: var(--radius-btn);
         background: var(--oc-elevated); color: var(--oc-muted);
         box-shadow: var(--relief-btn);
-        opacity: 0;
+        /* Always visible, very faint: the pencil must be clickable while the
+           section scrolls, not only on hover. */
+        opacity: .28;
         transition: opacity .12s, color .12s, background .12s, border-color .12s;
       }
       /* Shown on hover or keyboard focus; always reachable with Tab. */
@@ -442,9 +441,12 @@
       }
       .card-edit-btn:active { box-shadow: var(--relief-inset); }
       .card-edit-btn .icon { width: 12px; height: 12px; }
-      /* `button:disabled` would otherwise reveal the pencil at half opacity
-         whenever another action is in flight; keep it out of the way instead. */
-      .card-edit-btn:disabled { opacity: 0; }
+      .card-edit-btn:disabled { opacity: .28; }
+      .card-cancel-btn, .card-cancel-btn:disabled {
+        opacity: 1;
+        color: var(--oc-error-text, var(--oc-error));
+        border-color: color-mix(in srgb, var(--oc-error) 45%, var(--oc-border));
+      }
       .card-meta { flex: none; display: flex; align-items: center; gap: 3px; }
       .state {
         color: var(--oc-muted); font-size: 10px; white-space: nowrap;
