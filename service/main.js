@@ -1873,15 +1873,15 @@ var short = (value, max = 60) => {
 };
 var sessionStateFor = async (cardId) => {
   const link = getLink(cardId);
-  if (!link) return { state: "sin sesi\xF3n", tone: "warning" };
-  if (!serviceHost) return { state: "sin control", tone: "muted" };
+  if (!link) return { state: "sin sesi\xF3n", tone: "warning", sessionId: "" };
+  if (!serviceHost) return { state: "sin control", tone: "muted", sessionId: link.sessionId };
   try {
     const status = await serviceHost.sessions.status(link.sessionId);
-    if (status.status === "busy") return { state: "trabajando", tone: "success" };
-    if (status.status === "waiting") return { state: "esperando", tone: "warning" };
-    return { state: "parada", tone: "muted" };
+    if (status.status === "busy") return { state: "trabajando", tone: "success", sessionId: link.sessionId };
+    if (status.status === "waiting") return { state: "esperando", tone: "warning", sessionId: link.sessionId };
+    return { state: "parada", tone: "muted", sessionId: link.sessionId };
   } catch {
-    return { state: "sesi\xF3n cerrada", tone: "muted" };
+    return { state: "sesi\xF3n cerrada", tone: "muted", sessionId: link.sessionId };
   }
 };
 var startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
@@ -2587,8 +2587,11 @@ var routes = {
     const doneList = snapshot.lists.find((list) => list.id === snapshot.doneListId);
     if (!doneList) return { count: 0 };
     let count = 0;
+    const seen = /* @__PURE__ */ new Set();
     for (const card of doneList.cards) {
-      if (!getLink(card.id)) continue;
+      const link = getLink(card.id);
+      if (!link || seen.has(link.sessionId)) continue;
+      seen.add(link.sessionId);
       if (await triggerClose(card.id)) count += 1;
     }
     return { count };
