@@ -16,7 +16,7 @@ const ICONS = {
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
 };
 
-const state = { data: null, error: '', busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: '', confirmId: '', askSession: '', pendingDelete: null, sessions: [], sessionsProjectId: '', sessionsAt: 0, directory: '', editId: '', editDraft: '' };
+const state = { data: null, error: '', busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: '', confirmId: '', askSession: '', pendingDelete: null, sessions: [], sessionsProjectId: '', sessionsAt: 0, directory: '', editId: '', editDraft: '', expanded: new Set() };
 let confirmTimer = null;
 let poll = null;
 let inFlight = false;
@@ -280,21 +280,43 @@ const editButton = (card) => {
 };
 
 // The title itself is the second entry point to the same editor.
+const toggleExpanded = (cardId) => {
+  if (state.expanded.has(cardId)) state.expanded.delete(cardId);
+  else state.expanded.add(cardId);
+  render();
+};
+
+// The title is clamped to two lines. Clicking it (or the chevron) expands it
+// in place so the whole text can be read on desktop and mobile; the pencil
+// remains the edit affordance.
 const renderTitle = (card) => {
   if (state.editId === card.id) return renderEditor(card);
-  const title = el('div', 'card-name card-name-editable', card.name || 'Sin título');
+  const expanded = state.expanded.has(card.id);
+  const row = el('div', 'card-title-row');
+  const title = el('div', 'card-name card-name-read', card.name || 'Sin título');
+  if (expanded) title.classList.add('expanded');
   title.title = card.name || '';
   title.setAttribute('role', 'button');
   title.tabIndex = 0;
-  title.title = 'Editar título';
-  title.setAttribute('aria-label', `Editar el título de ${card.name || 'la tarjeta'}`);
-  title.addEventListener('click', () => startEdit(card));
+  title.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  title.setAttribute('aria-label', `${expanded ? 'Contraer' : 'Leer'} el título de ${card.name || 'la tarjeta'}`);
+  title.addEventListener('click', () => toggleExpanded(card.id));
   title.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
-    startEdit(card);
+    toggleExpanded(card.id);
   });
-  return title;
+  const toggle = el('button', `card-expand-btn${expanded ? ' expanded' : ''}`);
+  toggle.type = 'button';
+  toggle.title = expanded ? 'Contraer el título' : 'Leer el título completo';
+  toggle.setAttribute('aria-label', toggle.title);
+  toggle.append(icon('chevron'));
+  toggle.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleExpanded(card.id);
+  });
+  row.append(title, toggle);
+  return row;
 };
 
 const act = async (id) => {
@@ -783,6 +805,7 @@ const render = () => {
     state.pendingDelete?.card.id || '',
     sessionKey,
     state.editId,
+    [...state.expanded].sort().join('|'),
   ]);
   if (signature === renderSignature) return;
   renderSignature = signature;

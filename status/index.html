@@ -395,9 +395,22 @@
         display: -webkit-box; -webkit-box-orient: vertical;
         -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
       }
-      /* The pencil is the edit affordance; the title itself no longer reacts
-         to hover, so cards do not appear to change while scrolling. */
-      .card-name-editable { cursor: default; }
+      .card-title-row { display: flex; align-items: flex-start; gap: 4px; width: 100%; min-width: 0; }
+      .card-title-row .card-name { flex: 1 1 auto; min-width: 0; }
+      .card-name-read { cursor: pointer; }
+      .card-name.expanded {
+        display: block; overflow: visible;
+        -webkit-line-clamp: unset; line-clamp: unset;
+      }
+      .card.current .card-title-row .card-name { flex: 1 1 auto; width: auto; }
+      .card-expand-btn {
+        width: 18px; height: 18px; flex: none; display: grid; place-items: center;
+        padding: 0; margin-top: 1px; border: 0; background: transparent;
+        color: var(--oc-muted); border-radius: var(--radius-btn);
+      }
+      .card-expand-btn:hover { color: var(--oc-fg); background: var(--oc-hover); }
+      .card-expand-btn .icon { width: 12px; height: 12px; transition: transform .12s ease; }
+      .card-expand-btn.expanded .icon { transform: rotate(180deg); }
       .card-edit { flex: 1 1 auto; min-width: 0; width: 100%; display: flex; flex-direction: column; gap: 3px; }
       .card-edit-input {
         display: block; box-sizing: border-box;

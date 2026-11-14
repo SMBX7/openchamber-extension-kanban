@@ -1840,7 +1840,7 @@ ${GUEST_UI_LOOK_CSS}`;
     edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>'
   };
-  var state = { data: null, error: "", busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: "", confirmId: "", askSession: "", pendingDelete: null, sessions: [], sessionsProjectId: "", sessionsAt: 0, directory: "", editId: "", editDraft: "" };
+  var state = { data: null, error: "", busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: "", confirmId: "", askSession: "", pendingDelete: null, sessions: [], sessionsProjectId: "", sessionsAt: 0, directory: "", editId: "", editDraft: "", expanded: /* @__PURE__ */ new Set() };
   var confirmTimer = null;
   var poll = null;
   var inFlight = false;
@@ -2062,21 +2062,39 @@ ${GUEST_UI_LOOK_CSS}`;
     });
     return button2;
   };
+  var toggleExpanded = (cardId) => {
+    if (state.expanded.has(cardId)) state.expanded.delete(cardId);
+    else state.expanded.add(cardId);
+    render();
+  };
   var renderTitle = (card) => {
     if (state.editId === card.id) return renderEditor(card);
-    const title = el2("div", "card-name card-name-editable", card.name || "Sin t\xEDtulo");
+    const expanded = state.expanded.has(card.id);
+    const row = el2("div", "card-title-row");
+    const title = el2("div", "card-name card-name-read", card.name || "Sin t\xEDtulo");
+    if (expanded) title.classList.add("expanded");
     title.title = card.name || "";
     title.setAttribute("role", "button");
     title.tabIndex = 0;
-    title.title = "Editar t\xEDtulo";
-    title.setAttribute("aria-label", `Editar el t\xEDtulo de ${card.name || "la tarjeta"}`);
-    title.addEventListener("click", () => startEdit(card));
+    title.setAttribute("aria-expanded", expanded ? "true" : "false");
+    title.setAttribute("aria-label", `${expanded ? "Contraer" : "Leer"} el t\xEDtulo de ${card.name || "la tarjeta"}`);
+    title.addEventListener("click", () => toggleExpanded(card.id));
     title.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
-      startEdit(card);
+      toggleExpanded(card.id);
     });
-    return title;
+    const toggle = el2("button", `card-expand-btn${expanded ? " expanded" : ""}`);
+    toggle.type = "button";
+    toggle.title = expanded ? "Contraer el t\xEDtulo" : "Leer el t\xEDtulo completo";
+    toggle.setAttribute("aria-label", toggle.title);
+    toggle.append(icon2("chevron"));
+    toggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleExpanded(card.id);
+    });
+    row.append(title, toggle);
+    return row;
   };
   var act = async (id) => {
     if (state.busy) return;
@@ -2525,7 +2543,8 @@ ${GUEST_UI_LOOK_CSS}`;
       state.askSession,
       state.pendingDelete?.card.id || "",
       sessionKey,
-      state.editId
+      state.editId,
+      [...state.expanded].sort().join("|")
     ]);
     if (signature === renderSignature) return;
     renderSignature = signature;
