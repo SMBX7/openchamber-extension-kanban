@@ -1,6 +1,8 @@
 // Rows for the composer's `@` menu. The chat asks the service for cards and the
 // picked row becomes a text the agent reads. The host sends back only the row
 // id, so the id has to carry the board (or the local project) and the card.
+import { workListFor } from './defaults.js';
+
 export const MENTION_ITEMS_MAX = 20;
 export const MENTION_TITLE_MAX = 120;
 export const MENTION_ID_MAX = 256;
@@ -36,12 +38,18 @@ export const parseMentionId = (value) => {
   return null;
 };
 
-// The cards the menu offers, in column order. A card in DONE is finished and
-// stays out; an empty query lists what is left to do.
+// The cards the menu offers: the work column first, then the backlog, each
+// card with its column as the subtitle so the two groups never blur together.
+// A card in DONE is finished and stays out; an empty query lists what is left.
 export const mentionItems = (board, query, origin) => {
   const needle = String(query || '').trim().toLowerCase();
+  const lists = Array.isArray(board?.lists) ? board.lists : [];
+  const work = workListFor(board);
+  const ordered = work
+    ? [work, ...lists.filter((list) => String(list.id) !== String(work.id))]
+    : lists;
   const items = [];
-  for (const list of board?.lists || []) {
+  for (const list of ordered) {
     if (String(list.id) === String(board?.doneListId || '')) continue;
     for (const card of list.cards || []) {
       const haystack = `${card.name}\n${card.description}`.toLowerCase();
@@ -51,10 +59,7 @@ export const mentionItems = (board, query, origin) => {
       items.push({
         id,
         title: clip(card.name, MENTION_TITLE_MAX),
-        subtitle: clip(
-          `${list.name}${card.description ? ` · ${card.description}` : ''}`,
-          MENTION_TITLE_MAX,
-        ),
+        subtitle: clip(list.name, MENTION_TITLE_MAX),
       });
       if (items.length >= MENTION_ITEMS_MAX) return items;
     }
