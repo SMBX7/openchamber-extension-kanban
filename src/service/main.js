@@ -14,6 +14,13 @@ import { readAppearance, setAppearance } from '../shared/appearance.js';
 import { LOCAL_BOARD_ID, LocalClient, exportBoard, importBoard } from '../shared/local.js';
 import { PlankaClient, PlankaError, flattenCards, searchCards } from '../shared/planka.js';
 import { ensureDefaultLists, workListFor } from '../shared/defaults.js';
+import {
+  batchAllDone,
+  batchCardPrompt,
+  batchClosePrompt,
+  batchStartPrompt,
+  reusableBatchSession,
+} from '../shared/batch.js';
 
 const PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
 const TOKEN = process.env.OPENCHAMBER_SERVICE_TOKEN || '';
@@ -52,9 +59,35 @@ const sendClosePrompt = async (cardId, link) => {
   }
 };
 
+// A batch only closes once every card it holds is in HECHO; until then the
+// session stays open so more cards can join it.
+const maybeCloseBatch = async (sessionId) => {
+  if (!serviceHost) return false;
+  if (pendingCloses.has(sessionId)) return true;
+  const entry = linksForSession(sessionId)[0];
+  if (!entry) return false;
+  const boardId = entry[1].boardId || readConfig().boardId;
+  let snapshot;
+  try {
+    snapshot = await getSnapshot({ boardId, fresh: true });
+  } catch {
+    return false;
+  }
+  if (!batchAllDone(listLinks(), snapshot, sessionId)) return false;
+  try {
+    await serviceHost.sessions.send(sessionId, batchClosePrompt());
+    pendingCloses.set(sessionId, { cardId: entry[0], phase: 'wait-close', title: entry[1].title });
+    return true;
+  } catch {
+    pendingCloses.delete(sessionId);
+    return false;
+  }
+};
+
 const triggerClose = async (cardId) => {
   const link = getLink(cardId);
   if (!link || !serviceHost) return false;
+  if (link.batch === true) return maybeCloseBatch(link.sessionId);
   if (pendingCloses.has(link.sessionId)) return true;
   try {
     const status = await serviceHost.sessions.status(link.sessionId);
@@ -67,12 +100,43 @@ const triggerClose = async (cardId) => {
   }
 };
 
+// A card that leaves the work (back to IDEAS, or deleted) must not stop a batch
+// that still holds other cards: it is released alone and the agent is told to
+// drop it. A single-card session is still stopped as before.
+const releaseCard = async (cardId, link, note) => {
+  if (!link) return false;
+  const shared = link.batch === true && linksForSession(link.sessionId).length > 1;
+  if (shared) {
+    if (serviceHost) {
+      try {
+        await serviceHost.sessions.send(link.sessionId, note);
+      } catch {
+        // The rest of the batch keeps going even if the note cannot be sent.
+      }
+    }
+    removeLink(cardId);
+    return false;
+  }
+  if (serviceHost) {
+    try {
+      await serviceHost.sessions.stop(link.sessionId);
+    } catch {
+      // The card is released even if its session is already gone.
+    }
+  }
+  removeLink(cardId);
+  return true;
+};
+
 const handleSessionEvent = async (event) => {
   const sessionId = event?.session?.id;
   if (!sessionId) return;
+  const batch = linksForSession(sessionId).some(([, link]) => link?.batch === true);
   // A delegated task finishes when its own session goes idle: move only the
   // cards linked to that session to HECHO. A manual move never reaches here.
-  if (event.type === 'turn-finished') {
+  // A batch session holds several cards, so only the agent knows which one is
+  // finished: it moves each card itself and the batch closes when all are done.
+  if (event.type === 'turn-finished' && !batch) {
     for (const [cardId, link] of linksForSession(sessionId)) {
       try {
         const boardId = link.boardId || readConfig().boardId;
@@ -84,7 +148,10 @@ const handleSessionEvent = async (event) => {
     }
   }
   const pending = pendingCloses.get(sessionId) || null;
-  if (!pending) return;
+  if (!pending) {
+    if (batch && event.type === 'turn-finished') await maybeCloseBatch(sessionId);
+    return;
+  }
   if (event.type === 'turn-finished') {
     if (pending.phase === 'wait-idle') {
       const entry = linksForSession(sessionId)[0];
@@ -195,6 +262,49 @@ const startWorkSession = async (card, board, project, boardId) => {
   return { ...started, project: project.name };
 };
 
+// Automatic delegation works in batches: one session for every card launched
+// on the board. The first card opens it; the rest join it and the main agent
+// hands each one to a subagent.
+const startBatchSession = async (card, snapshot, project, boardId) => {
+  if (!serviceHost) throw new Error('El servicio no puede abrir sesiones en este host.');
+  const reusable = reusableBatchSession(listLinks(), snapshot);
+  if (reusable) {
+    try {
+      // A dead session must not swallow the card: check it before sending.
+      const status = await serviceHost.sessions.status(reusable);
+      if (status?.status) {
+        setLink(card.id, reusable, {
+          boardId,
+          batch: true,
+          title: card.name,
+          sessionTitle: 'Lote del tablero',
+        });
+        try {
+          await serviceHost.sessions.send(reusable, batchCardPrompt(card, snapshot.board, project));
+          return { sessionId: reusable, reused: true, sent: true, project: project.name };
+        } catch {
+          removeLink(card.id);
+        }
+      }
+    } catch {
+      // The batch session is gone: drop its stale links and open a fresh one.
+      removeLinksForSession(reusable);
+    }
+  }
+  const started = await serviceHost.sessions.start({
+    prompt: batchStartPrompt(card, snapshot.board, project),
+    title: `Lote · ${project.name}`.slice(0, 120),
+    directory: project.directory,
+  });
+  setLink(card.id, started.sessionId, {
+    boardId,
+    batch: true,
+    title: card.name,
+    sessionTitle: 'Lote del tablero',
+  });
+  return { ...started, project: project.name };
+};
+
 const short = (value, max = 60) => {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -232,9 +342,13 @@ const startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
   const existing = getLink(cardId);
   if (existing) {
     if (!serviceHost) return { sessionId: existing.sessionId, project: project.name };
+    const prompt =
+      existing.batch === true
+        ? batchCardPrompt(card, snapshot.board, project)
+        : sessionPrompt(card, snapshot.board, project);
     try {
-      await serviceHost.sessions.send(existing.sessionId, sessionPrompt(card, snapshot.board, project));
-      return { sessionId: existing.sessionId, sent: true, project: project.name };
+      await serviceHost.sessions.send(existing.sessionId, prompt);
+      return { sessionId: existing.sessionId, sent: true, reused: true, project: project.name };
     } catch (error) {
       return {
         sessionId: existing.sessionId,
@@ -246,6 +360,10 @@ const startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
   }
   if (!forceSession) {
     return { moved: true, autoPending: project.autoSession === true, project: project.name };
+  }
+  if (project.autoSession === true) {
+    const batch = await startBatchSession(card, snapshot, project, boardId);
+    return { sessionId: batch.sessionId, sent: true, reused: batch.reused === true, project: project.name };
   }
   const started = await startWorkSession(card, snapshot.board, project, boardId);
   return { sessionId: started.sessionId, sent: true, project: project.name };
@@ -916,19 +1034,14 @@ const routes = {
     const card = flattenCards(snapshot).find((entry) => entry.id === cardId);
     if (!card) throw new PlankaError('Esa tarjeta ya no existe.', { kind: 'not-found', status: 404 });
     const link = getLink(cardId);
-    if (link) {
-      if (serviceHost) {
-        try {
-          await serviceHost.sessions.stop(link.sessionId);
-        } catch {
-          // The card still returns to ideas even if its session is already gone.
-        }
-      }
-      removeLink(cardId);
-    }
+    const stopped = await releaseCard(
+      cardId,
+      link,
+      `La tarjeta «${card.name}» vuelve a IDEAS. No la trabajes más; deja las demás del lote como están.`,
+    );
     await client().moveCard(card.id, backlog.id, 0, boardId);
     invalidate();
-    return { ok: true, list: backlog.name, stopped: Boolean(link) };
+    return { ok: true, list: backlog.name, stopped };
   },
 
   'POST /session/start': async (body) => {
@@ -995,16 +1108,11 @@ const routes = {
     if (!id) throw new PlankaError('Falta el id de la tarjeta.', { kind: 'validation' });
     markPendingDelete(id, false);
     const link = getLink(id);
-    if (link) {
-      if (serviceHost) {
-        try {
-          await serviceHost.sessions.stop(link.sessionId);
-        } catch {
-          // The card is deleted even if its session is already gone.
-        }
-      }
-      removeLink(id);
-    }
+    await releaseCard(
+      id,
+      link,
+      `La tarjeta «${link?.title || ''}» se ha eliminado. No la trabajes más; sigue con las demás del lote.`,
+    );
     await client().deleteCard(id);
     invalidate();
     return { ok: true };

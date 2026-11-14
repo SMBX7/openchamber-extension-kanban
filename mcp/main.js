@@ -1228,7 +1228,8 @@ var setLink = (cardId, sessionId, meta = {}) => {
       boardId: String(meta.boardId || ""),
       title: String(meta.title || "").slice(0, 200),
       sessionTitle: String(meta.sessionTitle || meta.title || session).slice(0, 120),
-      linkedAt: (/* @__PURE__ */ new Date()).toISOString()
+      linkedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      ...meta.batch === true ? { batch: true } : {}
     };
     writeLinks(data);
     return data.links[id];

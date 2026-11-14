@@ -337,5 +337,78 @@ try {
   }
 }
 
+// Automatic delegation shares one session per batch. These are the pure
+// decisions, exercised without a host so a change in the reuse rule is caught.
+const batchBundle = join(dir, 'batch.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/batch.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: batchBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const {
+  batchStartPrompt,
+  batchCardPrompt,
+  batchClosePrompt,
+  batchAllDone,
+  reusableBatchSession,
+} = require(batchBundle);
+
+const batchBoard = { id: 'board-1', name: 'Tablero de prueba' };
+const batchProject = { name: 'demo' };
+const cardA = { id: 'card-a', name: 'Primera', description: 'Arregla el borde', taskLists: [] };
+const cardB = { id: 'card-b', name: 'Segunda', description: '', taskLists: [] };
+const openSnapshot = {
+  board: batchBoard,
+  doneListId: 'done',
+  lists: [
+    { id: 'ideas', name: 'IDEAS', cards: [] },
+    { id: 'work', name: 'EN PROGRESO', cards: [cardA, cardB] },
+    { id: 'done', name: 'HECHO', cards: [] },
+  ],
+};
+
+const startPrompt = batchStartPrompt(cardA, batchBoard, batchProject);
+assert.ok(
+  startPrompt.includes('Primera') && startPrompt.includes('subagente'),
+  'the first card opens the batch and asks the main agent for a subagent',
+);
+assert.ok(startPrompt.includes('kanban_complete_card'), 'the agent is told how to finish a card');
+const addPrompt = batchCardPrompt(cardB, batchBoard, batchProject);
+assert.ok(
+  addPrompt.includes('Segunda') && addPrompt.includes('subagente'),
+  'a card added later carries the same delegation rule',
+);
+assert.ok(batchClosePrompt().includes('resumen'), 'the batch closes with a summary per subagent');
+
+const batchLinks = {
+  'card-a': { sessionId: 's1', boardId: 'board-1', batch: true, linkedAt: '2026-11-14T10:00:00.000Z' },
+  'card-b': { sessionId: 's1', boardId: 'board-1', batch: true, linkedAt: '2026-11-14T10:01:00.000Z' },
+};
+assert.equal(reusableBatchSession(batchLinks, openSnapshot), 's1', 'an open batch is reused');
+assert.equal(batchAllDone(batchLinks, openSnapshot, 's1'), false, 'a card outside HECHO keeps the batch open');
+
+const doneSnapshot = {
+  board: batchBoard,
+  doneListId: 'done',
+  lists: [
+    { id: 'ideas', name: 'IDEAS', cards: [] },
+    { id: 'work', name: 'EN PROGRESO', cards: [] },
+    { id: 'done', name: 'HECHO', cards: [cardA, cardB] },
+  ],
+};
+assert.equal(batchAllDone(batchLinks, doneSnapshot, 's1'), true, 'every card in HECHO closes the batch');
+assert.equal(reusableBatchSession(batchLinks, doneSnapshot), '', 'a finished batch is not reused');
+
+const manualLink = { 'card-a': { sessionId: 's2', boardId: 'board-1', linkedAt: '2026-11-14T10:00:00.000Z' } };
+assert.equal(reusableBatchSession(manualLink, openSnapshot), '', 'a manual session is never a batch');
+assert.equal(
+  reusableBatchSession(batchLinks, { ...openSnapshot, board: { id: 'board-2', name: 'Otro' } }),
+  '',
+  'a batch never crosses boards',
+);
+
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 69 assertions ok');
+console.log('local mode: 79 assertions ok');
