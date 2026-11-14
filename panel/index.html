@@ -798,10 +798,14 @@
         overflow-wrap: break-word; word-break: normal; hyphens: none; white-space: normal;
         text-wrap: pretty;
       }
+      /* A card on the board previews its description in two clamped lines: the
+         full text lives in the sheet the pencil opens. */
       .card-desc {
         margin-top: 4px; font-size: 11px; line-height: 1.45; color: var(--oc-muted);
         overflow-wrap: break-word; word-break: normal; hyphens: auto; white-space: normal;
-        text-align: justify; text-wrap: pretty;
+        text-align: left;
+        display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+        line-clamp: 2; overflow: hidden;
       }
       .card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 7px; font-size: 10px; color: var(--oc-muted); }
       .session-dot {
