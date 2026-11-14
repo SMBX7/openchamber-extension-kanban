@@ -2,7 +2,7 @@
 // The extension sources are ESM without "type": "module", so esbuild bundles
 // the module to CJS before requiring it.
 import { build } from 'esbuild';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createServer } from 'node:net';
@@ -410,5 +410,53 @@ assert.equal(
   'a batch never crosses boards',
 );
 
+// The board the agent uses follows the project of the session, never a global
+// selection. Pinning is manual; a worktree inherits its project's board.
+process.env.KANBAN_BOARD_PROJECTS_PATH = join(dir, 'board-projects.json');
+const projectsBundle = join(dir, 'board-projects.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/board-projects.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: projectsBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const { resolveProjectBoard, setProjectBoard, getProjectBoard, setBoardProject } = require(projectsBundle);
+
+const pinProjectA = join(dir, 'proj-a');
+const pinProjectB = join(dir, 'proj-b');
+assert.equal(
+  resolveProjectBoard(pinProjectA),
+  '',
+  'a project with no board and no pin resolves to nothing',
+);
+setProjectBoard(pinProjectA, 'board-a');
+assert.equal(getProjectBoard(pinProjectA), 'board-a', 'the pin is stored for the exact project');
+assert.equal(resolveProjectBoard(pinProjectA), 'board-a', 'the pinned board is the one the agent uses');
+assert.equal(
+  resolveProjectBoard(join(pinProjectA, 'packages', 'app')),
+  'board-a',
+  'a subfolder inherits the project board',
+);
+assert.equal(resolveProjectBoard(pinProjectB), '', 'another project never reuses that board');
+
+setBoardProject('board-b', { projectId: 'p-b', directory: pinProjectB });
+assert.equal(resolveProjectBoard(pinProjectB), 'board-b', 'a project with a single board needs no pin');
+setBoardProject('board-c', { projectId: 'p-c', directory: pinProjectB });
+assert.equal(resolveProjectBoard(pinProjectB), '', 'two boards and no pin: the agent does not guess');
+
+// A worktree shares the git common dir, so it inherits its checkout's pin.
+const repo = join(dir, 'repo');
+mkdirSync(repo, { recursive: true });
+execFileSync('git', ['-C', repo, 'init', '-q']);
+writeFileSync(join(repo, 'README.md'), '# demo\n');
+execFileSync('git', ['-C', repo, 'add', '.']);
+execFileSync('git', ['-C', repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init']);
+const worktree = join(dir, 'repo-worktree');
+execFileSync('git', ['-C', repo, 'worktree', 'add', '-q', worktree]);
+setProjectBoard(repo, 'board-repo');
+assert.equal(resolveProjectBoard(worktree), 'board-repo', 'a worktree inherits the board pinned for its project');
+
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 79 assertions ok');
+console.log('local mode: 87 assertions ok');

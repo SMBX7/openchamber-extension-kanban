@@ -1526,6 +1526,57 @@ const openSettings = () => {
   delegacion.append(modes);
   if (!mapping) delegacion.append(el('p', 'settings-note warning', 'Asigna primero un proyecto al tablero.'));
 
+  /* Tablero del agente */
+  const agenteBox = el('div', 'settings-box');
+  agenteBox.append(
+    el(
+      'p',
+      'settings-note',
+      'El agente usa el tablero que fijes para este proyecto. Si no fijas ninguno y el proyecto tiene varios, el agente no toca tarjetas.',
+    ),
+  );
+  const agenteState = el('p', 'settings-note', 'Comprobando el tablero del agente…');
+  const agentePin = el('button', 'btn-mint', 'Fijar este tablero a este proyecto');
+  agentePin.type = 'button';
+  agenteBox.append(agenteState, agentePin);
+  delegacion.append(agenteBox);
+
+  let pinnedBoard = '';
+  const paintAgentBoard = () => {
+    const isPinned = Boolean(pinnedBoard) && pinnedBoard === snapshot.board.id;
+    agenteState.textContent = !state.directory
+      ? 'Abre Kanban desde una sesión con proyecto para fijar su tablero.'
+      : isPinned
+        ? 'El agente usa este tablero en las sesiones de este proyecto.'
+        : pinnedBoard
+          ? 'El agente usa otro tablero en este proyecto.'
+          : 'Este proyecto no tiene tablero fijado para el agente.';
+    agentePin.textContent = isPinned ? 'Quitar el tablero del agente' : 'Fijar este tablero a este proyecto';
+    agentePin.disabled = !state.directory;
+  };
+  const refreshAgentBoard = async () => {
+    try {
+      const answer = await api('GET', '/project-board');
+      pinnedBoard = answer?.pinned || '';
+    } catch (error) {
+      agenteState.textContent = `No se pudo leer el tablero del agente: ${error.message}`;
+      return;
+    }
+    paintAgentBoard();
+  };
+  agentePin.addEventListener('click', async () => {
+    const isPinned = Boolean(pinnedBoard) && pinnedBoard === snapshot.board.id;
+    try {
+      await api(isPinned ? 'DELETE' : 'POST', '/project-board', isPinned ? {} : { boardId: snapshot.board.id });
+      await refreshAgentBoard();
+      toast('success', isPinned ? 'Tablero del agente quitado.' : 'Este tablero queda fijado para el proyecto.');
+    } catch (error) {
+      toast('error', error.message);
+    }
+  });
+  paintAgentBoard();
+  void refreshAgentBoard();
+
   /* Estilo */
   const estilo = el('section', 'settings-section');
   estilo.append(el('div', 'settings-heading', 'Apariencia'));

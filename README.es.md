@@ -162,6 +162,15 @@ hizo cada subagente y se cierra. En los dos modos:
   cierra cada sesión distinta una vez y borra sus vínculos.
 - Volver a **IDEAS** suelta la tarjeta. En un lote solo sale esa tarjeta: la sesión sigue
   con las demás.
+
+### El tablero del agente
+
+El panel y el agente son dos procesos distintos. El panel sigue la conexión que ves aquí;
+las herramientas del agente deciden su tablero según el proyecto en el que se abrió la
+sesión. Fíjalo una vez por proyecto en **Ajustes → Delegación → Tablero del agente**.
+Mientras un proyecto tenga varios tableros y ninguno esté fijado, el agente se niega a
+tocar tarjetas en vez de adivinar. Un worktree o una subcarpeta del proyecto hereda el
+tablero fijado.
 - Una tarjeta sin sesión aparece en **Paradas**.
 
 ## Estilos

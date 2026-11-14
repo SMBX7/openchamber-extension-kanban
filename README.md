@@ -162,6 +162,15 @@ subagent did and closes. In both modes:
   the DONE column closes each distinct session once and removes its links.
 - Moving back to **IDEAS** releases the card. In a batch only that card leaves; the
   session keeps working the rest.
+
+### The board the agent uses
+
+The panel and the agent are two separate processes. The panel follows the connection you
+see here; the agent's tools decide their board from the project the session was opened
+in. Pin it once per project in **Settings → Delegation → Board for the agent** (Tablero
+del agente). While a project has several boards and none is pinned, the agent refuses to
+touch cards instead of guessing. A worktree or a subfolder of the project inherits the
+pinned board.
 - A card with no session shows under **Stopped** (Paradas).
 
 ## Styles
