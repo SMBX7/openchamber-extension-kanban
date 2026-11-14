@@ -809,6 +809,22 @@
         background: var(--session-tone, var(--oc-muted));
         box-shadow: 0 0 0 1px color-mix(in srgb, var(--session-tone, var(--oc-muted)) 35%, transparent);
       }
+      .session-dot.working {
+        animation: session-breathe 2.4s ease-in-out infinite;
+      }
+      @keyframes session-breathe {
+        0%, 100% {
+          opacity: .78;
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--session-tone, var(--oc-muted)) 35%, transparent);
+        }
+        50% {
+          opacity: 1;
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--session-tone, var(--oc-muted)) 22%, transparent);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .session-dot.working { animation: none; }
+      }
       .card-labels { display: flex; gap: 3px; align-items: center; }
       .card-labels .label-dot { width: 6px; height: 6px; }
       .due { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }

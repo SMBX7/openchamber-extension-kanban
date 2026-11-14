@@ -2375,6 +2375,7 @@ var routes = {
     const snapshot = await getSnapshot({ boardId, fresh: true });
     const workList = workListFor(snapshot);
     if (!workList) return { ok: true, moved: 0 };
+    const cards = flattenCards(snapshot);
     let moved = 0;
     for (const [cardId] of links) {
       try {
@@ -2382,6 +2383,8 @@ var routes = {
           await client().completeCard(cardId, boardId);
           moved += 1;
         } else if (phase === "started") {
+          const card = cards.find((entry) => entry.id === cardId);
+          if (!card || card.listId === snapshot.doneListId) continue;
           await client().moveCard(cardId, workList.id, void 0, boardId);
           moved += 1;
         }
