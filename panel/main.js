@@ -2220,18 +2220,6 @@ ${card?.description || ""}`);
     void closeSheet();
     void refresh(true);
   });
-  var lifecycleSeen = /* @__PURE__ */ new Set();
-  host.onSessionLifecycle((event) => {
-    if (!event?.sessionId || !event.phase) return;
-    if (event.phase === "completed" && !lifecycleSeen.has(event.sessionId)) return;
-    if (event.phase === "completed" || event.phase === "failure") lifecycleSeen.delete(event.sessionId);
-    else lifecycleSeen.add(event.sessionId);
-    void api("POST", "/session/lifecycle", {
-      sessionId: event.sessionId,
-      phase: event.phase
-    }).catch(() => {
-    });
-  });
   var configWithRetry = async () => {
     let lastError;
     for (let attempt = 0; attempt < 10; attempt += 1) {

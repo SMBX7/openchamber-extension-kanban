@@ -39,6 +39,13 @@ var import_node_crypto = require("node:crypto");
 
 // src/shared/defaults.js
 var DEFAULT_LIST_NAMES = ["IDEAS", "EN PROGRESO", "HECHO"];
+var WORK_LIST_NAME = /(^|\b)(en progreso|en proceso|in progress|doing|en curso|wip)(\b|$)/i;
+var workListFor = (snapshot) => {
+  const named = snapshot?.lists?.find((list) => WORK_LIST_NAME.test(list.name));
+  if (named) return named;
+  const candidates = (snapshot?.lists || []).filter((list) => list.id !== snapshot.doneListId);
+  return candidates[1] || null;
+};
 
 // src/shared/planka.js
 var POSITION_STEP = 65536;
@@ -210,12 +217,12 @@ var PlankaClient = class {
     const data = await this.request("/api/projects");
     const boards = Array.isArray(data?.included?.boards) ? data.included.boards : [];
     const seen = /* @__PURE__ */ new Set();
-    return boards.filter((board2) => board2 && board2.id && !seen.has(board2.id) && seen.add(board2.id)).map((board2) => ({
-      id: String(board2.id),
-      name: textOf(board2.name) || "Tablero",
-      projectId: String(board2.projectId || ""),
-      position: Number.isFinite(board2.position) ? board2.position : 0,
-      url: `${this.baseUrl}/boards/${board2.id}`
+    return boards.filter((board) => board && board.id && !seen.has(board.id) && seen.add(board.id)).map((board) => ({
+      id: String(board.id),
+      name: textOf(board.name) || "Tablero",
+      projectId: String(board.projectId || ""),
+      position: Number.isFinite(board.position) ? board.position : 0,
+      url: `${this.baseUrl}/boards/${board.id}`
     })).sort((a, b) => a.name.localeCompare(b.name, "es"));
   }
   async getProjects() {
@@ -243,8 +250,8 @@ var PlankaClient = class {
     let at = Number.isFinite(position) && position >= 0 ? position : null;
     if (at === null) {
       const boards = await this.getBoards();
-      const siblings = boards.filter((board2) => board2.projectId === String(projectId));
-      at = siblings.reduce((max, board2) => Math.max(max, Number(board2.position) || 0), 0) + POSITION_STEP;
+      const siblings = boards.filter((board) => board.projectId === String(projectId));
+      at = siblings.reduce((max, board) => Math.max(max, Number(board.position) || 0), 0) + POSITION_STEP;
     }
     const form = new FormData();
     form.append("name", trimmed);
@@ -276,16 +283,16 @@ var PlankaClient = class {
     return normaliseBoard(data, this.baseUrl, boardId);
   }
   async findCard(cardId, boardId) {
-    const board2 = await this.readBoard(boardId);
-    const card = flattenCards(board2).find((item) => item.id === String(cardId));
+    const board = await this.readBoard(boardId);
+    const card = flattenCards(board).find((item) => item.id === String(cardId));
     if (!card) throw new PlankaError("Esa tarjeta ya no existe en Planka.", { kind: "not-found", status: 404 });
-    return { board: board2, card };
+    return { board, card };
   }
   async createCard(listId, name, boardId, options = {}) {
     const title = String(name || "").trim().slice(0, 1024);
     if (!title) throw new PlankaError("El t\xEDtulo no puede quedar vac\xEDo.", { kind: "validation" });
-    const board2 = await this.readBoard(boardId);
-    const list = board2.lists.find((item) => item.id === String(listId));
+    const board = await this.readBoard(boardId);
+    const list = board.lists.find((item) => item.id === String(listId));
     if (!list) throw new PlankaError("Esa columna ya no existe en Planka.", { kind: "not-found", status: 404 });
     const position = topPosition(list.cards);
     const data = await this.request(`/api/lists/${encode(listId)}/cards`, {
@@ -314,8 +321,8 @@ var PlankaClient = class {
     if (patch.dueDate !== void 0) body.dueDate = dueTimestamp(patch.dueDate);
     if (patch.isDueCompleted !== void 0) body.isDueCompleted = Boolean(patch.isDueCompleted);
     if (patch.listId !== void 0) {
-      const board2 = await this.readBoard(boardId);
-      const list = board2.lists.find((item) => item.id === String(patch.listId));
+      const board = await this.readBoard(boardId);
+      const list = board.lists.find((item) => item.id === String(patch.listId));
       if (!list) throw new PlankaError("Esa columna ya no existe en Planka.", { kind: "not-found", status: 404 });
       const index = Number.isInteger(patch.index) ? Math.max(0, Math.min(patch.index, list.cards.length)) : 0;
       body.listId = list.id;
@@ -339,8 +346,8 @@ var PlankaClient = class {
     if (!trimmed) throw new PlankaError("La columna necesita un nombre.", { kind: "validation" });
     let at = Number.isFinite(position) && position >= 0 ? position : null;
     if (at === null) {
-      const board2 = await this.readBoard(boardId);
-      at = board2.lists.reduce((max, list) => Math.max(max, Number(list.position) || 0), 0) + POSITION_STEP;
+      const board = await this.readBoard(boardId);
+      at = board.lists.reduce((max, list) => Math.max(max, Number(list.position) || 0), 0) + POSITION_STEP;
     }
     const data = await this.request(`/api/boards/${encode(boardId)}/lists`, {
       method: "POST",
@@ -357,10 +364,10 @@ var PlankaClient = class {
     };
   }
   async moveCard(cardId, listId, index, boardId) {
-    const board2 = await this.readBoard(boardId);
-    const card = flattenCards(board2).find((item) => item.id === String(cardId));
+    const board = await this.readBoard(boardId);
+    const card = flattenCards(board).find((item) => item.id === String(cardId));
     if (!card) throw new PlankaError("Esa tarjeta ya no existe en Planka.", { kind: "not-found", status: 404 });
-    const list = board2.lists.find((item) => item.id === String(listId));
+    const list = board.lists.find((item) => item.id === String(listId));
     if (!list) throw new PlankaError("Esa columna ya no existe en Planka.", { kind: "not-found", status: 404 });
     const targetIndex = Number.isInteger(index) ? Math.max(0, Math.min(index, list.cards.filter((item) => item.id !== card.id).length)) : 0;
     const position = positionAtIndex(list.cards, targetIndex, card.id);
@@ -371,20 +378,20 @@ var PlankaClient = class {
     return data?.item ?? null;
   }
   async completeCard(cardId, boardId) {
-    const board2 = await this.readBoard(boardId);
-    const card = flattenCards(board2).find((item) => item.id === String(cardId));
+    const board = await this.readBoard(boardId);
+    const card = flattenCards(board).find((item) => item.id === String(cardId));
     if (!card) throw new PlankaError("Esa tarjeta ya no existe en Planka.", { kind: "not-found", status: 404 });
-    if (!board2.doneListId) {
+    if (!board.doneListId) {
       throw new PlankaError("Este tablero no tiene una columna HECHO donde completar la tarjeta.", {
         kind: "validation"
       });
     }
-    if (card.listId === board2.doneListId) return { item: null, already: true };
-    const done = board2.lists.find((item) => item.id === board2.doneListId);
+    if (card.listId === board.doneListId) return { item: null, already: true };
+    const done = board.lists.find((item) => item.id === board.doneListId);
     const position = topPosition(done?.cards ?? []);
     const data = await this.request(`/api/cards/${encode(cardId)}`, {
       method: "PATCH",
-      body: { listId: board2.doneListId, position }
+      body: { listId: board.doneListId, position }
     });
     return { item: data?.item ?? null, already: false };
   }
@@ -393,8 +400,8 @@ var PlankaClient = class {
     return true;
   }
   async addChecklist(cardId, name, boardId, tasks = []) {
-    const board2 = await this.readBoard(boardId);
-    const card = flattenCards(board2).find((item) => item.id === String(cardId));
+    const board = await this.readBoard(boardId);
+    const card = flattenCards(board).find((item) => item.id === String(cardId));
     if (!card) throw new PlankaError("Esa tarjeta ya no existe en Planka.", { kind: "not-found", status: 404 });
     const position = card.taskLists.length ? Math.max(...card.taskLists.map((item) => item.position || 0)) + POSITION_STEP : POSITION_STEP;
     const created = await this.request(`/api/cards/${encode(cardId)}/task-lists`, {
@@ -419,8 +426,8 @@ var PlankaClient = class {
     return { taskList: created?.item ?? null, tasks: added };
   }
   async addTask(taskListId, name, boardId) {
-    const board2 = await this.readBoard(await this.resolveBoardId(boardId));
-    const taskList = board2.lists.flatMap((list) => list.cards).flatMap((card) => card.taskLists).find((item) => item.id === String(taskListId));
+    const board = await this.readBoard(await this.resolveBoardId(boardId));
+    const taskList = board.lists.flatMap((list) => list.cards).flatMap((card) => card.taskLists).find((item) => item.id === String(taskListId));
     const position = taskList && taskList.tasks.length ? Math.max(...taskList.tasks.map((task) => task.position || 0)) + POSITION_STEP : POSITION_STEP;
     const data = await this.request(`/api/task-lists/${encode(taskListId)}/tasks`, {
       method: "POST",
@@ -458,16 +465,16 @@ var PlankaClient = class {
     }
   }
   async removeLabel(cardId, labelId, boardId) {
-    const { board: board2 } = await this.findCard(cardId, boardId);
-    const card = flattenCards(board2).find((item) => item.id === String(cardId));
+    const { board } = await this.findCard(cardId, boardId);
+    const card = flattenCards(board).find((item) => item.id === String(cardId));
     const match = card?.labels.find((label) => label.id === String(labelId));
     if (!match?.cardLabelId) return false;
     await this.deleteCardLabel(cardId, labelId, match.cardLabelId);
     return true;
   }
   async toggleLabel(cardId, labelId, boardId) {
-    const { board: board2 } = await this.findCard(cardId, boardId);
-    const card = flattenCards(board2).find((item) => item.id === String(cardId));
+    const { board } = await this.findCard(cardId, boardId);
+    const card = flattenCards(board).find((item) => item.id === String(cardId));
     const match = card?.labels.find((label) => label.id === String(labelId));
     if (match) {
       await this.deleteCardLabel(cardId, labelId, match.cardLabelId);
@@ -477,7 +484,7 @@ var PlankaClient = class {
     return true;
   }
 };
-var flattenCards = (board2) => board2.lists.flatMap((list) => list.cards);
+var flattenCards = (board) => board.lists.flatMap((list) => list.cards);
 var topPosition = (cards) => {
   const positions = cards.map((card) => Number(card.position)).filter((value) => Number.isFinite(value) && value > 0);
   if (!positions.length) return POSITION_STEP;
@@ -589,18 +596,18 @@ var normaliseBoard = (payload, baseUrl, requestedBoardId) => {
     updatedAt: Date.now()
   };
 };
-var searchCards = (board2, query) => {
+var searchCards = (board, query) => {
   const needle = textOf(query).trim().toLowerCase();
-  const cards = flattenCards(board2);
+  const cards = flattenCards(board);
   if (!needle) return cards;
   return cards.filter(
     (card) => card.name.toLowerCase().includes(needle) || card.description.toLowerCase().includes(needle)
   );
 };
-var findCardByReference = (board2, reference) => {
+var findCardByReference = (board, reference) => {
   const raw = textOf(reference).trim();
   if (!raw) return { card: null, candidates: [] };
-  const cards = flattenCards(board2);
+  const cards = flattenCards(board);
   const exact = cards.find((card) => card.id === raw);
   if (exact) return { card: exact, candidates: [] };
   const needle = raw.toLowerCase();
@@ -608,13 +615,13 @@ var findCardByReference = (board2, reference) => {
   if (matches.length === 1) return { card: matches[0], candidates: [] };
   return { card: null, candidates: matches };
 };
-var findListByReference = (board2, reference) => {
+var findListByReference = (board, reference) => {
   const raw = textOf(reference).trim();
   if (!raw) return { list: null, candidates: [] };
-  const exact = board2.lists.find((list) => list.id === raw);
+  const exact = board.lists.find((list) => list.id === raw);
   if (exact) return { list: exact, candidates: [] };
   const needle = raw.toLowerCase();
-  const matches = board2.lists.filter((list) => list.name.toLowerCase().includes(needle));
+  const matches = board.lists.filter((list) => list.name.toLowerCase().includes(needle));
   if (matches.length === 1) return { list: matches[0], candidates: [] };
   return { list: null, candidates: matches };
 };
@@ -631,10 +638,10 @@ var findTaskByReference = (card, reference) => {
   if (matches.length === 1) return { task: matches[0], candidates: [] };
   return { task: null, candidates: matches };
 };
-var boardSummary = (board2) => ({
-  board: { id: board2.board.id, name: board2.board.name, url: board2.board.url },
-  doneListId: board2.doneListId,
-  lists: board2.lists.map((list) => ({
+var boardSummary = (board) => ({
+  board: { id: board.board.id, name: board.board.name, url: board.board.url },
+  doneListId: board.doneListId,
+  lists: board.lists.map((list) => ({
     id: list.id,
     name: list.name,
     cards: list.cards.map((card) => ({
@@ -645,7 +652,7 @@ var boardSummary = (board2) => ({
       checklist: card.checklist
     }))
   })),
-  counts: board2.counts
+  counts: board.counts
 });
 
 // src/shared/local.js
@@ -946,10 +953,10 @@ var LocalClient = class {
     return view(readStore(this.projectKey));
   }
   async findCard(cardId, boardId) {
-    const board2 = await this.readBoard(boardId);
-    const card = board2.lists.flatMap((list) => list.cards).find((item) => item.id === String(cardId));
+    const board = await this.readBoard(boardId);
+    const card = board.lists.flatMap((list) => list.cards).find((item) => item.id === String(cardId));
     if (!card) throw new PlankaError("Esa tarjeta ya no existe en el tablero local.", { kind: "not-found", status: 404 });
-    return { board: board2, card };
+    return { board, card };
   }
   async createCard(listId, name, boardId, options = {}) {
     return mutate(this.projectKey, (store) => {
@@ -1275,9 +1282,9 @@ var context = async () => {
   return { client, boardId };
 };
 var resolveCard = async (client, boardId, reference) => {
-  const board2 = await client.readBoard(boardId);
-  const found = findCardByReference(board2, reference);
-  if (found.card) return { board: board2, card: found.card };
+  const board = await client.readBoard(boardId);
+  const found = findCardByReference(board, reference);
+  if (found.card) return { board, card: found.card };
   if (found.candidates.length > 1) {
     const names = found.candidates.map((card) => `- ${card.name} (${card.id})`).join("\n");
     throw new Error(`"${reference}" matches more than one card. Use the id or a longer title:
@@ -1286,16 +1293,16 @@ ${names}`);
   throw new Error(`No card matches "${reference}".`);
 };
 var resolveList = async (client, boardId, reference) => {
-  const board2 = await client.readBoard(boardId);
-  const found = findListByReference(board2, reference);
-  if (found.list) return { board: board2, list: found.list };
+  const board = await client.readBoard(boardId);
+  const found = findListByReference(board, reference);
+  if (found.list) return { board, list: found.list };
   if (found.candidates.length > 1) {
     const names = found.candidates.map((list) => `- ${list.name} (${list.id})`).join("\n");
     throw new Error(`"${reference}" matches more than one column. Use the id or a longer name:
 ${names}`);
   }
   throw new Error(
-    `No column matches "${reference}". Columns: ${board2.lists.map((list) => list.name).join(", ")}.`
+    `No column matches "${reference}". Columns: ${board.lists.map((list) => list.name).join(", ")}.`
   );
 };
 var tools = [
@@ -1408,7 +1415,7 @@ var tools = [
   },
   {
     name: "kanban_link_session",
-    description: "Link a card to the OpenChamber session working on it. When the card reaches HECHO, that session is asked to save its Engram summary and is stopped.",
+    description: "Link a card to the OpenChamber session working on it. The card moves to EN PROGRESO now and to HECHO when that session finishes its turn.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1444,11 +1451,11 @@ var callTool = async (name, args = {}) => {
     return textResult(boardSummary(await client.readBoard(target)));
   }
   if (name === "kanban_search") {
-    const board2 = await client.readBoard(boardId);
-    const cards = searchCards(board2, String(args.query || "")).map((card) => ({
+    const board = await client.readBoard(boardId);
+    const cards = searchCards(board, String(args.query || "")).map((card) => ({
       id: card.id,
       name: card.name,
-      list: board2.lists.find((list) => list.id === card.listId)?.name || "",
+      list: board.lists.find((list) => list.id === card.listId)?.name || "",
       description: card.description,
       dueDate: card.dueDate || null,
       labels: card.labels.map((label) => label.name)
@@ -1483,7 +1490,7 @@ var callTool = async (name, args = {}) => {
     return textResult({ updated: true, id: card.id, card: updated });
   }
   if (name === "kanban_move_card") {
-    const { card } = await resolveCard(client, boardId, args.card);
+    const { board, card } = await resolveCard(client, boardId, args.card);
     const { list } = await resolveList(client, boardId, args.list);
     const index = Number.isInteger(args.position) ? args.position : void 0;
     await client.moveCard(card.id, list.id, index, boardId);
@@ -1513,11 +1520,19 @@ var callTool = async (name, args = {}) => {
     });
   }
   if (name === "kanban_link_session") {
-    const { card } = await resolveCard(client, boardId, args.card);
+    const { board, card } = await resolveCard(client, boardId, args.card);
     const sessionId = String(args.sessionId || "").trim();
     if (!sessionId) throw new Error("sessionId is required.");
+    const workList = workListFor(board);
+    const moved = Boolean(workList && card.listId !== workList.id && card.listId !== board.doneListId);
+    if (moved) await client.moveCard(card.id, workList.id, void 0, boardId);
     setLink(card.id, sessionId, { boardId, title: card.name });
-    return textResult({ linked: true, card: { id: card.id, name: card.name }, sessionId });
+    return textResult({
+      linked: true,
+      moved,
+      card: { id: card.id, name: card.name },
+      sessionId
+    });
   }
   if (name === "kanban_checklist_check") {
     const { card } = await resolveCard(client, boardId, args.card);

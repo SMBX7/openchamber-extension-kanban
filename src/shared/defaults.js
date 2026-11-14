@@ -28,3 +28,15 @@ export const ensureDefaultLists = async (client, boardId) => {
   }
   return { created, board: await client.readBoard(boardId) };
 };
+
+
+// The column a card belongs to while it is being worked on. Shared by the
+// service, the MCP server and the panel so every path agrees on it.
+export const WORK_LIST_NAME = /(^|\b)(en progreso|en proceso|in progress|doing|en curso|wip)(\b|$)/i;
+
+export const workListFor = (snapshot) => {
+  const named = snapshot?.lists?.find((list) => WORK_LIST_NAME.test(list.name));
+  if (named) return named;
+  const candidates = (snapshot?.lists || []).filter((list) => list.id !== snapshot.doneListId);
+  return candidates[1] || null;
+};

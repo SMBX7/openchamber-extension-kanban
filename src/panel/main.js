@@ -469,22 +469,6 @@ host.onDirectory((directory) => {
   void refresh(true);
 });
 
-// The linked cards follow the session: EN PROGRESO while it works, HECHO when
-// it finishes. The service owns the move; both frames may report it safely.
-// The first event after boot is the session's current state, so an idle boot
-// must not complete the cards: act on `completed` only after seeing `started`.
-const lifecycleSeen = new Set();
-host.onSessionLifecycle((event) => {
-  if (!event?.sessionId || !event.phase) return;
-  if (event.phase === 'completed' && !lifecycleSeen.has(event.sessionId)) return;
-  if (event.phase === 'completed' || event.phase === 'failure') lifecycleSeen.delete(event.sessionId);
-  else lifecycleSeen.add(event.sessionId);
-  void api('POST', '/session/lifecycle', {
-    sessionId: event.sessionId,
-    phase: event.phase,
-  }).catch(() => {});
-});
-
 const configWithRetry = async () => {
   let lastError;
   for (let attempt = 0; attempt < 10; attempt += 1) {

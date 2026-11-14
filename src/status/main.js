@@ -909,18 +909,6 @@ host.onDirectory((directory) => {
   if (state.booted) void load(true);
 });
 
-const lifecycleSeen = new Set();
-host.onSessionLifecycle((event) => {
-  if (!event?.sessionId || !event.phase) return;
-  if (event.phase === 'completed' && !lifecycleSeen.has(event.sessionId)) return;
-  if (event.phase === 'completed' || event.phase === 'failure') lifecycleSeen.delete(event.sessionId);
-  else lifecycleSeen.add(event.sessionId);
-  void api('POST', '/session/lifecycle', {
-    sessionId: event.sessionId,
-    phase: event.phase,
-  }).catch(() => {});
-});
-
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !state.adding) void load(true);
 });
