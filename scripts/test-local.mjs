@@ -497,7 +497,9 @@ const mentionBoard = {
 const mentionOrigin = { source: 'planka', boardId: 'board-1' };
 const allMentions = mentionItems(mentionBoard, '', mentionOrigin);
 assert.equal(allMentions.length, 2, 'a card in DONE stays out of the menu');
-assert.equal(allMentions[0].title, 'Arreglar el borde', 'the menu keeps the column order');
+assert.equal(allMentions[0].title, 'Ordenar ideas', 'cards in progress come first');
+assert.equal(allMentions[0].subtitle, 'EN PROGRESO', 'the subtitle names the column');
+assert.equal(allMentions[1].subtitle, 'IDEAS', 'ideas follow their own group');
 assert.equal(
   mentionItems(mentionBoard, 'borde', mentionOrigin).length,
   1,
@@ -508,4 +510,4 @@ assert.ok(mentionCardText.includes('id c1'), 'the chip text carries the card id'
 assert.ok(mentionCardText.includes('Se sale'), 'the chip text carries the description');
 
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 95 assertions ok');
+console.log('local mode: 97 assertions ok');
