@@ -1,6 +1,6 @@
 {
   "name": "kanban",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "license": "MIT",
   "description": "Kanban en OpenChamber sobre Planka: tablero, tarjetas, checklist y agente, con Planka como única fuente de verdad.",
