@@ -17,9 +17,9 @@ dentro de OpenChamber, también sirve para eso.
 - **Tres columnas**: IDEAS, EN PROGRESO y HECHO. Nada más.
 - **Tableros**: crea un tablero de Planka con sus tres columnas desde la extensión, y
   añade las columnas a uno que llegue vacío.
-- **Tarjetas** con nombre, descripción, etiquetas, checklist y fecha.
-- **Sesiones**: cada tarjeta puede llevar una sesión de OpenChamber, y la abres desde
-  ahí.
+- **Tarjetas** con título, detalles y una sesión asignada.
+- **Sesiones**: cada tarjeta puede llevar una sesión de OpenChamber; la tarjeta sigue a
+  esa sesión mientras trabaja.
 - **Modo automático o manual**: que el agente abra la sesión al mover la tarjeta, o
   abrirla tú.
 - **Tres acabados visuales** para el tablero.
@@ -76,22 +76,25 @@ con las tres listas y tres etiquetas, guardado en tu equipo.
   cargar.
 - **Importar copia…** abre el selector de archivos y restaura ese JSON.
 
-El archivo lo escribe la extensión en el equipo donde corre OpenChamber, no el
-navegador. Si usas OpenChamber en remoto, el archivo aparece en ese equipo.
+Cada proyecto tiene su archivo, escrito por la extensión en el equipo donde corre
+OpenChamber, no por el navegador. Si usas OpenChamber en remoto, el archivo aparece en ese equipo.
 
 ![Conexión y apariencia](docs/settings.png)
 
 ## El panel
 
-- **Crear**: el `+` al final de una columna. Escribes y pulsas `Enter`.
+- **Crear**: el `+` al lado del título de la columna. Escribes un título y pulsas `Enter`.
 - **Editar la tarjeta**: pasa el ratón y pulsa el lápiz (o `Enter` con la tarjeta
-  enfocada). Ahí cambias título, detalles, checklist y sesión; **Confirmar** guarda
-  y cierra, **Cancelar** descarta, y **Eliminar tarjeta** la borra con los cinco
-  segundos de Deshacer.
-- **Borrar**: la papelera. Hay que pulsarla **dos veces**; después tienes cinco
-  segundos para **Deshacer** en la barra de arriba.
+  enfocada). Ahí cambias título, detalles y sesión; **Confirmar** guarda y cierra,
+  **Cancelar** descarta.
+- **Borrar**: dentro del editor, pulsa **Eliminar tarjeta** dos veces; después tienes
+  cinco segundos de **Deshacer** en la barra de arriba.
 - **Mover**: arrastra la tarjeta dentro de una columna o a otra.
-- **Completar**: el tic la manda a HECHO. La sesión sigue abierta; ciérrala con el botón de la columna HECHO cuando termines de revisar.
+- **Ordenar IDEAS**: el botón **Ordenar** de la cabecera de IDEAS abre los cuatro
+  criterios y reordena las tarjetas por prioridad.
+- **Completar**: el tic la manda a HECHO. Si la tarjeta está vinculada a una sesión,
+  pasa a HECHO automáticamente cuando esa sesión termina su turno; solo se mueve esa
+  tarjeta. Lo que muevas tú a mano no se toca.
 - **Buscar** con la lupa.
 - **Paradas** filtra las tarjetas que están en EN PROGRESO **sin sesión**. Es la forma
   de ver lo que llevas tiempo aparcado y decidir si lo retomas o lo devuelves a ideas.
@@ -102,8 +105,11 @@ Es la sección de la barra lateral. Sirve para trabajar sin abrir el panel.
 
 ![Work Status](docs/status.png)
 
-- Arriba, **la tarjeta en curso** en ámbar, con sus botones: elegir sesión, abrirla con
-  `+`, devolverla a ideas con la flecha o completarla con el tic.
+- Arriba, **todas las tarjetas de EN PROGRESO** en ámbar, cada una con sus botones:
+  elegir sesión, abrirla con `+`, devolverla a ideas con la flecha o completarla con el
+  tic.
+- Los títulos se recortan a dos líneas. Pulsa el texto o la flecha para expandirlo y
+  leerlo entero; el lápiz sigue sirviendo para editar.
 - Al lado del nombre del tablero, una etiqueta dice **Auto** o **Manual**; si la pulsas
   cambias el modo sin abrir nada.
 - El **`+` de la cabecera** añade una idea sin salir del chat.
@@ -129,9 +135,16 @@ Así se ve en cada sitio:
 En manual tienes el botón para abrirla cuando quieras. En automática, al mover la
 tarjeta sale el aviso y decides ahí mismo.
 
+Cuando delegas una tarjeta a un agente, se vincula a la sesión de ese agente (lo hacen
+las herramientas de la extensión). La tarjeta pasa a EN PROGRESO al vincularse y a
+HECHO cuando esa sesión termina su turno; solo se mueve esa tarjeta. Lo que muevas tú a
+mano no se toca.
+
 Lo demás pasa igual en los dos modos:
 
-- Al pasar a **HECHO**, la sesión sigue abierta. La columna HECHO tiene un botón para cerrar las sesiones cuando quieras.
+- Al pasar a **HECHO**, la sesión sigue abierta. La columna HECHO tiene un botón para
+  cerrar las sesiones; cierra cada sesión distinta una vez, aunque varias tarjetas la
+  compartan, y borra todos sus vínculos.
 - Al volver a **IDEAS**, la sesión se detiene y se suelta la tarjeta.
 - Como la tarjeta se suelta, si la vuelves a mover empieza una sesión **nueva**, sin
   arrastrar la conversación anterior.

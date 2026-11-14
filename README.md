@@ -20,8 +20,8 @@ in brackets, the label you will actually see on screen.
 - **Three columns**: IDEAS, IN PROGRESS and DONE. Nothing else.
 - **Boards**: create a Planka board with its three columns from the extension, and add
   the columns to a board that arrives empty.
-- **Cards** with a name, description, labels, checklist and due date.
-- **Sessions**: each card can carry an OpenChamber session, and you open it from there.
+- **Cards** with a title, details and an assigned session.
+- **Sessions**: each card can be assigned an OpenChamber session; the card follows that session while it works.
 - **Automatic or manual**: let the agent open the session when a card moves, or open it
   yourself.
 - **Three visual styles** for the board.
@@ -83,22 +83,25 @@ The local board can be exported:
   be loaded back.
 - **Import a copy…** (Importar copia…) opens a file picker and restores that JSON file.
 
-The file is written by the extension on the machine where OpenChamber runs, not by the
-browser. If you use OpenChamber remotely, the file lands on that machine.
+Each project's file is written by the extension on the machine where OpenChamber runs,
+not by the browser. If you use OpenChamber remotely, the file lands on that machine.
 
 ![Connection and appearance](docs/settings.png)
 
 ## The panel
 
-- **Create**: the `+` at the end of a column. Type and press `Enter`.
+- **Create**: the `+` next to the column title. Type a title and press `Enter`.
 - **Edit the card**: hover it and press the pencil (or press `Enter` with the card
-  focused). There you change the title, details, checklist and session; **Confirmar**
-  saves and closes, **Cancelar** discards, and **Eliminar tarjeta** deletes it with
-  the five-second Undo.
-- **Delete**: the trash. You have to press it **twice**; then you get five seconds to
-  **Undo** (Deshacer) in the bar at the top.
+  focused). There you change the title, details and session; **Confirmar** saves and
+  closes, **Cancelar** discards.
+- **Delete**: inside the editor, press **Eliminar tarjeta** twice; then you get five
+  seconds of **Undo** (Deshacer) in the bar at the top.
 - **Move**: drag the card inside a column or to another one.
-- **Complete**: the tick sends it to DONE. The session stays open; close it with the button in the DONE column when you are done reviewing.
+- **Sort IDEAS**: the **Ordenar** button in the IDEAS header opens the four criteria
+  and reorders the cards by priority.
+- **Complete**: the tick sends it to DONE. If the card is linked to a session, it
+  moves to DONE automatically when that session finishes its turn; only that card
+  moves. Manual moves are never touched.
 - **Search** with the magnifier.
 - **Stopped** (Paradas) filters cards in IN PROGRESS **with no session**. It is how you
   see what has been parked for a long time and decide whether to pick it up or send it
@@ -110,8 +113,11 @@ It is the sidebar section. It lets you work without opening the panel.
 
 ![Work Status](docs/status.png)
 
-- At the top, **the card in progress** in amber, with its buttons: pick a session, open
-  one with `+`, send it back to ideas with the arrow, or complete it with the tick.
+- At the top, **every card in IN PROGRESS** in amber, each with its buttons: pick a
+  session, open one with `+`, send it back to ideas with the arrow, or complete it with
+  the tick.
+- Titles are clamped to two lines. Click the text or the chevron to expand it and read
+  the whole title; the pencil still edits.
 - Next to the board name, a pill says **Auto** or **Manual**; press it to change the
   mode without opening anything.
 - The **`+` in the header** adds an idea without leaving the chat.
@@ -136,9 +142,15 @@ This is how it looks in each place:
 In manual mode you have the button to open it whenever you want. In automatic mode,
 moving the card shows the prompt and you decide right there.
 
+When you delegate a card to an agent, link it to that agent's session (the extension's
+tools do it). The card moves to IN PROGRESS when linked and to DONE when that session
+finishes its turn; only that card moves. Manual moves are never touched.
+
 Everything else works the same in both modes:
 
-- Moving to **DONE** leaves the session open. The DONE column has a **close sessions** button for when you are ready.
+- Moving to **DONE** leaves the session open. The DONE column has a **close sessions**
+  button; it closes each distinct session once, even when several cards share it, and
+  removes all its links.
 - Moving back to **IDEAS** stops the session and releases the card.
 - Because the card is released, moving it again starts a **new** session, without the
   previous conversation.
