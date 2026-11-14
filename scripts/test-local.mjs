@@ -68,6 +68,14 @@ const doing = board.lists[1];
 const card = await client.createCard(ideas.id, '  Comprar pan  ');
 assert.equal(card.name, 'Comprar pan');
 
+// The panel sends the title and the description in the same request, so the
+// description must survive the very first write, not only a later edit.
+const detailed = await client.createCard(ideas.id, 'Llamar al gestor', undefined, {
+  description: 'Preguntar por la factura',
+});
+assert.equal(detailed.description, 'Preguntar por la factura');
+await client.deleteCard(detailed.id);
+
 await client.moveCard(card.id, doing.id, 0);
 view = await client.readBoard();
 assert.equal(view.lists[1].cards[0].id, card.id);
@@ -330,4 +338,4 @@ try {
 }
 
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 68 assertions ok');
+console.log('local mode: 69 assertions ok');
