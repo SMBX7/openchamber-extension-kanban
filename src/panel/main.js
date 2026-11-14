@@ -35,12 +35,10 @@ const state = {
   view: 'boot',
   config: null,
   boards: [],
-  mappings: {},
   projects: [],
   plankaProjects: [],
   session: null,
   directory: '',
-  showAllBoards: true,
   snapshot: null,
   sessions: {},
   search: '',
@@ -466,10 +464,9 @@ host.onDirectory((directory) => {
   const next = directory || '';
   if (next === state.directory) return;
   state.directory = next;
-  state.showAllBoards = true;
   if (!state.booted) return;
   void closeSheet();
-  void loadMappings().then(() => refresh(true));
+  void refresh(true);
 });
 
 // The linked cards follow the session: EN PROGRESO while it works, HECHO when
@@ -515,19 +512,6 @@ const loadProjects = async () => {
 // The board selector narrows to the active project, so the panel needs every
 // board's link at once. A failed read keeps the last known links, and an empty
 // map falls back to showing every board.
-const loadMappings = async () => {
-  try {
-    const answer = await api('GET', '/mappings');
-    const mappings = answer?.mappings;
-    state.mappings = mappings && typeof mappings === 'object' && !Array.isArray(mappings)
-      ? mappings
-      : {};
-  } catch {
-    state.mappings = state.mappings || {};
-  }
-  return state.mappings;
-};
-
 const applyAppearance = () => {
   const rootEl = document.documentElement;
   const appearance = state.appearance || {};
@@ -582,7 +566,6 @@ const boot = async () => {
       return;
     }
     await loadProjects();
-    await loadMappings();
     await loadAppearance();
     await loadSnapshot();
     await loadSessionStates();
@@ -763,7 +746,6 @@ const doLogin = async (values, submit, errorBox, note) => {
     if (result.snapshot) state.snapshot = result.snapshot;
     else await loadSnapshot();
     await loadProjects();
-    await loadMappings();
     await loadAppearance();
     await loadSessionStates();
     showBoard();
@@ -784,7 +766,6 @@ const doLogin = async (values, submit, errorBox, note) => {
           state.boards = config.boards || [];
           state.plankaProjects = config.projects || state.plankaProjects;
           await loadProjects();
-          await loadMappings();
           await loadSnapshot();
           await loadSessionStates();
           showBoard();
@@ -810,27 +791,6 @@ const doLogin = async (values, submit, errorBox, note) => {
 /* Board shell                                                         */
 /* ------------------------------------------------------------------ */
 
-const activeProject = () => {
-  if (!state.directory) return null;
-  return state.projects.find((project) => project.directory === state.directory) || null;
-};
-
-// The selector keeps the active project's boards plus every board that is not
-// linked yet, so a project can still reach a second board and a board can still
-// be linked. With no active project, or nothing left to show, the full list
-// stays available.
-const boardsForActiveProject = (boards) => {
-  if (state.showAllBoards) return boards;
-  const project = activeProject();
-  if (!project) return boards;
-  const current = state.snapshot?.board?.id || state.config?.boardId || '';
-  const visible = boards.filter((board) => {
-    const mapping = state.mappings?.[board.id];
-    return !mapping || mapping.projectId === project.id || board.id === current;
-  });
-  return visible.length ? visible : boards;
-};
-
 const syncBoardOptions = () => {
   const refs = state.refs;
   if (!refs) return;
@@ -839,26 +799,15 @@ const syncBoardOptions = () => {
     : state.snapshot
       ? [{ id: state.snapshot.board.id, name: state.snapshot.board.name }]
       : [];
-  const visible = boardsForActiveProject(boards);
   const selected = state.snapshot?.board?.id || state.config?.boardId || '';
   const control = refs.boardSelect;
   if (control) {
-    const project = activeProject();
-    const options = visible.map((board) => ({ value: board.id, label: board.name }));
-    if (project) {
-      options.unshift(
-        state.showAllBoards
-          ? { value: '__project__', label: 'Solo tableros de este proyecto' }
-          : { value: '__all__', label: 'Ver todos los tableros' },
-      );
-    }
-    const value = visible.some((board) => board.id === selected)
+    const options = boards.map((board) => ({ value: board.id, label: board.name }));
+    const value = boards.some((board) => board.id === selected)
       ? selected
-      : control.value || visible[0]?.id || '';
-    control.update(options, value, visible.length < 2 && options.length < 2);
-    control.button.title = project && !state.showAllBoards && visible.length < boards.length
-      ? `Tableros de ${project.name} y tableros sin proyecto`
-      : 'Todos los tableros';
+      : control.value || boards[0]?.id || '';
+    control.update(options, value, boards.length < 2);
+    control.button.title = 'Todos los tableros';
   }
   if (refs.openButton) refs.openButton.disabled = !state.snapshot?.board?.url;
 };
@@ -912,7 +861,6 @@ const changeBoardProject = async (projectId) => {
       autoSession: snapshot.project?.autoSession === true,
     });
     state.snapshot.project = answer.project || null;
-    await loadMappings();
     toast('success', project ? `Tablero asignado a ${project.name}.` : 'Proyecto quitado del tablero.');
   } catch (error) {
     toast('error', error.message);
@@ -1158,7 +1106,6 @@ const openCreateBoard = () => {
     try {
       const answer = await api('POST', '/board/create', { name, projectId, projectName });
       state.boards = Array.isArray(answer?.boards) && answer.boards.length ? answer.boards : state.boards;
-      await loadMappings();
       state.config = {
         ...state.config,
         boardId: answer?.board?.id || state.config?.boardId,
@@ -1202,20 +1149,6 @@ const openCreateBoard = () => {
   requestAnimationFrame(() => nameInput.focus());
 };
 
-const handleBoardSelect = (value) => {
-  if (value === '__all__') {
-    state.showAllBoards = true;
-    syncBoardOptions();
-    return;
-  }
-  if (value === '__project__') {
-    state.showAllBoards = false;
-    syncBoardOptions();
-    return;
-  }
-  void switchBoard(value);
-};
-
 const boardControl = (boardSelect) => {
   const wrap = el('div', 'board-control');
   wrap.append(boardSelect.wrap);
@@ -1239,7 +1172,7 @@ const buildPage = () => {
 
   const boardSelect = menuSelect({
     ariaLabel: 'Tablero',
-    onChange: (value) => handleBoardSelect(value),
+    onChange: (value) => void switchBoard(value),
   });
 
   const projectSelect = menuSelect({
@@ -1327,7 +1260,7 @@ const buildPanel = () => {
 
   const boardSelect = menuSelect({
     ariaLabel: 'Tablero',
-    onChange: (value) => handleBoardSelect(value),
+    onChange: (value) => void switchBoard(value),
   });
 
   const projectSelect = menuSelect({
@@ -1692,7 +1625,6 @@ const switchBoard = async (boardId) => {
         state.config = config;
         state.boards = config.boards || [];
         state.plankaProjects = config.projects || state.plankaProjects;
-        await loadMappings();
         state.snapshot = await api('GET', '/snapshot?fresh=1');
         renderAll();
         return;

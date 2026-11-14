@@ -512,7 +512,6 @@ var setBoardProject = (boardId, project) => {
   write(data);
   return value;
 };
-var listBoardProjects = () => readBoardProjects().boards;
 
 // src/shared/appearance.js
 var import_node_fs4 = require("node:fs");
@@ -2401,9 +2400,6 @@ var routes = {
   "GET /mapping": async (_body, url) => ({
     project: getBoardProject(url.searchParams.get("boardId") || "")
   }),
-  // Every board's link in one read, so the panel can narrow the board selector
-  // to the active project without one request per board.
-  "GET /mappings": async () => ({ mappings: listBoardProjects() }),
   "POST /mapping": async (body) => {
     requireConnected();
     const boardId = String(body.boardId || readConfig().boardId || "");
