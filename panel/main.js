@@ -3302,6 +3302,7 @@ ${card?.description || ""}`);
       const dot = el2("span", "session-dot");
       const tone2 = sessionState.tone === "success" ? "var(--oc-success)" : sessionState.tone === "warning" ? "var(--oc-warning)" : "var(--oc-muted)";
       dot.style.setProperty("--session-tone", tone2);
+      if (sessionState.tone === "success") dot.classList.add("working");
       dot.title = `Sesi\xF3n: ${sessionState.state}`;
       dot.setAttribute("aria-label", `Sesi\xF3n: ${sessionState.state}`);
       meta.append(dot);

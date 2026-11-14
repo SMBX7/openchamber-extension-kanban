@@ -1704,6 +1704,7 @@ const buildCard = (card, listIndex) => {
         ? 'var(--oc-warning)'
         : 'var(--oc-muted)';
     dot.style.setProperty('--session-tone', tone);
+    if (sessionState.tone === 'success') dot.classList.add('working');
     dot.title = `Sesión: ${sessionState.state}`;
     dot.setAttribute('aria-label', `Sesión: ${sessionState.state}`);
     meta.append(dot);

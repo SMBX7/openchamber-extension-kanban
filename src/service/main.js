@@ -742,6 +742,7 @@ const routes = {
     const snapshot = await getSnapshot({ boardId, fresh: true });
     const workList = workListFor(snapshot);
     if (!workList) return { ok: true, moved: 0 };
+    const cards = flattenCards(snapshot);
     let moved = 0;
     for (const [cardId] of links) {
       try {
@@ -749,6 +750,10 @@ const routes = {
           await client().completeCard(cardId, boardId);
           moved += 1;
         } else if (phase === 'started') {
+          // A card the user already moved to HECHO must stay there: starting
+          // the session again must not resurrect finished work.
+          const card = cards.find((entry) => entry.id === cardId);
+          if (!card || card.listId === snapshot.doneListId) continue;
           await client().moveCard(cardId, workList.id, undefined, boardId);
           moved += 1;
         }
