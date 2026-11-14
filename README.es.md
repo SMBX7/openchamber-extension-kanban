@@ -147,17 +147,21 @@ lateral derecha.
 Elige el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status.
 
 - **Manual**: mover una tarjeta a EN PROGRESO solo la mueve; abre la sesión con el `+` de
-  la tarjeta.
-- **Automática**: al llegar a EN PROGRESO sale un aviso preguntando si abrir la sesión.
-  No se abre nada hasta que dices que sí.
+  la tarjeta. Cada tarjeta tiene su propia sesión.
+- **Automática**: la delegación automática va por lotes. La primera tarjeta que lanzas
+  abre la sesión; las siguientes se suman a esa misma sesión. El agente principal le pasa
+  cada tarjeta a un subagente, revisa el resultado y mueve la tarjeta a HECHO él mismo. El
+  aviso sigue preguntando antes de abrir nada.
 
 Cuando un agente toma una tarjeta, la extensión la vincula a esa sesión: pasa a EN
-PROGRESO al vincularse y a HECHO cuando la sesión termina su turno. En los dos modos:
+PROGRESO al vincularse. Un lote sigue abierto mientras le quede alguna tarjeta fuera de
+HECHO; cuando llega la última, la sesión revisa el conjunto, escribe el resumen de lo que
+hizo cada subagente y se cierra. En los dos modos:
 
 - Pasar a **HECHO** deja la sesión abierta; **Cerrar sesión/es** en la columna HECHO
   cierra cada sesión distinta una vez y borra sus vínculos.
-- Volver a **IDEAS** detiene la sesión y suelta la tarjeta, así que si la vuelves a mover
-  empieza una sesión **nueva**.
+- Volver a **IDEAS** suelta la tarjeta. En un lote solo sale esa tarjeta: la sesión sigue
+  con las demás.
 - Una tarjeta sin sesión aparece en **Paradas**.
 
 ## Estilos

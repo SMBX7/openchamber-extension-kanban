@@ -210,8 +210,8 @@ const closeAutoBars = () => {
 const showAutoBar = (cardId, name, project) => {
   closeAutoBars();
   const bar = el('div', 'undo-bar auto-bar');
-  const text = el('span', 'undo-text', `¿Abrir sesión para «${name || 'la tarjeta'}»?`);
-  const open = el('button', 'undo-action', 'Abrir sesión');
+  const text = el('span', 'undo-text', `¿Lanzar «${name || 'la tarjeta'}» en la sesión del lote?`);
+  const open = el('button', 'undo-action', 'Lanzar');
   open.type = 'button';
   const skip = el('button', 'undo-cancel', 'Ahora no');
   skip.type = 'button';
@@ -227,7 +227,12 @@ const showAutoBar = (cardId, name, project) => {
       const result = await api('POST', '/session/start', { cardId });
       await refresh(true);
       if (result?.sessionId) {
-        toast('success', `Sesión creada en ${result.project || project || 'el proyecto'}.`);
+        toast(
+          'success',
+          result.reused
+            ? `Sumada a la sesión del lote de ${result.project || project || 'el proyecto'}.`
+            : `Sesión del lote creada en ${result.project || project || 'el proyecto'}.`,
+        );
         try {
           await host.openSession(result.sessionId);
         } catch {
@@ -1345,7 +1350,7 @@ const changeAutoMode = async (enabled) => {
       autoSession: Boolean(enabled),
     });
     state.snapshot.project = answer.project || mapping;
-    toast('success', enabled ? 'Delegación automática: te pedirá confirmación al mover una tarjeta.' : 'Delegación manual: usa Crear sesión en la tarjeta.');
+    toast('success', enabled ? 'Delegación automática: las tarjetas que lances comparten una sesión por lote.' : 'Delegación manual: usa Crear sesión en la tarjeta.');
   } catch (error) {
     toast('error', error.message);
   }
@@ -1514,7 +1519,7 @@ const openSettings = () => {
     return button;
   };
   const manualCard = modeCard('Manual', 'Tú abres la sesión con el + de la tarjeta.', mapping?.autoSession !== true, Boolean(mapping));
-  const autoCard = modeCard('Automática', 'Al mover a EN PROGRESO te pregunta antes de abrirla.', mapping?.autoSession === true, Boolean(mapping));
+  const autoCard = modeCard('Automática', 'Una sesión por lote: reparte cada tarjeta a un subagente y te resume.', mapping?.autoSession === true, Boolean(mapping));
   manualCard.addEventListener('click', () => { if (mapping?.autoSession === true) void changeAutoMode(false); });
   autoCard.addEventListener('click', () => { if (mapping?.autoSession !== true) void changeAutoMode(true); });
   modes.append(manualCard, autoCard);
@@ -1558,7 +1563,7 @@ const openSettings = () => {
   };
   sesionesBox.append(
     fact('IDEAS', 'el + de la columna crea una tarjeta. El lápiz abre la tarjeta para editar título, detalles, checklist y sesión, y para borrarla. El tic la pasa a EN PROGRESO.'),
-    fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el +; en automático te pregunta antes de abrirla.'),
+    fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el +; en automático se suma a la sesión del lote.'),
     fact('HECHO', 'la tarjeta queda terminada. Las sesiones se cierran cuando pulses el botón de la columna HECHO.'),
   );
   sesionesBox.append(el('p', 'settings-note', 'Al cerrar se borra el vínculo: si vuelves a mover la tarjeta, empieza una sesión nueva. La sesión detenida sigue en la lista para que la archives.'));
@@ -2336,7 +2341,12 @@ const moveCard = async (cardId, listId, index) => {
     const answer = await api('POST', '/card/move', { id: cardId, listId, index: bounded });
     await refresh(true);
     if (answer?.sent) {
-      toast('success', `Mensaje enviado a la sesión de ${answer.project || 'el proyecto del tablero'}.`);
+      toast(
+        'success',
+        answer.reused
+          ? `Sumada a la sesión del lote de ${answer.project || 'el proyecto del tablero'}.`
+          : `Mensaje enviado a la sesión de ${answer.project || 'el proyecto del tablero'}.`,
+      );
       try {
         await host.openSession(answer.sessionId);
       } catch {
@@ -2345,7 +2355,12 @@ const moveCard = async (cardId, listId, index) => {
     } else if (answer?.sessionError) {
       toast('error', `No se pudo enviar el mensaje a la sesión: ${answer.sessionError}`);
     } else if (answer?.sessionId) {
-      toast('success', answer.reused ? 'Sesión abierta.' : `Sesión creada en ${answer.project || 'el proyecto del tablero'}.`);
+      toast(
+        'success',
+        answer.reused
+          ? 'Sesión abierta.'
+          : `Sesión del lote creada en ${answer.project || 'el proyecto del tablero'}.`,
+      );
       try {
         await host.openSession(answer.sessionId);
       } catch {

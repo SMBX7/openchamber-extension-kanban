@@ -2012,8 +2012,8 @@ ${GUEST_UI_LOOK_CSS}`;
   var showAutoBar = (cardId, name, project) => {
     closeAutoBars();
     const bar = el2("div", "undo-bar auto-bar");
-    const text = el2("span", "undo-text", `\xBFAbrir sesi\xF3n para \xAB${name || "la tarjeta"}\xBB?`);
-    const open = el2("button", "undo-action", "Abrir sesi\xF3n");
+    const text = el2("span", "undo-text", `\xBFLanzar \xAB${name || "la tarjeta"}\xBB en la sesi\xF3n del lote?`);
+    const open = el2("button", "undo-action", "Lanzar");
     open.type = "button";
     const skip = el2("button", "undo-cancel", "Ahora no");
     skip.type = "button";
@@ -2029,7 +2029,10 @@ ${GUEST_UI_LOOK_CSS}`;
         const result = await api("POST", "/session/start", { cardId });
         await refresh(true);
         if (result?.sessionId) {
-          toast("success", `Sesi\xF3n creada en ${result.project || project || "el proyecto"}.`);
+          toast(
+            "success",
+            result.reused ? `Sumada a la sesi\xF3n del lote de ${result.project || project || "el proyecto"}.` : `Sesi\xF3n del lote creada en ${result.project || project || "el proyecto"}.`
+          );
           try {
             await host.openSession(result.sessionId);
           } catch {
@@ -2987,7 +2990,7 @@ ${card?.description || ""}`);
         autoSession: Boolean(enabled)
       });
       state.snapshot.project = answer.project || mapping;
-      toast("success", enabled ? "Delegaci\xF3n autom\xE1tica: te pedir\xE1 confirmaci\xF3n al mover una tarjeta." : "Delegaci\xF3n manual: usa Crear sesi\xF3n en la tarjeta.");
+      toast("success", enabled ? "Delegaci\xF3n autom\xE1tica: las tarjetas que lances comparten una sesi\xF3n por lote." : "Delegaci\xF3n manual: usa Crear sesi\xF3n en la tarjeta.");
     } catch (error) {
       toast("error", error.message);
     }
@@ -3142,7 +3145,7 @@ ${card?.description || ""}`);
       return button2;
     };
     const manualCard = modeCard("Manual", "T\xFA abres la sesi\xF3n con el + de la tarjeta.", mapping?.autoSession !== true, Boolean(mapping));
-    const autoCard = modeCard("Autom\xE1tica", "Al mover a EN PROGRESO te pregunta antes de abrirla.", mapping?.autoSession === true, Boolean(mapping));
+    const autoCard = modeCard("Autom\xE1tica", "Una sesi\xF3n por lote: reparte cada tarjeta a un subagente y te resume.", mapping?.autoSession === true, Boolean(mapping));
     manualCard.addEventListener("click", () => {
       if (mapping?.autoSession === true) void changeAutoMode(false);
     });
@@ -3185,7 +3188,7 @@ ${card?.description || ""}`);
     };
     sesionesBox.append(
       fact("IDEAS", "el + de la columna crea una tarjeta. El l\xE1piz abre la tarjeta para editar t\xEDtulo, detalles, checklist y sesi\xF3n, y para borrarla. El tic la pasa a EN PROGRESO."),
-      fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el +; en autom\xE1tico te pregunta antes de abrirla."),
+      fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el +; en autom\xE1tico se suma a la sesi\xF3n del lote."),
       fact("HECHO", "la tarjeta queda terminada. Las sesiones se cierran cuando pulses el bot\xF3n de la columna HECHO.")
     );
     sesionesBox.append(el2("p", "settings-note", "Al cerrar se borra el v\xEDnculo: si vuelves a mover la tarjeta, empieza una sesi\xF3n nueva. La sesi\xF3n detenida sigue en la lista para que la archives."));
@@ -3863,7 +3866,10 @@ ${card?.description || ""}`);
       const answer = await api("POST", "/card/move", { id: cardId, listId, index: bounded });
       await refresh(true);
       if (answer?.sent) {
-        toast("success", `Mensaje enviado a la sesi\xF3n de ${answer.project || "el proyecto del tablero"}.`);
+        toast(
+          "success",
+          answer.reused ? `Sumada a la sesi\xF3n del lote de ${answer.project || "el proyecto del tablero"}.` : `Mensaje enviado a la sesi\xF3n de ${answer.project || "el proyecto del tablero"}.`
+        );
         try {
           await host.openSession(answer.sessionId);
         } catch {
@@ -3872,7 +3878,10 @@ ${card?.description || ""}`);
       } else if (answer?.sessionError) {
         toast("error", `No se pudo enviar el mensaje a la sesi\xF3n: ${answer.sessionError}`);
       } else if (answer?.sessionId) {
-        toast("success", answer.reused ? "Sesi\xF3n abierta." : `Sesi\xF3n creada en ${answer.project || "el proyecto del tablero"}.`);
+        toast(
+          "success",
+          answer.reused ? "Sesi\xF3n abierta." : `Sesi\xF3n del lote creada en ${answer.project || "el proyecto del tablero"}.`
+        );
         try {
           await host.openSession(answer.sessionId);
         } catch {

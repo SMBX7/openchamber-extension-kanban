@@ -147,17 +147,21 @@ The Work Status section beside the chat; it lets you work without opening the pa
 Choose the mode in **Settings → Delegation** (Delegación) or from the Work Status pill.
 
 - **Manual**: moving a card to IN PROGRESS only moves it; open the session with the
-  card's `+`.
-- **Automatic**: when a card reaches IN PROGRESS, a prompt asks whether to open the
-  session. Nothing opens until you say yes.
+  card's `+`. Each card gets its own session.
+- **Automatic**: automatic delegation works in batches. The first card you launch opens
+  the session; every card launched after it joins the same session. The main agent hands
+  each card to a subagent, reviews the result and moves the card to DONE itself. The
+  prompt still asks before anything opens.
 
 When an agent takes a card, the extension links it to that session: the card moves to IN
-PROGRESS when linked and to DONE when the session finishes its turn. In both modes:
+PROGRESS when linked. A batch stays open while any of its cards is outside DONE; when the
+last one arrives, the session reviews the whole set, writes the summary of what each
+subagent did and closes. In both modes:
 
 - Moving to **DONE** leaves the session open; **Close sessions** (Cerrar sesión/es) in
   the DONE column closes each distinct session once and removes its links.
-- Moving back to **IDEAS** stops the session and releases the card, so moving it again
-  starts a **new** session.
+- Moving back to **IDEAS** releases the card. In a batch only that card leaves; the
+  session keeps working the rest.
 - A card with no session shows under **Stopped** (Paradas).
 
 ## Styles

@@ -424,7 +424,8 @@ var setLink = (cardId, sessionId, meta = {}) => {
       boardId: String(meta.boardId || ""),
       title: String(meta.title || "").slice(0, 200),
       sessionTitle: String(meta.sessionTitle || meta.title || session).slice(0, 120),
-      linkedAt: (/* @__PURE__ */ new Date()).toISOString()
+      linkedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      ...meta.batch === true ? { batch: true } : {}
     };
     writeLinks(data);
     return data.links[id];
@@ -1748,6 +1749,72 @@ var importBoard = async (raw, projectKey = "") => {
 };
 var LOCAL_BOARD_ID = BOARD_ID;
 
+// src/shared/batch.js
+var cardBlock = (card) => {
+  const checklist = (card?.taskLists || []).flatMap((taskList) => taskList.tasks.map((task) => `- ${task.name}`)).slice(0, 12);
+  return [
+    `Tarjeta: \xAB${card?.name || "sin t\xEDtulo"}\xBB (id ${card?.id || ""})`,
+    card?.description ? `Descripci\xF3n: ${card.description}` : "",
+    checklist.length ? `Checklist:
+${checklist.join("\n")}` : ""
+  ].filter(Boolean).join("\n");
+};
+var batchRules = [
+  "Reglas del lote: cada tarjeta la trabaja un subagente, no t\xFA.",
+  "Revisa el resultado del subagente antes de dar la tarjeta por buena; si no convence, p\xEDdele otra pasada.",
+  "Solo cuando est\xE9 bien implementada y verificada, mueve la tarjeta a HECHO con kanban_complete_card.",
+  "No toques las tarjetas que ya est\xE1n en HECHO.",
+  "Al final del lote, cuando todas las tarjetas est\xE9n en HECHO, revisa el conjunto y da un resumen de lo que hizo cada subagente."
+].join("\n");
+var batchStartPrompt = (card, board, project) => [
+  `Trabaja las tarjetas del kanban \xAB${board?.name || ""}\xBB desde esta misma sesi\xF3n, una por una.`,
+  `Proyecto: ${project.name}.`,
+  cardBlock(card),
+  batchRules,
+  "Las tarjetas que se lancen despu\xE9s se a\xF1aden a esta misma sesi\xF3n."
+].filter(Boolean).join("\n\n");
+var batchCardPrompt = (card, board, project) => [
+  `Trabaja esta tarjeta del lote de \xAB${board?.name || ""}\xBB.`,
+  `Proyecto: ${project.name}.`,
+  cardBlock(card),
+  batchRules
+].filter(Boolean).join("\n\n");
+var batchClosePrompt = () => "Todas las tarjetas del lote est\xE1n en HECHO. Revisa el conjunto, confirma que todo qued\xF3 bien implementado y da un resumen de lo que hizo cada subagente. Despu\xE9s cierra esta sesi\xF3n.";
+var batchCards = (links, snapshot, sessionId) => {
+  const doneId = String(snapshot?.doneListId || "");
+  const byId = /* @__PURE__ */ new Map();
+  for (const list of snapshot?.lists || []) {
+    for (const card of list.cards || []) {
+      byId.set(String(card.id), { id: String(card.id), done: doneId !== "" && String(list.id) === doneId });
+    }
+  }
+  const entries = Object.entries(links || {}).filter(
+    ([, link]) => link?.batch === true && link.sessionId === String(sessionId || "")
+  );
+  const cards = entries.map(([cardId]) => byId.get(String(cardId)) || null).filter(Boolean);
+  return { total: entries.length, cards, open: cards.filter((card) => !card.done) };
+};
+var batchAllDone = (links, snapshot, sessionId) => {
+  const { total, cards, open } = batchCards(links, snapshot, sessionId);
+  return total > 0 && cards.length > 0 && open.length === 0;
+};
+var reusableBatchSession = (links, snapshot) => {
+  const boardId = String(snapshot?.board?.id || "");
+  const candidates = /* @__PURE__ */ new Map();
+  for (const [, link] of Object.entries(links || {})) {
+    if (link?.batch !== true) continue;
+    if (String(link.boardId || "") !== boardId) continue;
+    const previous = candidates.get(link.sessionId);
+    const at = String(link.linkedAt || "");
+    if (!previous || at > previous.at) candidates.set(link.sessionId, { at, sessionId: link.sessionId });
+  }
+  for (const { sessionId } of [...candidates.values()].sort((a, b) => a.at < b.at ? 1 : -1)) {
+    const { total, open } = batchCards(links, snapshot, sessionId);
+    if (total > 0 && open.length > 0) return sessionId;
+  }
+  return "";
+};
+
 // src/service/main.js
 var PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
 var TOKEN = process.env.OPENCHAMBER_SERVICE_TOKEN || "";
@@ -1777,9 +1844,32 @@ var sendClosePrompt = async (cardId, link) => {
     return false;
   }
 };
+var maybeCloseBatch = async (sessionId) => {
+  if (!serviceHost) return false;
+  if (pendingCloses.has(sessionId)) return true;
+  const entry = linksForSession(sessionId)[0];
+  if (!entry) return false;
+  const boardId = entry[1].boardId || readConfig().boardId;
+  let snapshot;
+  try {
+    snapshot = await getSnapshot({ boardId, fresh: true });
+  } catch {
+    return false;
+  }
+  if (!batchAllDone(listLinks(), snapshot, sessionId)) return false;
+  try {
+    await serviceHost.sessions.send(sessionId, batchClosePrompt());
+    pendingCloses.set(sessionId, { cardId: entry[0], phase: "wait-close", title: entry[1].title });
+    return true;
+  } catch {
+    pendingCloses.delete(sessionId);
+    return false;
+  }
+};
 var triggerClose = async (cardId) => {
   const link = getLink(cardId);
   if (!link || !serviceHost) return false;
+  if (link.batch === true) return maybeCloseBatch(link.sessionId);
   if (pendingCloses.has(link.sessionId)) return true;
   try {
     const status = await serviceHost.sessions.status(link.sessionId);
@@ -1791,10 +1881,33 @@ var triggerClose = async (cardId) => {
     return false;
   }
 };
+var releaseCard = async (cardId, link, note) => {
+  if (!link) return false;
+  const shared = link.batch === true && linksForSession(link.sessionId).length > 1;
+  if (shared) {
+    if (serviceHost) {
+      try {
+        await serviceHost.sessions.send(link.sessionId, note);
+      } catch {
+      }
+    }
+    removeLink(cardId);
+    return false;
+  }
+  if (serviceHost) {
+    try {
+      await serviceHost.sessions.stop(link.sessionId);
+    } catch {
+    }
+  }
+  removeLink(cardId);
+  return true;
+};
 var handleSessionEvent = async (event) => {
   const sessionId = event?.session?.id;
   if (!sessionId) return;
-  if (event.type === "turn-finished") {
+  const batch = linksForSession(sessionId).some(([, link]) => link?.batch === true);
+  if (event.type === "turn-finished" && !batch) {
     for (const [cardId, link] of linksForSession(sessionId)) {
       try {
         const boardId = link.boardId || readConfig().boardId;
@@ -1805,7 +1918,10 @@ var handleSessionEvent = async (event) => {
     }
   }
   const pending = pendingCloses.get(sessionId) || null;
-  if (!pending) return;
+  if (!pending) {
+    if (batch && event.type === "turn-finished") await maybeCloseBatch(sessionId);
+    return;
+  }
   if (event.type === "turn-finished") {
     if (pending.phase === "wait-idle") {
       const entry = linksForSession(sessionId)[0];
@@ -1898,6 +2014,43 @@ var startWorkSession = async (card, board, project, boardId) => {
   setLink(card.id, started.sessionId, { boardId, title: card.name, sessionTitle: card.name });
   return { ...started, project: project.name };
 };
+var startBatchSession = async (card, snapshot, project, boardId) => {
+  if (!serviceHost) throw new Error("El servicio no puede abrir sesiones en este host.");
+  const reusable = reusableBatchSession(listLinks(), snapshot);
+  if (reusable) {
+    try {
+      const status = await serviceHost.sessions.status(reusable);
+      if (status?.status) {
+        setLink(card.id, reusable, {
+          boardId,
+          batch: true,
+          title: card.name,
+          sessionTitle: "Lote del tablero"
+        });
+        try {
+          await serviceHost.sessions.send(reusable, batchCardPrompt(card, snapshot.board, project));
+          return { sessionId: reusable, reused: true, sent: true, project: project.name };
+        } catch {
+          removeLink(card.id);
+        }
+      }
+    } catch {
+      removeLinksForSession(reusable);
+    }
+  }
+  const started = await serviceHost.sessions.start({
+    prompt: batchStartPrompt(card, snapshot.board, project),
+    title: `Lote \xB7 ${project.name}`.slice(0, 120),
+    directory: project.directory
+  });
+  setLink(card.id, started.sessionId, {
+    boardId,
+    batch: true,
+    title: card.name,
+    sessionTitle: "Lote del tablero"
+  });
+  return { ...started, project: project.name };
+};
 var short = (value, max = 60) => {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   return text.length > max ? `${text.slice(0, max - 1)}\u2026` : text;
@@ -1933,9 +2086,10 @@ var startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
   const existing = getLink(cardId);
   if (existing) {
     if (!serviceHost) return { sessionId: existing.sessionId, project: project.name };
+    const prompt = existing.batch === true ? batchCardPrompt(card, snapshot.board, project) : sessionPrompt(card, snapshot.board, project);
     try {
-      await serviceHost.sessions.send(existing.sessionId, sessionPrompt(card, snapshot.board, project));
-      return { sessionId: existing.sessionId, sent: true, project: project.name };
+      await serviceHost.sessions.send(existing.sessionId, prompt);
+      return { sessionId: existing.sessionId, sent: true, reused: true, project: project.name };
     } catch (error) {
       return {
         sessionId: existing.sessionId,
@@ -1947,6 +2101,10 @@ var startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
   }
   if (!forceSession) {
     return { moved: true, autoPending: project.autoSession === true, project: project.name };
+  }
+  if (project.autoSession === true) {
+    const batch = await startBatchSession(card, snapshot, project, boardId);
+    return { sessionId: batch.sessionId, sent: true, reused: batch.reused === true, project: project.name };
   }
   const started = await startWorkSession(card, snapshot.board, project, boardId);
   return { sessionId: started.sessionId, sent: true, project: project.name };
@@ -2555,18 +2713,14 @@ var routes = {
     const card = flattenCards(snapshot).find((entry) => entry.id === cardId);
     if (!card) throw new PlankaError("Esa tarjeta ya no existe.", { kind: "not-found", status: 404 });
     const link = getLink(cardId);
-    if (link) {
-      if (serviceHost) {
-        try {
-          await serviceHost.sessions.stop(link.sessionId);
-        } catch {
-        }
-      }
-      removeLink(cardId);
-    }
+    const stopped = await releaseCard(
+      cardId,
+      link,
+      `La tarjeta \xAB${card.name}\xBB vuelve a IDEAS. No la trabajes m\xE1s; deja las dem\xE1s del lote como est\xE1n.`
+    );
     await client().moveCard(card.id, backlog.id, 0, boardId);
     invalidate();
-    return { ok: true, list: backlog.name, stopped: Boolean(link) };
+    return { ok: true, list: backlog.name, stopped };
   },
   "POST /session/start": async (body) => {
     requireConnected();
@@ -2626,15 +2780,11 @@ var routes = {
     if (!id) throw new PlankaError("Falta el id de la tarjeta.", { kind: "validation" });
     markPendingDelete(id, false);
     const link = getLink(id);
-    if (link) {
-      if (serviceHost) {
-        try {
-          await serviceHost.sessions.stop(link.sessionId);
-        } catch {
-        }
-      }
-      removeLink(id);
-    }
+    await releaseCard(
+      id,
+      link,
+      `La tarjeta \xAB${link?.title || ""}\xBB se ha eliminado. No la trabajes m\xE1s; sigue con las dem\xE1s del lote.`
+    );
     await client().deleteCard(id);
     invalidate();
     return { ok: true };
