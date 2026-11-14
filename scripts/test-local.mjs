@@ -509,5 +509,83 @@ const mentionCardText = mentionText(mentionBoard.lists[0].cards[0], 'IDEAS', 'Ta
 assert.ok(mentionCardText.includes('id c1'), 'the chip text carries the card id');
 assert.ok(mentionCardText.includes('Se sale'), 'the chip text carries the description');
 
+// IDEAS priority: a bug wins on its own; the rest scores its words.
+const priorityBundle = join(dir, 'priority.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/priority.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: priorityBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const { classifyPriority, sortCardsByPriority, prioritySummary } = require(priorityBundle);
+
+assert.equal(
+  classifyPriority({ name: 'El panel no funciona', description: 'El panel lateral y el botón del panel fallan' }).key,
+  'flow',
+  'a bug wins over any amount of UX wording',
+);
+assert.equal(
+  classifyPriority({ name: 'Ordenar el panel de ideas', description: 'no guarda' }).key,
+  'flow',
+  'a bug in the description still wins',
+);
+assert.equal(
+  classifyPriority({ name: 'Mismo comportamiento en local y Planka', description: '' }).key,
+  'parity',
+  'parity is the second level',
+);
+assert.equal(
+  classifyPriority({ name: 'Mejorar el panel lateral', description: 'La columna y el botón de ordenar' }).key,
+  'ux',
+  'interface wording lands in UX',
+);
+assert.equal(
+  classifyPriority({ name: 'Refactor del código de tests', description: 'limpiar duplicados' }).key,
+  'polish',
+  'code and tests land in polish',
+);
+assert.equal(
+  classifyPriority({ name: 'Añadir un índice al README', description: '' }).key,
+  'polish',
+  'documentation wording lands in polish',
+);
+assert.equal(
+  classifyPriority({ name: 'Pintar el logo', description: '' }).unclassified,
+  true,
+  'a card with no signal stays unclassified',
+);
+
+const sortedPriority = sortCardsByPriority([
+  { name: 'Pintar el logo', description: '' },
+  { name: 'Mejorar el panel', description: 'botón' },
+  { name: 'No funciona el guardado', description: '' },
+  { name: 'Mismo comportamiento en local y Planka', description: '' },
+]);
+assert.deepEqual(
+  sortedPriority.map((card) => card.name),
+  ['No funciona el guardado', 'Mismo comportamiento en local y Planka', 'Mejorar el panel', 'Pintar el logo'],
+  'flow, parity, UX and unclassified, in that order',
+);
+assert.deepEqual(
+  sortCardsByPriority([
+    { name: 'Primera idea', description: '' },
+    { name: 'Segunda idea', description: '' },
+  ]).map((card) => card.name),
+  ['Primera idea', 'Segunda idea'],
+  'cards without signals keep their order',
+);
+
+const priorityTotals = prioritySummary([
+  { name: 'No funciona', description: '' },
+  { name: 'Local y Planka', description: '' },
+  { name: 'Pintar el logo', description: '' },
+]);
+assert.equal(priorityTotals.counts.flow, 1);
+assert.equal(priorityTotals.counts.parity, 1);
+assert.equal(priorityTotals.unclassified, 1);
+assert.equal(priorityTotals.total, 3);
+
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 97 assertions ok');
+console.log('local mode: 110 assertions ok');

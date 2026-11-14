@@ -940,6 +940,18 @@
       .sort-criterion-text { min-width: 0; display: flex; flex-direction: column; }
       .sort-criterion-label { font-size: 11px; color: var(--oc-fg); }
       .sort-criterion-hint { font-size: 9.5px; color: var(--oc-muted); }
+      .sort-preview {
+        display: flex; flex-direction: column; gap: 5px;
+        padding-top: 7px; border-top: 1px solid var(--oc-border);
+      }
+      .sort-preview-title {
+        font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--oc-muted);
+      }
+      .sort-preview-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+      .sort-preview-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 10.5px; }
+      .sort-preview-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--oc-fg); }
+      .sort-preview-level { flex: none; font-size: 9px; color: var(--oc-muted); }
+      .sort-summary { font-size: 9px; color: var(--oc-muted); }
       .sort-pop-foot { display: flex; flex-direction: column; gap: 5px; }
       .sort-run { width: 100%; padding: 6px 10px; }
       .sort-pop-status { font-size: 9.5px; color: var(--oc-muted); }

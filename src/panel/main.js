@@ -1,5 +1,6 @@
 import { connectHost } from '@openchamber/sdk';
 import { applyHostReady } from '@openchamber/sdk/ui';
+import { PRIORITY_LEVELS, classifyPriority, prioritySummary, sortCardsByPriority } from '../shared/priority.js';
 
 const host = connectHost();
 const root = document.querySelector('#root');
@@ -369,74 +370,6 @@ const matchesFilters = (card) => {
   return true;
 };
 
-/* --- Ideas priority sort (pure helpers) ---------------------------- */
-/* IDEAS is ordered by the four criteria the user gave. The extension reads
-   each card's text and picks a level; nothing is stored per card and no
-   session is opened. The list is the only one that can be sorted. */
-
-// Levels, most important first. The order of this array is the order that
-// wins a tie between two levels, and it is what the popover shows.
-const SORT_CRITERIA = [
-  {
-    key: 'flow',
-    label: 'Fallos que rompen el flujo',
-    hint: 'Rompe, no deja, se pierde, error…',
-    pattern: /\b(rompe|rompen|roto|rota|fallo|fallos|falla|fallas|error|errores|bug|bugs|crash|bloquea|bloqueado|bloqueada|imposible|se pierde|se pasa|se mueve|se queda|se cierra|salta|vuelve a|en vez de|deberia|no deja|no me deja|no funciona|no guarda|no carga|no abre|no se puede|no puedo|desaparece)\b/g,
-  },
-  {
-    key: 'parity',
-    label: 'Paridad local/Planka',
-    hint: 'Local, Planka, servidor, sincronizar…',
-    pattern: /\b(planka|local|paridad|paralelo|sincroniz\w*|servidor|remoto|nube|dos modos|modo local|mismo comportamiento|tambien en|igual en|los dos|ambos)\b/g,
-  },
-  {
-    key: 'ux',
-    label: 'UX grande',
-    hint: 'Interfaz, panel, botones, arrastrar…',
-    pattern: /\b(ux|usabilidad|interfaz|experiencia|diseno|visual|pantalla|panel|lateral|ventana|boton|botones|clic|clics|arrastr\w*|mover|ordenar|filtrado|complicad\w*|lio|lioso|confus\w*|entiendo|entiende|accesib\w*|movil|responsive|columna|columnas)\b/g,
-  },
-  {
-    key: 'polish',
-    label: 'Pulido y arquitectura',
-    hint: 'Refactor, código, tests, rendimiento…',
-    pattern: /\b(refactor\w*|arquitectura|arquitect\w*|codigo|limpia\w*|limpiar|duplicad\w*|rendimiento|lento|test|tests|pruebas|documentacion|estructura|nombres|pulir|pulido|deuda|mantener|json|persist\w*|almacen\w*|migrac\w*|guard\w*)\b/g,
-  },
-];
-
-const SORT_UNCLASSIFIED = SORT_CRITERIA.length;
-
-const normalizeCardText = (text) =>
-  String(text || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-
-// Score every level and keep the strongest one; the first level wins a tie.
-// A card with no signal keeps its place after the classified ones.
-const classifyCard = (card) => {
-  const text = normalizeCardText(`${card?.name || ''}\n${card?.description || ''}`);
-  let level = SORT_UNCLASSIFIED;
-  let best = 0;
-  SORT_CRITERIA.forEach((criterion, index) => {
-    const matches = text.match(criterion.pattern);
-    const score = matches ? matches.length : 0;
-    if (score > best) {
-      best = score;
-      level = index;
-    }
-  });
-  return level;
-};
-
-// Stable: cards on the same level, and cards without a level, keep their
-// current order.
-const sortCardsByPriority = (cards) =>
-  cards
-    .map((card, index) => ({ card, index, level: classifyCard(card) }))
-    .sort((a, b) => a.level - b.level || a.index - b.index)
-    .map((entry) => entry.card);
-
-/* --- end Ideas priority sort --------------------------------------- */
 
 const isPaused = () =>
   state.view !== 'board' ||
@@ -2056,20 +1989,41 @@ const openSortPopover = (anchor, listId) => {
   const note = el(
     'p',
     'sort-pop-note',
-    'Solo IDEAS. Cada tarjeta se clasifica por su título y sus detalles; las que empatan mantienen su orden.',
+    'Solo IDEAS. Cada tarjeta se puntúa por su título y sus detalles, con más peso para los fallos; a igual categoría manda la que más señales tiene.',
   );
 
   const criteria = el('ol', 'sort-criteria');
-  SORT_CRITERIA.forEach((criterion, index) => {
+  PRIORITY_LEVELS.forEach((criterion, index) => {
     const item = el('li', 'sort-criterion');
     const text = el('span', 'sort-criterion-text');
     text.append(
       el('span', 'sort-criterion-label', criterion.label),
-      el('span', 'sort-criterion-hint', criterion.hint),
+      el('span', 'sort-criterion-hint', `${criterion.hint} · peso ×${criterion.weight}`),
     );
     item.append(el('span', 'sort-step', String(index + 1)), text);
     criteria.append(item);
   });
+
+  // A small preview makes the rule visible before anything moves.
+  const ordered = sortCardsByPriority(findList(listId)?.cards || []);
+  const summary = prioritySummary(ordered);
+  const preview = el('div', 'sort-preview');
+  preview.append(el('span', 'sort-preview-title', 'Vista previa'));
+  const previewList = el('ol', 'sort-preview-list');
+  for (const card of ordered.slice(0, 4)) {
+    const info = classifyPriority(card);
+    const row = el('li', 'sort-preview-row');
+    row.append(
+      el('span', 'sort-preview-name', card.name),
+      el('span', 'sort-preview-level', info.unclassified ? 'Sin clasificar' : info.label),
+    );
+    previewList.append(row);
+  }
+  if (!ordered.length) previewList.append(el('li', 'sort-preview-row', 'No hay tarjetas en IDEAS.'));
+  const counts = `${summary.counts.flow} fallos · ${summary.counts.parity} paridad · ${summary.counts.ux} UX · ${summary.counts.polish} pulido${
+    summary.unclassified ? ` · ${summary.unclassified} sin clasificar` : ''
+  }`;
+  preview.append(previewList, el('div', 'sort-summary', counts));
 
   const foot = el('div', 'sort-pop-foot');
   const action = el('button', 'btn-mint sort-run', 'Ordenar IDEAS');
@@ -2077,7 +2031,7 @@ const openSortPopover = (anchor, listId) => {
   const status = el('div', 'sort-pop-status', 'El orden se guarda en el tablero.');
   foot.append(action, status);
 
-  node.append(head, note, criteria, foot);
+  node.append(head, note, criteria, preview, foot);
   document.body.append(node);
 
   const width = Math.min(268, window.innerWidth - 16);
