@@ -2,6 +2,7 @@
 // config.json as the service; cards are addressed by id or by part of a title.
 import { readConfig } from '../shared/config.js';
 import { LOCAL_BOARD_ID, LocalClient } from '../shared/local.js';
+import { workListFor } from '../shared/defaults.js';
 import { clearClosePending, removeLink, setLink } from '../shared/links.js';
 import {
   PlankaClient,
@@ -180,7 +181,7 @@ const tools = [
   },
   {
     name: 'kanban_link_session',
-    description: 'Link a card to the OpenChamber session working on it. When the card reaches HECHO, that session is asked to save its Engram summary and is stopped.',
+    description: 'Link a card to the OpenChamber session working on it. The card moves to EN PROGRESO now and to HECHO when that session finishes its turn.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -262,7 +263,7 @@ const callTool = async (name, args = {}) => {
   }
 
   if (name === 'kanban_move_card') {
-    const { card } = await resolveCard(client, boardId, args.card);
+    const { board, card } = await resolveCard(client, boardId, args.card);
     const { list } = await resolveList(client, boardId, args.list);
     const index = Number.isInteger(args.position) ? args.position : undefined;
     await client.moveCard(card.id, list.id, index, boardId);
@@ -296,11 +297,21 @@ const callTool = async (name, args = {}) => {
   }
 
   if (name === 'kanban_link_session') {
-    const { card } = await resolveCard(client, boardId, args.card);
+    const { board, card } = await resolveCard(client, boardId, args.card);
     const sessionId = String(args.sessionId || '').trim();
     if (!sessionId) throw new Error('sessionId is required.');
+    // Delegating moves the card to the working column unless it is done. The
+    // card follows this agent session from now on, not the orchestrator's.
+    const workList = workListFor(board);
+    const moved = Boolean(workList && card.listId !== workList.id && card.listId !== board.doneListId);
+    if (moved) await client.moveCard(card.id, workList.id, undefined, boardId);
     setLink(card.id, sessionId, { boardId, title: card.name });
-    return textResult({ linked: true, card: { id: card.id, name: card.name }, sessionId });
+    return textResult({
+      linked: true,
+      moved,
+      card: { id: card.id, name: card.name },
+      sessionId,
+    });
   }
 
   if (name === 'kanban_checklist_check') {

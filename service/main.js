@@ -586,6 +586,13 @@ var ensureDefaultLists = async (client2, boardId) => {
   }
   return { created, board: await client2.readBoard(boardId) };
 };
+var WORK_LIST_NAME = /(^|\b)(en progreso|en proceso|in progress|doing|en curso|wip)(\b|$)/i;
+var workListFor = (snapshot) => {
+  const named = snapshot?.lists?.find((list) => WORK_LIST_NAME.test(list.name));
+  if (named) return named;
+  const candidates = (snapshot?.lists || []).filter((list) => list.id !== snapshot.doneListId);
+  return candidates[1] || null;
+};
 
 // src/shared/planka.js
 var POSITION_STEP2 = 65536;
@@ -1771,7 +1778,18 @@ var triggerClose = async (cardId) => {
 };
 var handleSessionEvent = async (event) => {
   const sessionId = event?.session?.id;
-  const pending = sessionId ? pendingCloses.get(sessionId) : null;
+  if (!sessionId) return;
+  if (event.type === "turn-finished") {
+    for (const [cardId, link] of linksForSession(sessionId)) {
+      try {
+        const boardId = link.boardId || readConfig().boardId;
+        await client().completeCard(cardId, boardId);
+        invalidate();
+      } catch {
+      }
+    }
+  }
+  const pending = pendingCloses.get(sessionId) || null;
   if (!pending) return;
   if (event.type === "turn-finished") {
     if (pending.phase === "wait-idle") {
@@ -1839,13 +1857,6 @@ var getSnapshot = async ({ boardId = "", fresh = false } = {}) => {
   });
   cache.inflight = { key, promise };
   return promise;
-};
-var WORK_LIST_NAME = /(^|\b)(en progreso|en proceso|in progress|doing|en curso|wip)(\b|$)/i;
-var workListFor = (snapshot) => {
-  const named = snapshot?.lists?.find((list) => WORK_LIST_NAME.test(list.name));
-  if (named) return named;
-  const candidates = (snapshot?.lists || []).filter((list) => list.id !== snapshot.doneListId);
-  return candidates[1] || null;
 };
 var snapshotView = (snapshot) => ({
   ...snapshot,
@@ -2352,6 +2363,11 @@ var routes = {
       title: card.name,
       sessionTitle: String(body.sessionTitle || "").trim() || sessionId
     });
+    const workList = workListFor(snapshot);
+    if (workList && card.listId !== workList.id && card.listId !== snapshot.doneListId) {
+      await client().moveCard(card.id, workList.id, void 0, boardId);
+      invalidate();
+    }
     return { link };
   },
   "DELETE /link": async (body) => {
@@ -2361,39 +2377,6 @@ var routes = {
     return { ok: true };
   },
   // The panel/status frames report the lifecycle of their session. The cards
-  // linked to it follow the work: EN PROGRESO while it runs, HECHO when it
-  // finishes. This is independent of the manual/auto session setting.
-  "POST /session/lifecycle": async (body) => {
-    requireConnected();
-    const sessionId = String(body.sessionId || "");
-    const phase = String(body.phase || "");
-    if (!sessionId || !phase) return { ok: false, moved: 0 };
-    const links = linksForSession(sessionId);
-    if (!links.length) return { ok: true, moved: 0 };
-    const config = readConfig();
-    const boardId = await boardIdOf(config);
-    const snapshot = await getSnapshot({ boardId, fresh: true });
-    const workList = workListFor(snapshot);
-    if (!workList) return { ok: true, moved: 0 };
-    const cards = flattenCards(snapshot);
-    let moved = 0;
-    for (const [cardId] of links) {
-      try {
-        if (phase === "completed") {
-          await client().completeCard(cardId, boardId);
-          moved += 1;
-        } else if (phase === "started") {
-          const card = cards.find((entry) => entry.id === cardId);
-          if (!card || card.listId === snapshot.doneListId) continue;
-          await client().moveCard(cardId, workList.id, void 0, boardId);
-          moved += 1;
-        }
-      } catch {
-      }
-    }
-    if (moved) invalidate();
-    return { ok: true, moved };
-  },
   "GET /snapshot": async (_body, url) => {
     const boardId = url.searchParams.get("boardId") || "";
     const fresh = url.searchParams.get("fresh") === "1";
@@ -2776,7 +2759,10 @@ var server = import_node_http.default.createServer((req, res) => {
       const body2 = await readBody(req);
       res.writeHead(200).end(JSON.stringify({ ok: true }));
       const request = readSessionEventRequest(JSON.stringify(body2));
-      if (request) void handleSessionEvent(request.event);
+      if (request) {
+        const directory2 = request.event?.project?.directory || "";
+        void projectScope.run(directory2, () => handleSessionEvent(request.event));
+      }
       return;
     }
     const handler = routes[`${method} ${path}`];

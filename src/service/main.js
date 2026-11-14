@@ -13,7 +13,7 @@ import { getBoardProject, setBoardProject } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
 import { LOCAL_BOARD_ID, LocalClient, exportBoard, importBoard } from '../shared/local.js';
 import { PlankaClient, PlankaError, flattenCards, searchCards } from '../shared/planka.js';
-import { ensureDefaultLists } from '../shared/defaults.js';
+import { ensureDefaultLists, workListFor } from '../shared/defaults.js';
 
 const PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
 const TOKEN = process.env.OPENCHAMBER_SERVICE_TOKEN || '';
@@ -69,7 +69,21 @@ const triggerClose = async (cardId) => {
 
 const handleSessionEvent = async (event) => {
   const sessionId = event?.session?.id;
-  const pending = sessionId ? pendingCloses.get(sessionId) : null;
+  if (!sessionId) return;
+  // A delegated task finishes when its own session goes idle: move only the
+  // cards linked to that session to HECHO. A manual move never reaches here.
+  if (event.type === 'turn-finished') {
+    for (const [cardId, link] of linksForSession(sessionId)) {
+      try {
+        const boardId = link.boardId || readConfig().boardId;
+        await client().completeCard(cardId, boardId);
+        invalidate();
+      } catch {
+        // A card deleted meanwhile must not stop the other linked cards.
+      }
+    }
+  }
+  const pending = pendingCloses.get(sessionId) || null;
   if (!pending) return;
   if (event.type === 'turn-finished') {
     if (pending.phase === 'wait-idle') {
@@ -148,15 +162,6 @@ const getSnapshot = async ({ boardId = '', fresh = false } = {}) => {
     });
   cache.inflight = { key, promise };
   return promise;
-};
-
-const WORK_LIST_NAME = /(^|\b)(en progreso|en proceso|in progress|doing|en curso|wip)(\b|$)/i;
-
-const workListFor = (snapshot) => {
-  const named = snapshot?.lists?.find((list) => WORK_LIST_NAME.test(list.name));
-  if (named) return named;
-  const candidates = (snapshot?.lists || []).filter((list) => list.id !== snapshot.doneListId);
-  return candidates[1] || null;
 };
 
 const snapshotView = (snapshot) => ({
@@ -717,6 +722,13 @@ const routes = {
       title: card.name,
       sessionTitle: String(body.sessionTitle || '').trim() || sessionId,
     });
+    // Linking is delegating: the card belongs to the working column unless it
+    // is already done. This is independent of the manual/auto setting.
+    const workList = workListFor(snapshot);
+    if (workList && card.listId !== workList.id && card.listId !== snapshot.doneListId) {
+      await client().moveCard(card.id, workList.id, undefined, boardId);
+      invalidate();
+    }
     return { link };
   },
 
@@ -728,43 +740,6 @@ const routes = {
   },
 
   // The panel/status frames report the lifecycle of their session. The cards
-  // linked to it follow the work: EN PROGRESO while it runs, HECHO when it
-  // finishes. This is independent of the manual/auto session setting.
-  'POST /session/lifecycle': async (body) => {
-    requireConnected();
-    const sessionId = String(body.sessionId || '');
-    const phase = String(body.phase || '');
-    if (!sessionId || !phase) return { ok: false, moved: 0 };
-    const links = linksForSession(sessionId);
-    if (!links.length) return { ok: true, moved: 0 };
-    const config = readConfig();
-    const boardId = await boardIdOf(config);
-    const snapshot = await getSnapshot({ boardId, fresh: true });
-    const workList = workListFor(snapshot);
-    if (!workList) return { ok: true, moved: 0 };
-    const cards = flattenCards(snapshot);
-    let moved = 0;
-    for (const [cardId] of links) {
-      try {
-        if (phase === 'completed') {
-          await client().completeCard(cardId, boardId);
-          moved += 1;
-        } else if (phase === 'started') {
-          // A card the user already moved to HECHO must stay there: starting
-          // the session again must not resurrect finished work.
-          const card = cards.find((entry) => entry.id === cardId);
-          if (!card || card.listId === snapshot.doneListId) continue;
-          await client().moveCard(cardId, workList.id, undefined, boardId);
-          moved += 1;
-        }
-      } catch {
-        // A card deleted meanwhile must not stop the other linked cards.
-      }
-    }
-    if (moved) invalidate();
-    return { ok: true, moved };
-  },
-
   'GET /snapshot': async (_body, url) => {
     const boardId = url.searchParams.get('boardId') || '';
     const fresh = url.searchParams.get('fresh') === '1';
@@ -1182,7 +1157,10 @@ const server = http.createServer((req, res) => {
       const body = await readBody(req);
       res.writeHead(200).end(JSON.stringify({ ok: true }));
       const request = readSessionEventRequest(JSON.stringify(body));
-      if (request) void handleSessionEvent(request.event);
+      if (request) {
+        const directory = request.event?.project?.directory || '';
+        void projectScope.run(directory, () => handleSessionEvent(request.event));
+      }
       return;
     }
     const handler = routes[`${method} ${path}`];
