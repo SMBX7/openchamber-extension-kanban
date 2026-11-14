@@ -445,6 +445,21 @@ var linksForSession = (sessionId) => {
   const session = String(sessionId || "");
   return Object.entries(readLinks().links).filter(([, link]) => link.sessionId === session);
 };
+var removeLinksForSession = (sessionId) => {
+  const session = String(sessionId || "");
+  if (!session) return 0;
+  return withLock(() => {
+    const data = readLinks();
+    let removed = 0;
+    for (const [cardId, link] of Object.entries(data.links)) {
+      if (link.sessionId !== session) continue;
+      delete data.links[cardId];
+      removed += 1;
+    }
+    if (removed) writeLinks(data);
+    return removed;
+  });
+};
 var removeLink = (cardId) => {
   const id = String(cardId || "");
   return withLock(() => {
@@ -1748,11 +1763,11 @@ try {
 } catch {
   serviceHost = null;
 }
-var closePrompt = (title) => `La tarjeta \xAB${title || "sin t\xEDtulo"}\xBB est\xE1 en HECHO y la tarea ha terminado. Cierra esta sesi\xF3n.`;
+var closePrompt = () => "Las tarjetas en HECHO est\xE1n terminadas. Cierra esta sesi\xF3n.";
 var sendClosePrompt = async (cardId, link) => {
   if (!serviceHost) return false;
   try {
-    await serviceHost.sessions.send(link.sessionId, closePrompt(link.title));
+    await serviceHost.sessions.send(link.sessionId, closePrompt());
     pendingCloses.set(link.sessionId, { cardId, phase: "wait-close", title: link.title });
     clearClosePending(cardId);
     return true;
@@ -1793,8 +1808,8 @@ var handleSessionEvent = async (event) => {
   if (!pending) return;
   if (event.type === "turn-finished") {
     if (pending.phase === "wait-idle") {
-      const link = getLink(pending.cardId);
-      if (link) await sendClosePrompt(pending.cardId, link);
+      const entry = linksForSession(sessionId)[0];
+      if (entry) await sendClosePrompt(entry[0], entry[1]);
       else pendingCloses.delete(sessionId);
       return;
     }
@@ -1804,7 +1819,7 @@ var handleSessionEvent = async (event) => {
       } catch {
       }
       pendingCloses.delete(sessionId);
-      removeLink(pending.cardId);
+      removeLinksForSession(sessionId);
     }
     return;
   }
@@ -1814,7 +1829,7 @@ var handleSessionEvent = async (event) => {
     } catch {
     }
     pendingCloses.delete(sessionId);
-    removeLink(pending.cardId);
+    removeLinksForSession(sessionId);
   }
 };
 var client = () => {

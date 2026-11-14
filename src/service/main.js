@@ -8,7 +8,7 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { createServiceHost, SESSION_EVENTS_PATH, readSessionEventRequest } from '@openchamber/sdk';
 import { ROOT, clearConfig, isConnected, readConfig, saveConfig } from '../shared/config.js';
-import { clearClosePending, getLink, linksForSession, listLinks, removeLink, setLink } from '../shared/links.js';
+import { clearClosePending, getLink, linksForSession, listLinks, removeLink, removeLinksForSession, setLink } from '../shared/links.js';
 import { getBoardProject, setBoardProject } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
 import { LOCAL_BOARD_ID, LocalClient, exportBoard, importBoard } from '../shared/local.js';
@@ -36,12 +36,12 @@ try {
   serviceHost = null;
 }
 
-const closePrompt = (title) => `La tarjeta «${title || 'sin título'}» está en HECHO y la tarea ha terminado. Cierra esta sesión.`;
+const closePrompt = () => 'Las tarjetas en HECHO están terminadas. Cierra esta sesión.';
 
 const sendClosePrompt = async (cardId, link) => {
   if (!serviceHost) return false;
   try {
-    await serviceHost.sessions.send(link.sessionId, closePrompt(link.title));
+    await serviceHost.sessions.send(link.sessionId, closePrompt());
     pendingCloses.set(link.sessionId, { cardId, phase: 'wait-close', title: link.title });
     clearClosePending(cardId);
     return true;
@@ -87,8 +87,8 @@ const handleSessionEvent = async (event) => {
   if (!pending) return;
   if (event.type === 'turn-finished') {
     if (pending.phase === 'wait-idle') {
-      const link = getLink(pending.cardId);
-      if (link) await sendClosePrompt(pending.cardId, link);
+      const entry = linksForSession(sessionId)[0];
+      if (entry) await sendClosePrompt(entry[0], entry[1]);
       else pendingCloses.delete(sessionId);
       return;
     }
@@ -99,7 +99,7 @@ const handleSessionEvent = async (event) => {
         // The session may already be gone; the task is closed either way.
       }
       pendingCloses.delete(sessionId);
-      removeLink(pending.cardId);
+      removeLinksForSession(sessionId);
     }
     return;
   }
@@ -110,7 +110,7 @@ const handleSessionEvent = async (event) => {
       // Same as above.
     }
     pendingCloses.delete(sessionId);
-    removeLink(pending.cardId);
+    removeLinksForSession(sessionId);
   }
 };
 

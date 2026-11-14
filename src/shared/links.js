@@ -127,6 +127,22 @@ export const pendingCloseForSession = (sessionId) => {
   return entry || null;
 };
 
+export const removeLinksForSession = (sessionId) => {
+  const session = String(sessionId || '');
+  if (!session) return 0;
+  return withLock(() => {
+    const data = readLinks();
+    let removed = 0;
+    for (const [cardId, link] of Object.entries(data.links)) {
+      if (link.sessionId !== session) continue;
+      delete data.links[cardId];
+      removed += 1;
+    }
+    if (removed) writeLinks(data);
+    return removed;
+  });
+};
+
 export const removeLink = (cardId) => {
   const id = String(cardId || '');
   return withLock(() => {
