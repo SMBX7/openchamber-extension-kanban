@@ -92,12 +92,12 @@ not by the browser. If you use OpenChamber remotely, the file lands on that mach
 
 - **Create**: the `+` next to the column title. Type a title and press `Enter`.
 - **Edit the card**: hover it and press the pencil (or press `Enter` with the card
-  focused). There you change the title, details and session; **Confirmar** saves and
-  closes, **Cancelar** discards.
-- **Delete**: inside the editor, press **Eliminar tarjeta** twice; then you get five
+  focused). There you change the title, details and session; **Confirm** (Confirmar) saves
+  and closes, **Cancel** (Cancelar) discards.
+- **Delete**: inside the editor, press **Delete card** (Eliminar tarjeta) twice; then you get five
   seconds of **Undo** (Deshacer) in the bar at the top.
 - **Move**: drag the card inside a column or to another one.
-- **Sort IDEAS**: the **Ordenar** button in the IDEAS header opens the four criteria
+- **Sort IDEAS**: the **Sort** (Ordenar) button in the IDEAS header opens the four criteria
   and reorders the cards by priority.
 - **Complete**: the tick sends it to DONE. If the card is linked to a session, it
   moves to DONE automatically when that session finishes its turn; only that card
@@ -148,7 +148,7 @@ finishes its turn; only that card moves. Manual moves are never touched.
 
 Everything else works the same in both modes:
 
-- Moving to **DONE** leaves the session open. The DONE column has a **close sessions**
+- Moving to **DONE** leaves the session open. The DONE column has a **Close sessions** (Cerrar sesión/es)
   button; it closes each distinct session once, even when several cards share it, and
   removes all its links.
 - Moving back to **IDEAS** stops the session and releases the card.

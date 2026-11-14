@@ -99,11 +99,11 @@ OpenChamber, no por el navegador. Si usas OpenChamber en remoto, el archivo apar
 - **Paradas** filtra las tarjetas que están en EN PROGRESO **sin sesión**. Es la forma
   de ver lo que llevas tiempo aparcado y decidir si lo retomas o lo devuelves a ideas.
 
-## Work Status
+## Estado del trabajo
 
 Es la sección de la barra lateral. Sirve para trabajar sin abrir el panel.
 
-![Work Status](docs/status.png)
+![Estado del trabajo](docs/status.png)
 
 - Arriba, **todas las tarjetas de EN PROGRESO** en ámbar, cada una con sus botones:
   elegir sesión, abrirla con `+`, devolverla a ideas con la flecha o completarla con el
@@ -118,7 +118,7 @@ Es la sección de la barra lateral. Sirve para trabajar sin abrir el panel.
 
 ## Sesiones: manual y automático
 
-Eliges el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status.
+Eliges el modo en **Ajustes → Delegación** o desde la etiqueta del Estado del trabajo.
 
 - **Manual**: mover una tarjeta a EN PROGRESO solo la mueve. La sesión la abres tú con
   el `+` de la tarjeta.
@@ -129,7 +129,7 @@ Así se ve en cada sitio:
 
 | | Manual | Automática |
 | --- | --- | --- |
-| **Work Status** | ![Manual en el Work Status](docs/session-status-manual.png) | ![Automática en el Work Status](docs/session-status-auto.png) |
+| **Estado del trabajo** | ![Manual en el estado del trabajo](docs/session-status-manual.png) | ![Automática en el estado del trabajo](docs/session-status-auto.png) |
 | **Panel** | ![Manual en el panel](docs/session-panel-manual.png) | ![Automática en el panel](docs/session-panel-auto.png) |
 
 En manual tienes el botón para abrirla cuando quieras. En automática, al mover la
