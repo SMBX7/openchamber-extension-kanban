@@ -100,6 +100,16 @@ const triggerClose = async (cardId) => {
   }
 };
 
+// A card in HECHO is finished: it stops pointing at the session that worked it,
+// so no green dot and no stale link survive the move. A batch keeps its links
+// until every card is done, because the batch closure reads them.
+const releaseDoneLink = (cardId) => {
+  const link = getLink(cardId);
+  if (!link || link.batch === true) return false;
+  removeLink(cardId);
+  return true;
+};
+
 // A card that leaves the work (back to IDEAS, or deleted) must not stop a batch
 // that still holds other cards: it is released alone and the agent is told to
 // drop it. A single-card session is still stopped as before.
@@ -142,6 +152,7 @@ const handleSessionEvent = async (event) => {
         const boardId = link.boardId || readConfig().boardId;
         await client().completeCard(cardId, boardId);
         invalidate();
+        releaseDoneLink(cardId);
       } catch {
         // A card deleted meanwhile must not stop the other linked cards.
       }
@@ -1003,7 +1014,8 @@ const routes = {
     const item = await client().moveCard(id, listId, Number.isInteger(body.index) ? body.index : undefined, boardId);
     invalidate();
     const snapshot = await getSnapshot({ boardId }).catch(() => null);
-    if (snapshot?.doneListId !== listId) clearClosePending(id);
+    if (snapshot?.doneListId === listId) releaseDoneLink(id);
+    else clearClosePending(id);
 
     let sessionId = '';
     let needsMapping = false;
@@ -1124,6 +1136,7 @@ const routes = {
     const boardId = await boardIdOf(config);
     const result = await client().completeCard(id, boardId);
     invalidate();
+    releaseDoneLink(id);
     return result;
   },
 

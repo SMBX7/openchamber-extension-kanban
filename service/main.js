@@ -1953,6 +1953,12 @@ var triggerClose = async (cardId) => {
     return false;
   }
 };
+var releaseDoneLink = (cardId) => {
+  const link = getLink(cardId);
+  if (!link || link.batch === true) return false;
+  removeLink(cardId);
+  return true;
+};
 var releaseCard = async (cardId, link, note) => {
   if (!link) return false;
   const shared = link.batch === true && linksForSession(link.sessionId).length > 1;
@@ -1985,6 +1991,7 @@ var handleSessionEvent = async (event) => {
         const boardId = link.boardId || readConfig().boardId;
         await client().completeCard(cardId, boardId);
         invalidate();
+        releaseDoneLink(cardId);
       } catch {
       }
     }
@@ -2755,7 +2762,8 @@ var routes = {
     const item = await client().moveCard(id, listId, Number.isInteger(body.index) ? body.index : void 0, boardId);
     invalidate();
     const snapshot = await getSnapshot({ boardId }).catch(() => null);
-    if (snapshot?.doneListId !== listId) clearClosePending(id);
+    if (snapshot?.doneListId === listId) releaseDoneLink(id);
+    else clearClosePending(id);
     let sessionId = "";
     let needsMapping = false;
     let manual = false;
@@ -2867,6 +2875,7 @@ var routes = {
     const boardId = await boardIdOf(config);
     const result = await client().completeCard(id, boardId);
     invalidate();
+    releaseDoneLink(id);
     return result;
   },
   "POST /card/pending": async (body) => {

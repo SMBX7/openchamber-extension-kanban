@@ -115,9 +115,11 @@ Planka and change the settings.
 - **Create**: the `+` next to a column title opens the card box above the cards. Type a
   title and an optional description; `Enter` or **Create** (Crear) saves it. The
   description stays on one line and scrolls sideways.
-- **Edit**: the pencil (or `Enter` with the card focused) opens the card. There you
-  change the title, details and session; **Confirm** (Confirmar) saves and closes,
-  **Cancel** (Cancelar) discards.
+- **Edit**: the pencil, a double click on the card, or `Enter` with the card focused
+  opens the card. There you change the title, details and session; **Confirm**
+  (Confirmar) saves and closes, **Cancel** (Cancelar) discards.
+- **Session dot**: the small dot left of the pencil shows the session state, and only
+  while the card is in IN PROGRESS.
 - **Delete**: inside the editor, press **Delete card** (Eliminar tarjeta) twice; you get
   five seconds of **Undo** (Deshacer).
 - **Move**: drag a card inside a column or to another one. Dragging to DONE completes it;
@@ -158,8 +160,11 @@ PROGRESS when linked. A batch stays open while any of its cards is outside DONE;
 last one arrives, the session reviews the whole set, writes the summary of what each
 subagent did and closes. In both modes:
 
-- Moving to **DONE** leaves the session open; **Close sessions** (Cerrar sesión/es) in
-  the DONE column closes each distinct session once and removes its links.
+- Moving to **DONE** finishes the card: it stops pointing at its session, so the session
+  dot never survives the move and the session stays open for you to archive. Inside a
+  batch the cards keep their links until the whole batch is done.
+- **Close sessions** (Cerrar sesión/es) in the DONE column closes the sessions still
+  linked (a finished batch) once each and removes their links.
 - Moving back to **IDEAS** releases the card. In a batch only that card leaves; the
   session keeps working the rest.
 

@@ -3317,7 +3317,7 @@ ${card?.description || ""}`);
     }
   };
   var cardDraggable = () => !state.search.trim() && state.labels.size === 0;
-  var buildCard = (card, listIndex) => {
+  var buildCard = (card, listIndex, inProgress = false) => {
     const node = el2("article", "card");
     node.tabIndex = 0;
     node.draggable = cardDraggable();
@@ -3326,11 +3326,7 @@ ${card?.description || ""}`);
     node.setAttribute("aria-label", `${card.name}. Abrir tarjeta`);
     const actions = el2("div", "card-actions");
     node.append(actions);
-    const title = el2("div", "card-title", card.name || "Sin t\xEDtulo");
-    node.append(title);
-    if (card.description.trim()) node.append(el2("div", "card-desc", card.description));
-    const meta = el2("div", "card-meta");
-    const sessionState = state.sessions?.[card.id];
+    const sessionState = inProgress ? state.sessions?.[card.id] : null;
     if (sessionState) {
       const dot = el2("span", "session-dot");
       const tone2 = sessionState.tone === "success" ? "var(--oc-success)" : sessionState.tone === "warning" ? "var(--oc-warning)" : "var(--oc-muted)";
@@ -3338,8 +3334,12 @@ ${card?.description || ""}`);
       if (sessionState.tone === "success") dot.classList.add("working");
       dot.title = `Sesi\xF3n: ${sessionState.state}`;
       dot.setAttribute("aria-label", `Sesi\xF3n: ${sessionState.state}`);
-      meta.append(dot);
+      actions.append(dot);
     }
+    const title = el2("div", "card-title", card.name || "Sin t\xEDtulo");
+    node.append(title);
+    if (card.description.trim()) node.append(el2("div", "card-desc", card.description));
+    const meta = el2("div", "card-meta");
     if (card.labels.length) {
       const dots = el2("div", "card-labels");
       for (const label of card.labels) {
@@ -3377,8 +3377,13 @@ ${card?.description || ""}`);
     });
     actions.append(edit);
     const open = () => openSheet(card.id);
-    node.title = "Pulsa el l\xE1piz para editar la tarjeta";
-    node.setAttribute("aria-label", `${card.name}. Pulsa el l\xE1piz para editar la tarjeta.`);
+    node.title = "Doble clic o el l\xE1piz para editar la tarjeta";
+    node.setAttribute("aria-label", `${card.name}. Doble clic o el l\xE1piz para editar la tarjeta.`);
+    node.addEventListener("dblclick", (event) => {
+      if (event.target.closest("button")) return;
+      event.preventDefault();
+      open();
+    });
     node.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
@@ -3737,7 +3742,7 @@ ${card?.description || ""}`);
         const hint2 = el2("div", "column-hint", state.search || state.labels.size ? "Sin coincidencias" : "Arrastra una tarjeta aqu\xED");
         cardsEl.append(hint2);
       }
-      for (const card of visible) cardsEl.append(buildCard(card, listIndex));
+      for (const card of visible) cardsEl.append(buildCard(card, listIndex, list.id === state.snapshot?.workListId));
       const composer = el2("div", "composer");
       const input = el2("input", "composer-title");
       input.type = "text";

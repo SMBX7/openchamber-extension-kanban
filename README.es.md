@@ -115,8 +115,11 @@ con Planka y se cambian los ajustes.
 - **Crear**: el `+` junto al título de una columna abre el recuadro encima de las
   tarjetas. Escribe un título y una descripción opcional; `Enter` o **Crear** lo guarda.
   La descripción se queda en una línea y se desplaza en horizontal.
-- **Editar**: el lápiz (o `Enter` con la tarjeta enfocada) abre la tarjeta. Ahí cambias
-  título, detalles y sesión; **Confirmar** guarda y cierra, **Cancelar** descarta.
+- **Editar**: el lápiz, un doble clic en la tarjeta o `Enter` con la tarjeta enfocada
+  abre la tarjeta. Ahí cambias título, detalles y sesión; **Confirmar** guarda y cierra,
+  **Cancelar** descarta.
+- **Punto de sesión**: el punto a la izquierda del lápiz muestra el estado de la sesión,
+  y solo mientras la tarjeta está en EN PROGRESO.
 - **Borrar**: dentro del editor, pulsa **Eliminar tarjeta** dos veces; tienes cinco
   segundos de **Deshacer**.
 - **Mover**: arrastra la tarjeta dentro de una columna o a otra. Al arrastrarla a HECHO
@@ -158,8 +161,11 @@ PROGRESO al vincularse. Un lote sigue abierto mientras le quede alguna tarjeta f
 HECHO; cuando llega la última, la sesión revisa el conjunto, escribe el resumen de lo que
 hizo cada subagente y se cierra. En los dos modos:
 
-- Pasar a **HECHO** deja la sesión abierta; **Cerrar sesión/es** en la columna HECHO
-  cierra cada sesión distinta una vez y borra sus vínculos.
+- Pasar a **HECHO** termina la tarjeta: deja de apuntar a su sesión, así que el punto de
+  sesión no sobrevive al movimiento y la sesión queda abierta para que la archives.
+  Dentro de un lote, las tarjetas mantienen sus vínculos hasta que el lote termina.
+- **Cerrar sesión/es** en la columna HECHO cierra las sesiones que siguen vinculadas (un
+  lote terminado) una vez cada una y borra sus vínculos.
 - Volver a **IDEAS** suelta la tarjeta. En un lote solo sale esa tarjeta: la sesión sigue
   con las demás.
 

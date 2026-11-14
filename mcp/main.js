@@ -1286,6 +1286,7 @@ var writeLinks = (data) => {
   } catch {
   }
 };
+var getLink = (cardId) => readLinks().links[String(cardId)] || null;
 var setLink = (cardId, sessionId, meta = {}) => {
   const id = String(cardId || "");
   const session = String(sessionId || "").trim();
@@ -1355,6 +1356,11 @@ var context = async () => {
     );
   }
   return { client, boardId };
+};
+var releaseDoneLink = (cardId) => {
+  const link = getLink(cardId);
+  if (!link || link.batch === true) return;
+  removeLink(cardId);
 };
 var resolveCard = async (client, boardId, reference) => {
   const board = await client.readBoard(boardId);
@@ -1560,7 +1566,9 @@ var callTool = async (name, args = {}) => {
     }
     const updated = await client.updateCard(card.id, patch, boardId);
     if (targetList) {
-      if (targetList.id !== (await client.readBoard(boardId)).doneListId) clearClosePending(card.id);
+      const doneId = (await client.readBoard(boardId)).doneListId;
+      if (targetList.id === doneId) releaseDoneLink(card.id);
+      else clearClosePending(card.id);
     }
     return textResult({ updated: true, id: card.id, card: updated });
   }
@@ -1569,12 +1577,14 @@ var callTool = async (name, args = {}) => {
     const { list } = await resolveList(client, boardId, args.list);
     const index = Number.isInteger(args.position) ? args.position : void 0;
     await client.moveCard(card.id, list.id, index, boardId);
-    if (list.id !== board.doneListId) clearClosePending(card.id);
+    if (list.id === board.doneListId) releaseDoneLink(card.id);
+    else clearClosePending(card.id);
     return textResult({ moved: true, id: card.id, name: card.name, list: list.name });
   }
   if (name === "kanban_complete_card") {
     const { card } = await resolveCard(client, boardId, args.card);
     const result = await client.completeCard(card.id, boardId);
+    releaseDoneLink(card.id);
     return textResult({ completed: true, id: card.id, name: card.name, already: result.already });
   }
   if (name === "kanban_delete_card") {
