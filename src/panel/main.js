@@ -2146,10 +2146,16 @@ const renderBoard = () => {
     for (const card of visible) cardsEl.append(buildCard(card, listIndex));
 
     const composer = el('div', 'composer');
-    const input = el('input');
+    const input = el('input', 'composer-title');
     input.type = 'text';
-    input.placeholder = 'Título y Enter';
-    input.setAttribute('aria-label', `Nueva tarjeta en ${list.name}`);
+    input.placeholder = 'Título';
+    input.setAttribute('aria-label', `Título de la nueva tarjeta en ${list.name}`);
+    // The description is a single-line field on purpose: it scrolls sideways
+    // while you type instead of wrapping and growing the column.
+    const details = el('input', 'composer-description');
+    details.type = 'text';
+    details.placeholder = 'Descripción (opcional)';
+    details.setAttribute('aria-label', `Descripción de la nueva tarjeta en ${list.name}`);
     const row = el('div', 'composer-row');
     const hint = el('span', 'composer-hint', 'Enter guarda · Esc cierra');
     const cancel = el('button', 'ghost-btn', 'Cancelar');
@@ -2157,14 +2163,14 @@ const renderBoard = () => {
     const create = el('button', 'btn-mint', 'Crear');
     create.type = 'button';
     row.append(hint, cancel, create);
-    composer.append(input, row);
+    composer.append(input, details, row);
 
     const submitComposer = () => {
       const value = input.value.trim();
       if (!value) return;
-      void createCard(list.id, value, input);
+      void createCard(list.id, value, details.value, composer);
     };
-    input.addEventListener('keydown', (event) => {
+    const onComposerKey = (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
         submitComposer();
@@ -2172,18 +2178,22 @@ const renderBoard = () => {
         event.preventDefault();
         closeComposer();
       }
-    });
-    input.addEventListener('input', () => {
-      state.composerListId = list.id;
-    });
-    input.addEventListener('blur', () => {
-      setTimeout(() => {
-        if (state.composerListId !== list.id) return;
-        const focused = document.activeElement;
-        if (focused && composer.contains(focused)) return;
-        if (!input.value.trim()) closeComposer();
-      }, 120);
-    });
+    };
+    input.addEventListener('keydown', onComposerKey);
+    details.addEventListener('keydown', onComposerKey);
+    for (const field of [input, details]) {
+      field.addEventListener('input', () => {
+        state.composerListId = list.id;
+      });
+      field.addEventListener('blur', () => {
+        setTimeout(() => {
+          if (state.composerListId !== list.id) return;
+          const focused = document.activeElement;
+          if (focused && composer.contains(focused)) return;
+          if (!input.value.trim() && !details.value.trim()) closeComposer();
+        }, 120);
+      });
+    }
     cancel.addEventListener('click', () => closeComposer());
     create.addEventListener('click', submitComposer);
 
@@ -2222,7 +2232,9 @@ const renderBoard = () => {
       }
     }
 
-    column.append(head, ...(closeDone ? [closeDone] : []), cardsEl, composer);
+    // The composer opens right under the header, above the cards, so it reads
+    // as part of the column instead of a box stuck at the bottom.
+    column.append(head, ...(closeDone ? [closeDone] : []), composer, cardsEl);
     attachDropTarget(column, cardsEl, list.id);
     board.append(column);
 
@@ -2289,10 +2301,15 @@ const closeComposer = () => {
   renderBoard();
 };
 
-const createCard = async (listId, name, input) => {
+const createCard = async (listId, name, description, composer) => {
   try {
-    await api('POST', '/card', { listId, name });
-    if (input) input.value = '';
+    const body = { listId, name };
+    const details = String(description || '').trim();
+    if (details) body.description = details;
+    await api('POST', '/card', body);
+    if (composer) {
+      for (const field of composer.querySelectorAll('input')) field.value = '';
+    }
     await refresh(true);
   } catch (error) {
     toast('error', error.message);

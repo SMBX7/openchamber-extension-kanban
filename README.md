@@ -90,7 +90,10 @@ not by the browser. If you use OpenChamber remotely, the file lands on that mach
 
 ## The panel
 
-- **Create**: the `+` next to the column title. Type a title and press `Enter`.
+- **Create**: the `+` next to the column title opens the card box under the header,
+  above the cards. Type a title and an optional description, then press `Enter`
+  (or **Create** (Crear)). The description stays on one line and scrolls sideways,
+  so the column never grows while you type.
 - **Edit the card**: hover it and press the pencil (or press `Enter` with the card
   focused). There you change the title, details and session; **Confirm** (Confirmar) saves
   and closes, **Cancel** (Cancelar) discards.

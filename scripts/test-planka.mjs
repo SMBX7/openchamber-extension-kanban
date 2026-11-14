@@ -120,6 +120,17 @@ queue = [
 await client().addChecklist('c1', '   ', 'b1');
 assert.equal(JSON.parse(bodies[1]).name, 'Checklist');
 
+// The panel sends the title and the description in the same request, so the
+// description must reach Planka in the create body.
+calls.length = 0;
+bodies.length = 0;
+queue = [
+  { status: 200, body: { item: { id: 'b1', name: 'Tablero' }, included: { lists: [{ id: 'l1', name: 'IDEAS', position: 65536, type: 'active' }], cards: [] } } },
+  { status: 200, body: { item: { id: 'c2' } } },
+];
+await client().createCard('l1', 'Newsletter', 'b1', { description: 'Asunto y prueba' });
+assert.equal(JSON.parse(bodies[1]).description, 'Asunto y prueba');
+
 // An empty title is refused before any request, exactly as the local board
 // does; Planka would otherwise create a nameless card.
 calls.length = 0;
@@ -128,4 +139,4 @@ await assert.rejects(() => client().createCard('l1', '   ', 'b1'), /El título n
 assert.equal(calls.length, 0);
 
 rmSync(dir, { recursive: true, force: true });
-console.log('planka routes: 12 assertions ok');
+console.log('planka routes: 13 assertions ok');

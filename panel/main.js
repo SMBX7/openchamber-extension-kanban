@@ -3694,10 +3694,14 @@ ${card?.description || ""}`);
       }
       for (const card of visible) cardsEl.append(buildCard(card, listIndex));
       const composer = el2("div", "composer");
-      const input = el2("input");
+      const input = el2("input", "composer-title");
       input.type = "text";
-      input.placeholder = "T\xEDtulo y Enter";
-      input.setAttribute("aria-label", `Nueva tarjeta en ${list.name}`);
+      input.placeholder = "T\xEDtulo";
+      input.setAttribute("aria-label", `T\xEDtulo de la nueva tarjeta en ${list.name}`);
+      const details = el2("input", "composer-description");
+      details.type = "text";
+      details.placeholder = "Descripci\xF3n (opcional)";
+      details.setAttribute("aria-label", `Descripci\xF3n de la nueva tarjeta en ${list.name}`);
       const row = el2("div", "composer-row");
       const hint = el2("span", "composer-hint", "Enter guarda \xB7 Esc cierra");
       const cancel = el2("button", "ghost-btn", "Cancelar");
@@ -3705,13 +3709,13 @@ ${card?.description || ""}`);
       const create = el2("button", "btn-mint", "Crear");
       create.type = "button";
       row.append(hint, cancel, create);
-      composer.append(input, row);
+      composer.append(input, details, row);
       const submitComposer = () => {
         const value = input.value.trim();
         if (!value) return;
-        void createCard(list.id, value, input);
+        void createCard(list.id, value, details.value, composer);
       };
-      input.addEventListener("keydown", (event) => {
+      const onComposerKey = (event) => {
         if (event.key === "Enter") {
           event.preventDefault();
           submitComposer();
@@ -3719,18 +3723,22 @@ ${card?.description || ""}`);
           event.preventDefault();
           closeComposer();
         }
-      });
-      input.addEventListener("input", () => {
-        state.composerListId = list.id;
-      });
-      input.addEventListener("blur", () => {
-        setTimeout(() => {
-          if (state.composerListId !== list.id) return;
-          const focused = document.activeElement;
-          if (focused && composer.contains(focused)) return;
-          if (!input.value.trim()) closeComposer();
-        }, 120);
-      });
+      };
+      input.addEventListener("keydown", onComposerKey);
+      details.addEventListener("keydown", onComposerKey);
+      for (const field2 of [input, details]) {
+        field2.addEventListener("input", () => {
+          state.composerListId = list.id;
+        });
+        field2.addEventListener("blur", () => {
+          setTimeout(() => {
+            if (state.composerListId !== list.id) return;
+            const focused = document.activeElement;
+            if (focused && composer.contains(focused)) return;
+            if (!input.value.trim() && !details.value.trim()) closeComposer();
+          }, 120);
+        });
+      }
       cancel.addEventListener("click", () => closeComposer());
       create.addEventListener("click", submitComposer);
       const addCard = el2("button", "add-card");
@@ -3763,7 +3771,7 @@ ${card?.description || ""}`);
           closeDone.addEventListener("click", () => void closeDoneSessions(closeDone));
         }
       }
-      column.append(head, ...closeDone ? [closeDone] : [], cardsEl, composer);
+      column.append(head, ...closeDone ? [closeDone] : [], composer, cardsEl);
       attachDropTarget(column, cardsEl, list.id);
       board.append(column);
       if (state.composerListId === list.id) {
@@ -3823,10 +3831,15 @@ ${card?.description || ""}`);
     state.composerListId = "";
     renderBoard();
   };
-  var createCard = async (listId, name, input) => {
+  var createCard = async (listId, name, description, composer) => {
     try {
-      await api("POST", "/card", { listId, name });
-      if (input) input.value = "";
+      const body = { listId, name };
+      const details = String(description || "").trim();
+      if (details) body.description = details;
+      await api("POST", "/card", body);
+      if (composer) {
+        for (const field2 of composer.querySelectorAll("input")) field2.value = "";
+      }
       await refresh(true);
     } catch (error) {
       toast("error", error.message);

@@ -940,8 +940,8 @@
       .sort-pop-status { font-size: 9.5px; color: var(--oc-muted); }
 
       .column.composing .add-card { display: none; }
-      .composer { display: none; padding: 2px 2px 0; }
-      .column.composing .composer { display: block; }
+      .composer { display: none; padding: 2px 2px 0; margin-bottom: 8px; }
+      .column.composing .composer { display: flex; flex-direction: column; gap: 6px; }
       .composer input {
         width: 100%; background: color-mix(in srgb, var(--oc-elevated) 82%, var(--oc-fg) 18%);
         border: 1px solid var(--mint); border-radius: 8px; padding: 7px 9px;
@@ -953,7 +953,7 @@
       html[data-oc-theme="light"] .description {
         background: var(--oc-bg);
       }
-      .composer-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+      .composer-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; }
       .composer-hint { flex: 1 0 100%; text-align: center; font-size: 10px; color: var(--oc-muted); }
       .btn-mint {
         border: 0; border-radius: 7px; padding: 4px 10px; font-size: 11px; font-weight: 600;

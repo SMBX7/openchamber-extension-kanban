@@ -83,7 +83,10 @@ OpenChamber, no por el navegador. Si usas OpenChamber en remoto, el archivo apar
 
 ## El panel
 
-- **Crear**: el `+` al lado del título de la columna. Escribes un título y pulsas `Enter`.
+- **Crear**: el `+` al lado del título de la columna abre el recuadro debajo de la
+  cabecera, encima de las tarjetas. Escribes un título y una descripción opcional y
+  pulsas `Enter` (o **Crear**). La descripción se queda en una sola línea y se
+  desplaza en horizontal, así la columna no crece mientras escribes.
 - **Editar la tarjeta**: pasa el ratón y pulsa el lápiz (o `Enter` con la tarjeta
   enfocada). Ahí cambias título, detalles y sesión; **Confirmar** guarda y cierra,
   **Cancelar** descarta.
