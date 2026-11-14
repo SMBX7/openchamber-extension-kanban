@@ -123,8 +123,9 @@ con Planka y se cambian los ajustes.
 - **Borrar**: dentro del editor, pulsa **Eliminar tarjeta** dos veces; tienes cinco
   segundos de **Deshacer**.
 - **Mover**: arrastra la tarjeta dentro de una columna o a otra. Al arrastrarla a HECHO
-  queda completada; si está vinculada a una sesión, se mueve sola cuando esa sesión
-  termina su turno. Lo que muevas a mano no se toca.
+  queda completada. Una tarjeta con su propia sesión se mueve allí cuando esa sesión
+  termina su turno; en un lote, la mueve el agente principal tras revisar a su subagente.
+  Lo que muevas a mano no se toca.
 - **Ordenar IDEAS**: **Ordenar** abre los cuatro criterios de prioridad.
 - **Buscar** con la lupa.
 - **Paradas** filtra las tarjetas de EN PROGRESO **sin una sesión activa**.
@@ -144,12 +145,13 @@ lateral derecha.
 - La etiqueta **Auto**/**Manual** junto al nombre del tablero cambia el modo.
 - El **`+` de la cabecera** añade una idea.
 - Debajo, las ideas: el tic empieza una, la papelera la borra (con deshacer).
+- Una tarjeta de EN PROGRESO sin sesión aparece en **Paradas**.
 
 ### Desde el chat
 
-Escribe `@` en el composer y elige **Tarjetas**: el menú lista las tarjetas que no están
-en HECHO, y el chip le pasa al agente el título, el id, la columna y los detalles, así
-puede trabajar la tarjeta sin abrir el panel.
+Escribe `@` en el composer y elige **Tarjetas**: primero sale EN PROGRESO y después IDEAS,
+con la columna en cada fila. El chip le pasa al agente el título, el id, la columna y los
+detalles, así puede trabajar la tarjeta sin abrir el panel. Las de HECHO quedan fuera.
 
 ## Sesiones: manual y automático
 
@@ -183,7 +185,6 @@ sesión. Fíjalo una vez por proyecto en **Ajustes → Delegación → Tablero d
 Mientras un proyecto tenga varios tableros y ninguno esté fijado, el agente se niega a
 tocar tarjetas en vez de adivinar. Un worktree o una subcarpeta del proyecto hereda el
 tablero fijado.
-- Una tarjeta sin sesión aparece en **Paradas**.
 
 ## Estilos
 
@@ -203,6 +204,8 @@ Se cambian en **Ajustes → Apariencia**.
   icono vive en la barra lateral derecha. Muéstrala con «Mostrar u ocultar barra lateral
   derecha» y abre **Kanban**.
 - **El agente no ve las tarjetas**: reinicia OpenCode después de actualizar la extensión.
+- **El agente se niega a tocar tarjetas**: su tablero sigue al proyecto de la sesión.
+  Fíjalo en **Ajustes → Delegación → Tablero del agente**.
 - **El panel y la sección Work Status no coinciden**: son zonas distintas; recarga
   OpenChamber.
 - **El tablero no cambia**: en modo Planka, comprueba que Planka está encendido y que la

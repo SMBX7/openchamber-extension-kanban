@@ -122,9 +122,9 @@ Planka and change the settings.
   while the card is in IN PROGRESS.
 - **Delete**: inside the editor, press **Delete card** (Eliminar tarjeta) twice; you get
   five seconds of **Undo** (Deshacer).
-- **Move**: drag a card inside a column or to another one. Dragging to DONE completes it;
-  a card linked to a session moves on its own when that session finishes its turn.
-  Manual moves are never touched.
+- **Move**: drag a card inside a column or to another one. Dragging to DONE completes it.
+  A card with its own session moves there when that session finishes its turn; in a batch,
+  the main agent moves it after reviewing its subagent. Manual moves are never touched.
 - **Sort IDEAS**: **Sort** (Ordenar) opens the four priority criteria.
 - **Search** with the magnifier.
 - **Stopped** (Paradas) filters cards in IN PROGRESS **without an active session**.
@@ -143,12 +143,14 @@ The Work Status section beside the chat; it lets you work without opening the pa
 - The **Auto**/**Manual** pill next to the board name changes the mode.
 - The **`+` in the header** adds an idea.
 - Below, the ideas: the tick starts one, the trash deletes it (with undo).
+- A card in IN PROGRESS with no session shows under **Stopped** (Paradas).
 
 ### From the chat
 
-Type `@` in the composer and pick **Tarjetas** (Cards): the menu lists the cards outside
-DONE, and the chip hands the agent the title, the id, the column and the details, so it
-can work the card without opening the panel.
+Type `@` in the composer and pick **Tarjetas** (Cards): IN PROGRESS comes first and IDEAS
+after, each row labelled with its column. The chip hands the agent the title, the id, the
+column and the details, so it can work the card without opening the panel. Cards in DONE
+stay out.
 
 ## Sessions: manual and automatic
 
@@ -182,7 +184,6 @@ in. Pin it once per project in **Settings → Delegation → Board for the agent
 del agente). While a project has several boards and none is pinned, the agent refuses to
 touch cards instead of guessing. A worktree or a subfolder of the project inherits the
 pinned board.
-- A card with no session shows under **Stopped** (Paradas).
 
 ## Styles
 
@@ -202,6 +203,8 @@ Change them in **Settings → Appearance** (Apariencia).
   on the right sidebar. Show it with "Show or hide right sidebar" (Mostrar u ocultar
   barra lateral derecha) and open **Kanban**.
 - **The agent cannot see the cards**: restart OpenCode after updating the extension.
+- **The agent refuses to touch cards**: its board follows the project of the session. Pin
+  it in **Settings → Delegation → Board for the agent**.
 - **The panel and the Work Status section disagree**: they are separate areas; reload
   OpenChamber.
 - **The board does not change**: in Planka mode, check that Planka is up and the session
