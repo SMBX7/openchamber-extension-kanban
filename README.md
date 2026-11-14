@@ -3,8 +3,8 @@
 [Español](README.es.md) · English
 
 **A Kanban for [Planka](https://planka.app), and also a local board without Planka.**
-It runs inside OpenChamber: three columns, a sidebar section showing what you are working
-on, and an agent that can read and move cards.
+It runs inside OpenChamber: three columns, a section in the chat showing what you are
+working on, and an agent that can read and move cards.
 
 Point it at Planka, or keep everything on this machine. The interface is in Spanish;
 each control below gives its English name and, in brackets, the label on screen.
@@ -37,10 +37,24 @@ https://github.com/SMBX7/openchamber-extension-kanban.git
 1. Open **Settings → Extensions** (Ajustes → Extensiones).
 2. Paste the URL into **Folder, ZIP, or URL** (Carpeta, ZIP o URL) and press **Add**
    (Añadir).
-3. Review the permissions, choose **Allow and enable** (Permitir y activar), and open
-   **Kanban** on the rail.
+3. Review the permissions and choose **Allow and enable** (Permitir y activar). The
+   **Kanban** icon appears on the right sidebar; open it from there.
 
 Requires OpenChamber **2.7.0 or newer**.
+
+### Where it lives
+
+The extension shows up in three places, and only one of them is configured:
+
+- **The panel, on the right sidebar.** The Kanban icon there opens the board and its
+  settings: the first time it asks for the Planka connection, and later
+  **Settings → Connection** (Conexión) changes the account, the server or the local
+  board. If you do not see the icon, show the right sidebar with "Show or hide right
+  sidebar" (Mostrar u ocultar barra lateral derecha).
+- **The Kanban section in the chat (Work Status).** It shows what is in progress and the
+  ideas so you can work without opening the panel; it configures nothing.
+- **The full page.** Open it from **Extension pages** (Páginas de extensiones), above the
+  session list: the same board full screen, with the same settings.
 
 ### For an AI assistant
 
@@ -48,7 +62,7 @@ Requires OpenChamber **2.7.0 or newer**.
   folder.
 - Install it in OpenChamber's Settings: the `openchamber` CLI cannot install extensions.
 - Do not edit the installed copy; an update replaces it.
-- Check that **Kanban** is on the rail and that the extension card's version
+- Check that **Kanban** is on the right sidebar and that the extension card's version
   matches `version` in `package.json`.
 - Tell the person how to update: **Settings → Extensions → Check for updates** (Buscar
   actualizaciones) → **Update** (Actualizar).
@@ -95,6 +109,9 @@ The file is written by the extension where OpenChamber runs, not by the browser.
 
 ## The panel
 
+It opens from the **Kanban** icon on the right sidebar. This is also where you connect
+Planka and change the settings.
+
 - **Create**: the `+` next to a column title opens the card box above the cards. Type a
   title and an optional description; `Enter` or **Create** (Crear) saves it. The
   description stays on one line and scrolls sideways.
@@ -112,7 +129,7 @@ The file is written by the extension where OpenChamber runs, not by the browser.
 
 ## Work Status
 
-The sidebar section; it lets you work without opening the panel.
+The Work Status section beside the chat; it lets you work without opening the panel.
 
 ![Work Status](docs/status.png)
 
@@ -155,10 +172,13 @@ Change them in **Settings → Appearance** (Apariencia).
 
 ## Common problems
 
-- **Kanban is not on the rail**: enable it in **Settings → Extensions** and reload
-  OpenChamber.
+- **Kanban is not on the right sidebar**: enable it in **Settings → Extensions** and
+  reload OpenChamber.
+- **I cannot find where to configure it**: it is not in the session list; the icon lives
+  on the right sidebar. Show it with "Show or hide right sidebar" (Mostrar u ocultar
+  barra lateral derecha) and open **Kanban**.
 - **The agent cannot see the cards**: restart OpenCode after updating the extension.
-- **The panel and the sidebar disagree**: they are separate areas; reload
+- **The panel and the Work Status section disagree**: they are separate areas; reload
   OpenChamber.
 - **The board does not change**: in Planka mode, check that Planka is up and the session
   has not expired; **Settings → Connection** shows the account or the error.
