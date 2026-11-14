@@ -125,13 +125,6 @@ Eliges el modo en **Ajustes → Delegación** o desde la etiqueta del Estado del
 - **Automática**: al llegar a EN PROGRESO sale un aviso junto a la tarjeta preguntando
   si abrir la sesión. No se abre nada hasta que dices que sí.
 
-Así se ve en cada sitio:
-
-| | Manual | Automática |
-| --- | --- | --- |
-| **Estado del trabajo** | ![Manual en el estado del trabajo](docs/session-status-manual.png) | ![Automática en el estado del trabajo](docs/session-status-auto.png) |
-| **Panel** | ![Manual en el panel](docs/session-panel-manual.png) | ![Automática en el panel](docs/session-panel-auto.png) |
-
 En manual tienes el botón para abrirla cuando quieras. En automática, al mover la
 tarjeta sale el aviso y decides ahí mismo.
 

@@ -132,13 +132,6 @@ Choose the mode in **Settings → Delegation** (Delegación) or from the Work St
 - **Automatic**: when a card reaches IN PROGRESS, a small prompt appears next to it
   asking whether to open the session. Nothing opens until you say yes.
 
-This is how it looks in each place:
-
-| | Manual | Automatic |
-| --- | --- | --- |
-| **Work Status** | ![Manual in the Work Status](docs/session-status-manual.png) | ![Automatic in the Work Status](docs/session-status-auto.png) |
-| **Panel** | ![Manual in the panel](docs/session-panel-manual.png) | ![Automatic in the panel](docs/session-panel-auto.png) |
-
 In manual mode you have the button to open it whenever you want. In automatic mode,
 moving the card shows the prompt and you decide right there.
 
