@@ -3,8 +3,8 @@
 Español · [English](README.md)
 
 **Un Kanban para [Planka](https://planka.app), y también un tablero local sin Planka.**
-Funciona dentro de OpenChamber: tres columnas, una sección en la barra lateral con lo que
-estás haciendo y un agente que puede leer y mover tarjetas.
+Funciona dentro de OpenChamber: tres columnas, una sección en el chat con lo que estás
+haciendo y un agente que puede leer y mover tarjetas.
 
 Conéctalo a tu Planka o guárdalo todo en este equipo. La interfaz está en español.
 
@@ -35,10 +35,24 @@ https://github.com/SMBX7/openchamber-extension-kanban.git
 
 1. Abre **Ajustes → Extensiones**.
 2. Pega la URL en **Carpeta, ZIP o URL** y pulsa **Añadir**.
-3. Revisa los permisos, elige **Permitir y activar** y abre **Kanban** en la barra
-   lateral.
+3. Revisa los permisos y elige **Permitir y activar**. El icono de **Kanban** aparece
+   en la barra lateral derecha; ábrelo desde ahí.
 
 Necesita OpenChamber **2.7.0 o superior**.
+
+### Dónde está
+
+La extensión aparece en tres sitios de OpenChamber, y solo uno se configura:
+
+- **El panel, en la barra lateral derecha.** Es el icono de Kanban. Ahí está el tablero
+  y ahí se conecta y se configura: la primera vez pide la conexión con Planka, y después
+  **Ajustes de Kanban → Conexión** cambia la cuenta, el servidor o el modo local. Si no
+  ves el icono, muestra la barra lateral derecha con «Mostrar u ocultar barra lateral
+  derecha».
+- **La sección Kanban del chat (Work Status).** Enseña lo que está en progreso y las
+  ideas para trabajar sin abrir el panel; no configura nada.
+- **La página completa.** Se abre desde **Páginas de extensiones**, encima de la lista
+  de sesiones: el mismo tablero a pantalla completa, con la misma configuración.
 
 ### Para una IA
 
@@ -47,7 +61,7 @@ Necesita OpenChamber **2.7.0 o superior**.
 - Instálala desde los Ajustes de OpenChamber: la CLI `openchamber` no instala
   extensiones.
 - No edites la copia instalada; una actualización la reemplaza.
-- Comprueba que **Kanban** está en la barra lateral y que la versión de la tarjeta
+- Comprueba que **Kanban** está en la barra lateral derecha y que la versión de la tarjeta
   coincide con el `version` del `package.json`.
 - Explica cómo actualizar: **Ajustes → Extensiones → Buscar actualizaciones →
   Actualizar**.
@@ -95,6 +109,9 @@ El archivo lo escribe la extensión donde corre OpenChamber, no el navegador.
 
 ## El panel
 
+Se abre con el icono de **Kanban** de la barra lateral derecha. Aquí también se conecta
+con Planka y se cambian los ajustes.
+
 - **Crear**: el `+` junto al título de una columna abre el recuadro encima de las
   tarjetas. Escribe un título y una descripción opcional; `Enter` o **Crear** lo guarda.
   La descripción se queda en una línea y se desplaza en horizontal.
@@ -111,7 +128,8 @@ El archivo lo escribe la extensión donde corre OpenChamber, no el navegador.
 
 ## Work Status
 
-La sección de la barra lateral; sirve para trabajar sin abrir el panel.
+La sección de Work Status del chat; sirve para trabajar sin abrir el panel de la barra
+lateral derecha.
 
 ![Work Status](docs/status.png)
 
@@ -154,10 +172,14 @@ Se cambian en **Ajustes → Apariencia**.
 
 ## Problemas frecuentes
 
-- **Kanban no aparece en la barra lateral**: actívalo en **Ajustes → Extensiones** y
-  recarga OpenChamber.
+- **Kanban no aparece en la barra lateral derecha**: actívalo en **Ajustes → Extensiones**
+  y recarga OpenChamber.
+- **No encuentro dónde configurar la extensión**: no está en la lista de sesiones; el
+  icono vive en la barra lateral derecha. Muéstrala con «Mostrar u ocultar barra lateral
+  derecha» y abre **Kanban**.
 - **El agente no ve las tarjetas**: reinicia OpenCode después de actualizar la extensión.
-- **El panel y la barra lateral no coinciden**: son zonas distintas; recarga OpenChamber.
+- **El panel y la sección Work Status no coinciden**: son zonas distintas; recarga
+  OpenChamber.
 - **El tablero no cambia**: en modo Planka, comprueba que Planka está encendido y que la
   sesión no ha caducado; **Ajustes → Conexión** muestra la cuenta o el error.
 - **He borrado una tarjeta sin querer**: **Deshacer** dura cinco segundos.
