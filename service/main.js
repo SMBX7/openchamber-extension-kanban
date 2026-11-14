@@ -1920,7 +1920,7 @@ var startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
   if (!isConnected(config)) throw new PlankaError("Conecta Kanban con Planka.", { kind: "not-configured", status: 401 });
   const boardId = await boardIdOf(config);
   const project = getBoardProject(boardId);
-  if (!project) throw new PlankaError("Asigna un proyecto al tablero en el panel de Kanban.", { kind: "validation" });
+  if (!project) throw new PlankaError("Asigna un proyecto al tablero en el panel de Kanban (barra lateral derecha).", { kind: "validation" });
   const snapshot = await getSnapshot({ boardId, fresh: true });
   const card = flattenCards(snapshot).find((entry) => entry.id === String(cardId));
   if (!card) throw new PlankaError("Esa tarjeta ya no existe.", { kind: "not-found", status: 404 });
@@ -2060,7 +2060,7 @@ var statusView = async () => {
         dot: snapshot.counts.incomplete > 0 ? "accent" : "success",
         content: { kind: "bar", value: percent, tone: "success" },
         value: `${completed}/${total}`,
-        tooltip: project ? `Sesiones en ${project.name}` : "Sin proyecto asignado; as\xEDgnalo en el panel de Kanban."
+        tooltip: project ? `Sesiones en ${project.name}` : "Sin proyecto asignado; as\xEDgnalo en el panel de Kanban (barra lateral derecha)."
       }
     ];
     if (current) {
@@ -2123,7 +2123,7 @@ var statusView = async () => {
       rows.push({
         kind: "note",
         id: "kanban-project",
-        text: "Asigna un proyecto a este tablero en el panel de Kanban para crear sesiones.",
+        text: "Asigna un proyecto a este tablero en el panel de Kanban (barra lateral derecha) para crear sesiones.",
         tone: "warning"
       });
     }

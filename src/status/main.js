@@ -820,7 +820,7 @@ const render = () => {
     return;
   }
   if (data.connected === false) {
-    wrap.append(el('div', 'warning', 'Conecta Kanban con Planka desde el panel de Kanban.'));
+    wrap.append(el('div', 'warning', 'Conecta Kanban con Planka desde el panel de Kanban (barra lateral derecha).'));
     root.append(wrap);
     return;
   }
@@ -856,7 +856,7 @@ const render = () => {
     }
   }
   if (!data.project) {
-    scroll.append(el('div', 'warning', 'Asigna un proyecto a este tablero en el panel de Kanban.'));
+    scroll.append(el('div', 'warning', 'Asigna un proyecto a este tablero en el panel de Kanban (barra lateral derecha).'));
   }
   if (state.error) scroll.append(el('div', 'error', state.error));
   wrap.append(scroll);
