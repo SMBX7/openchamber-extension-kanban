@@ -39,6 +39,9 @@
           "turn-failed"
         ]
       },
+      "mentions": {
+        "label": "Tarjetas"
+      },
       "capabilities": [
         "sessions"
       ]

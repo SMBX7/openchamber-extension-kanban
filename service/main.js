@@ -1887,6 +1887,69 @@ var reusableBatchSession = (links, snapshot) => {
   return "";
 };
 
+// src/shared/mentions.js
+var MENTION_ITEMS_MAX = 20;
+var MENTION_TITLE_MAX2 = 120;
+var MENTION_ID_MAX2 = 256;
+var MENTION_TEXT_MAX2 = 16e3;
+var clip = (value, max) => {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max - 1)}\u2026` : text;
+};
+var mentionId = ({ source, boardId, directory, cardId }) => {
+  const base = source === "local" ? `l:${Buffer.from(String(directory || "")).toString("base64url")}` : `p:${String(boardId || "")}`;
+  const id = `${base}:${String(cardId || "")}`;
+  return id.length <= MENTION_ID_MAX2 ? id : "";
+};
+var parseMentionId = (value) => {
+  const parts = String(value || "").split(":");
+  if (parts.length < 3 || !parts[2]) return null;
+  if (parts[0] === "p" && parts[1]) return { source: "planka", boardId: parts[1], cardId: parts[2] };
+  if (parts[0] === "l" && parts[1]) {
+    try {
+      const directory = Buffer.from(parts[1], "base64url").toString();
+      if (!directory) return null;
+      return { source: "local", directory, cardId: parts[2] };
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+var mentionItems = (board, query, origin) => {
+  const needle = String(query || "").trim().toLowerCase();
+  const items = [];
+  for (const list of board?.lists || []) {
+    if (String(list.id) === String(board?.doneListId || "")) continue;
+    for (const card of list.cards || []) {
+      const haystack = `${card.name}
+${card.description}`.toLowerCase();
+      if (needle && !haystack.includes(needle)) continue;
+      const id = mentionId({ ...origin, cardId: card.id });
+      if (!id) continue;
+      items.push({
+        id,
+        title: clip(card.name, MENTION_TITLE_MAX2),
+        subtitle: clip(
+          `${list.name}${card.description ? ` \xB7 ${card.description}` : ""}`,
+          MENTION_TITLE_MAX2
+        )
+      });
+      if (items.length >= MENTION_ITEMS_MAX) return items;
+    }
+  }
+  return items;
+};
+var mentionText = (card, listName, boardName) => {
+  const checklist = (card?.taskLists || []).flatMap((taskList) => taskList.tasks.map((task) => `- ${task.name}`)).slice(0, 12);
+  return [
+    `Tarjeta del kanban \xAB${boardName || ""}\xBB: \xAB${card?.name || ""}\xBB (id ${card?.id || ""}${listName ? `, columna ${listName}` : ""}).`,
+    card?.description ? `Descripci\xF3n: ${card.description}` : "",
+    checklist.length ? `Checklist:
+${checklist.join("\n")}` : ""
+  ].filter(Boolean).join("\n").slice(0, MENTION_TEXT_MAX2);
+};
+
 // src/service/main.js
 var PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
 var TOKEN = process.env.OPENCHAMBER_SERVICE_TOKEN || "";
@@ -2039,6 +2102,21 @@ var client = () => {
       }
     }
   });
+};
+var mentionContext = (directory) => {
+  const config = readConfig();
+  if (!isConnected(config)) return null;
+  if (config.source === "local") {
+    return {
+      source: "local",
+      boardId: LOCAL_BOARD_ID,
+      directory,
+      client: new LocalClient({ ...config, projectKey: directory })
+    };
+  }
+  const boardId = resolveProjectBoard(directory);
+  if (!boardId) return null;
+  return { source: "planka", boardId, directory, client: new PlankaClient(config) };
 };
 var boardIdOf = async (config, requested) => {
   if (config.source === "local") return LOCAL_BOARD_ID;
@@ -2675,6 +2753,40 @@ var routes = {
     const directory = currentProject();
     if (directory) setProjectBoard(directory, "");
     return { directory, pinned: "" };
+  },
+  // Rows for the composer's `@` menu. A search carries the composer's project;
+  // the picked row comes back alone, so its id carries the board.
+  "POST /mentions/search": async (body) => {
+    const directory = String(body?.directory || "");
+    const context = mentionContext(directory);
+    if (!context) return { items: [] };
+    try {
+      const board = await context.client.readBoard(context.boardId);
+      return {
+        items: mentionItems(board, body?.query, {
+          source: context.source,
+          boardId: context.boardId,
+          directory
+        })
+      };
+    } catch {
+      return { items: [] };
+    }
+  },
+  "POST /mentions/resolve": async (body) => {
+    const parsed = parseMentionId(body?.id);
+    if (!parsed) throw new PlankaError("Esa tarjeta ya no est\xE1 disponible.", { kind: "not-found", status: 404 });
+    const config = readConfig();
+    const clientForMention = parsed.source === "local" ? new LocalClient({ ...config, projectKey: parsed.directory }) : new PlankaClient(config);
+    const boardId = parsed.source === "local" ? LOCAL_BOARD_ID : parsed.boardId;
+    const board = await clientForMention.readBoard(boardId);
+    const list = (board?.lists || []).find(
+      (entry) => (entry.cards || []).some((card2) => String(card2.id) === String(parsed.cardId))
+    );
+    const card = (list?.cards || []).find((entry) => String(entry.id) === String(parsed.cardId));
+    if (!card) throw new PlankaError("Esa tarjeta ya no est\xE1 disponible.", { kind: "not-found", status: 404 });
+    const boardName = board?.board?.name || board?.name || boardId;
+    return { text: mentionText(card, list?.name || "", boardName) };
   },
   "GET /card": async (_body, url) => {
     requireConnected();
