@@ -458,5 +458,54 @@ execFileSync('git', ['-C', repo, 'worktree', 'add', '-q', worktree]);
 setProjectBoard(repo, 'board-repo');
 assert.equal(resolveProjectBoard(worktree), 'board-repo', 'a worktree inherits the board pinned for its project');
 
+// The chat's @ menu asks the service for cards. The picked row comes back as an
+// id alone, so the id must round-trip the board or the local project.
+const mentionsBundle = join(dir, 'mentions.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/mentions.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: mentionsBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const { mentionId, parseMentionId, mentionItems, mentionText } = require(mentionsBundle);
+
+const plankaMention = mentionId({ source: 'planka', boardId: 'board-1', cardId: 'card-a' });
+assert.deepEqual(parseMentionId(plankaMention), { source: 'planka', boardId: 'board-1', cardId: 'card-a' });
+const localMention = mentionId({ source: 'local', directory: '/home/ana/proyecto', cardId: 'card-b' });
+assert.deepEqual(parseMentionId(localMention), {
+  source: 'local',
+  directory: '/home/ana/proyecto',
+  cardId: 'card-b',
+});
+assert.equal(parseMentionId('nope'), null, 'an unknown row id resolves to nothing');
+
+const mentionBoard = {
+  name: 'Tablero',
+  doneListId: 'done',
+  lists: [
+    {
+      id: 'ideas',
+      name: 'IDEAS',
+      cards: [{ id: 'c1', name: 'Arreglar el borde', description: 'Se sale', taskLists: [] }],
+    },
+    { id: 'work', name: 'EN PROGRESO', cards: [{ id: 'c2', name: 'Ordenar ideas', description: '', taskLists: [] }] },
+    { id: 'done', name: 'HECHO', cards: [{ id: 'c3', name: 'Vieja', description: '', taskLists: [] }] },
+  ],
+};
+const mentionOrigin = { source: 'planka', boardId: 'board-1' };
+const allMentions = mentionItems(mentionBoard, '', mentionOrigin);
+assert.equal(allMentions.length, 2, 'a card in DONE stays out of the menu');
+assert.equal(allMentions[0].title, 'Arreglar el borde', 'the menu keeps the column order');
+assert.equal(
+  mentionItems(mentionBoard, 'borde', mentionOrigin).length,
+  1,
+  'the query filters by title and description',
+);
+const mentionCardText = mentionText(mentionBoard.lists[0].cards[0], 'IDEAS', 'Tablero');
+assert.ok(mentionCardText.includes('id c1'), 'the chip text carries the card id');
+assert.ok(mentionCardText.includes('Se sale'), 'the chip text carries the description');
+
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 87 assertions ok');
+console.log('local mode: 95 assertions ok');

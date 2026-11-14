@@ -144,6 +144,12 @@ The Work Status section beside the chat; it lets you work without opening the pa
 - The **`+` in the header** adds an idea.
 - Below, the ideas: the tick starts one, the trash deletes it (with undo).
 
+### From the chat
+
+Type `@` in the composer and pick **Tarjetas** (Cards): the menu lists the cards outside
+DONE, and the chip hands the agent the title, the id, the column and the details, so it
+can work the card without opening the panel.
+
 ## Sessions: manual and automatic
 
 Choose the mode in **Settings → Delegation** (Delegación) or from the Work Status pill.

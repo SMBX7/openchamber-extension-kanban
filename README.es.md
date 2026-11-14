@@ -145,6 +145,12 @@ lateral derecha.
 - El **`+` de la cabecera** añade una idea.
 - Debajo, las ideas: el tic empieza una, la papelera la borra (con deshacer).
 
+### Desde el chat
+
+Escribe `@` en el composer y elige **Tarjetas**: el menú lista las tarjetas que no están
+en HECHO, y el chip le pasa al agente el título, el id, la columna y los detalles, así
+puede trabajar la tarjeta sin abrir el panel.
+
 ## Sesiones: manual y automático
 
 Elige el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status.
