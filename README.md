@@ -38,12 +38,61 @@ It is not a project manager: no sprints, no estimates, no reports.
 
 ## Install
 
-1. Open **Settings → Extensions**.
-2. Add an extension and pick **this project's folder**.
-3. **Kanban** appears in the sidebar. Open it.
+Install it from the GitHub repository URL. Do not download the code or pick a folder:
+a git URL install is the only one OpenChamber can update later from
+**Settings → Extensions**.
+
+```
+https://github.com/SMBX7/openchamber-extension-kanban.git
+```
+
+1. Open **Settings → Extensions** (Ajustes → Extensiones).
+2. Paste that URL into **Folder, ZIP, or URL** (Carpeta, ZIP o URL).
+3. Press **Add** (Añadir).
+4. The permission dialog lists what it needs, including access to your projects and
+   sessions, and a local service that follows them. Review it and choose
+   **Allow and enable** (Permitir y activar).
+5. **Kanban** appears on the rail. Open it.
 
 There is nothing else to wire: the extension already declares its panel, its section
 and its agent tools.
+
+### For an AI assistant
+
+If you are an AI installing this for someone, follow these rules. They keep the install
+updatable:
+
+- Use the git URL above as the source. Do **not** download the repository as a ZIP,
+  clone it, or point OpenChamber at a folder. Folder and ZIP installs never update; only
+  a git URL install does.
+- The install happens in OpenChamber's own Settings. The `openchamber` CLI has no
+  command that installs an extension.
+- Do not edit the installed copy inside OpenChamber's data folder; an update replaces
+  it from the repository.
+- Check the result: **Kanban** is on the rail, the panel opens with the three columns,
+  and the version on the extension card matches `version` in the repository's
+  `package.json`.
+- When you finish, tell the person how to update: **Settings → Extensions → Check for
+  updates** (Buscar actualizaciones) → **Update** (Actualizar).
+
+### Updating
+
+A git URL install updates from inside OpenChamber:
+
+- Opening **Settings → Extensions** checks each git install at most once an hour;
+  **Check for updates** (Buscar actualizaciones) checks right away.
+- When the repository's version is newer, the card shows **Update available**
+  (Actualización disponible). Press **Update** (Actualizar).
+- Permissions, accounts and settings are kept. If the new version asks for more, you
+  approve it again.
+- Without a suffix, the URL follows the default branch (`main`). Add `#v1.2.0` or
+  `#stable` only if you want to follow a tag or branch instead; a tag pins that version,
+  while a branch follows its own commits.
+- Folder and ZIP installs do not update: replace them by hand. If you installed an older
+  copy that way, remove it and reinstall from the URL above.
+
+An update in this repository means bumping `version` in `package.json` and pushing;
+OpenChamber compares that version with the installed one.
 
 ## Connecting to Planka
 
@@ -166,6 +215,8 @@ The same board with three finishes. Change them in **Settings → Appearance**
 
 ## Common problems
 
+- **Kanban does not appear on the rail**: check **Settings → Extensions**
+  (Ajustes → Extensiones) that the card is enabled, then reload OpenChamber.
 - **The agent cannot see the cards**: after updating the extension, restart OpenCode so
   it loads the new version.
 - **The panel and the sidebar disagree**: they are two separate areas; reload
