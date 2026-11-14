@@ -838,13 +838,14 @@
       .check-mini .bar { width: 26px; height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--oc-fg) 14%, transparent); overflow: hidden; }
       .check-mini .bar i { display: block; height: 100%; background: var(--mint); }
       .card-actions {
-        float: right; display: flex; flex-direction: column; align-items: center; gap: 2px;
+        float: right; display: flex; flex-direction: row; align-items: center; gap: 5px;
         margin: 0 0 4px 6px; border-radius: 7px;
         pointer-events: none;
       }
       /* The pencil is the permanent hint that the title is editable; the trash
          still waits for hover so the card stays quiet. */
       .card-actions .card-edit { opacity: .38; pointer-events: auto; transition: opacity .12s ease; }
+      .card-actions .session-dot { pointer-events: auto; }
       .card:hover .card-actions .card-edit,
       .card:focus-within .card-actions .card-edit { opacity: 1; }
       .card::after { content: ''; display: block; clear: both; }

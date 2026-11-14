@@ -1716,9 +1716,9 @@ const renderFilters = () => {
 
 const cardDraggable = () => !state.search.trim() && state.labels.size === 0;
 
-// Renames the card on the card itself: the pencil never opens the sheet, so a
-// title edit cannot move the card to another column or position.
-const buildCard = (card, listIndex) => {
+// The pencil opens the sheet; a double click on the card does the same. A title
+// edit still happens only in the sheet, so it cannot move the card.
+const buildCard = (card, listIndex, inProgress = false) => {
   const node = el('article', 'card');
   node.tabIndex = 0;
   node.draggable = cardDraggable();
@@ -1729,13 +1729,9 @@ const buildCard = (card, listIndex) => {
   const actions = el('div', 'card-actions');
   node.append(actions);
 
-  const title = el('div', 'card-title', card.name || 'Sin título');
-  node.append(title);
-
-  if (card.description.trim()) node.append(el('div', 'card-desc', card.description));
-
-  const meta = el('div', 'card-meta');
-  const sessionState = state.sessions?.[card.id];
+  // The session dot lives in the top row, left of the pencil, and only while
+  // the card is being worked: a card in DONE is finished, not in progress.
+  const sessionState = inProgress ? state.sessions?.[card.id] : null;
   if (sessionState) {
     const dot = el('span', 'session-dot');
     const tone = sessionState.tone === 'success'
@@ -1747,8 +1743,15 @@ const buildCard = (card, listIndex) => {
     if (sessionState.tone === 'success') dot.classList.add('working');
     dot.title = `Sesión: ${sessionState.state}`;
     dot.setAttribute('aria-label', `Sesión: ${sessionState.state}`);
-    meta.append(dot);
+    actions.append(dot);
   }
+
+  const title = el('div', 'card-title', card.name || 'Sin título');
+  node.append(title);
+
+  if (card.description.trim()) node.append(el('div', 'card-desc', card.description));
+
+  const meta = el('div', 'card-meta');
   if (card.labels.length) {
     const dots = el('div', 'card-labels');
     for (const label of card.labels) {
@@ -1788,10 +1791,15 @@ const buildCard = (card, listIndex) => {
   actions.append(edit);
 
   const open = () => openSheet(card.id);
-  node.title = 'Pulsa el lápiz para editar la tarjeta';
-  node.setAttribute('aria-label', `${card.name}. Pulsa el lápiz para editar la tarjeta.`);
-  // Editing goes through the card sheet only: no inline editor and no
-  // double-click shortcut.
+  node.title = 'Doble clic o el lápiz para editar la tarjeta';
+  node.setAttribute('aria-label', `${card.name}. Doble clic o el lápiz para editar la tarjeta.`);
+  // Editing goes through the card sheet only: no inline editor. The pencil and
+  // a double click open it.
+  node.addEventListener('dblclick', (event) => {
+    if (event.target.closest('button')) return;
+    event.preventDefault();
+    open();
+  });
   node.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -2199,7 +2207,7 @@ const renderBoard = () => {
       const hint = el('div', 'column-hint', state.search || state.labels.size ? 'Sin coincidencias' : 'Arrastra una tarjeta aquí');
       cardsEl.append(hint);
     }
-    for (const card of visible) cardsEl.append(buildCard(card, listIndex));
+    for (const card of visible) cardsEl.append(buildCard(card, listIndex, list.id === state.snapshot?.workListId));
 
     const composer = el('div', 'composer');
     const input = el('input', 'composer-title');
