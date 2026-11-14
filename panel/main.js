@@ -1861,6 +1861,7 @@ ${GUEST_UI_LOOK_CSS}`;
     plankaProjects: [],
     session: null,
     directory: "",
+    showAllBoards: true,
     snapshot: null,
     sessions: {},
     search: "",
@@ -2217,6 +2218,7 @@ ${card?.description || ""}`);
     const next = directory || "";
     if (next === state.directory) return;
     state.directory = next;
+    state.showAllBoards = true;
     if (!state.booted) return;
     void closeSheet();
     void loadMappings().then(() => refresh(true));
@@ -2520,6 +2522,7 @@ ${card?.description || ""}`);
     return state.projects.find((project) => project.directory === state.directory) || null;
   };
   var boardsForActiveProject = (boards) => {
+    if (state.showAllBoards) return boards;
     const project = activeProject();
     if (!project) return boards;
     const current = state.snapshot?.board?.id || state.config?.boardId || "";
@@ -2537,11 +2540,16 @@ ${card?.description || ""}`);
     const selected = state.snapshot?.board?.id || state.config?.boardId || "";
     const control = refs.boardSelect;
     if (control) {
-      const options = visible.map((board) => ({ value: board.id, label: board.name }));
-      const value = visible.some((board) => board.id === selected) ? selected : control.value || visible[0]?.id || "";
-      control.update(options, value, visible.length < 2);
       const project = activeProject();
-      control.button.title = project && visible.length < boards.length ? `Tableros de ${project.name} y tableros sin proyecto` : "Todos los tableros";
+      const options = visible.map((board) => ({ value: board.id, label: board.name }));
+      if (project) {
+        options.unshift(
+          state.showAllBoards ? { value: "__project__", label: "Solo tableros de este proyecto" } : { value: "__all__", label: "Ver todos los tableros" }
+        );
+      }
+      const value = visible.some((board) => board.id === selected) ? selected : control.value || visible[0]?.id || "";
+      control.update(options, value, visible.length < 2 && options.length < 2);
+      control.button.title = project && !state.showAllBoards && visible.length < boards.length ? `Tableros de ${project.name} y tableros sin proyecto` : "Todos los tableros";
     }
     if (refs.openButton) refs.openButton.disabled = !state.snapshot?.board?.url;
   };
@@ -2848,6 +2856,19 @@ ${card?.description || ""}`);
     }
     requestAnimationFrame(() => nameInput.focus());
   };
+  var handleBoardSelect = (value) => {
+    if (value === "__all__") {
+      state.showAllBoards = true;
+      syncBoardOptions();
+      return;
+    }
+    if (value === "__project__") {
+      state.showAllBoards = false;
+      syncBoardOptions();
+      return;
+    }
+    void switchBoard(value);
+  };
   var boardControl = (boardSelect) => {
     const wrap = el2("div", "board-control");
     wrap.append(boardSelect.wrap);
@@ -2869,7 +2890,7 @@ ${card?.description || ""}`);
     brand.append(el2("span", "brand-dot"), el2("span", "", "Kanban"), el2("span", "brand-sub", "Planka"));
     const boardSelect = menuSelect({
       ariaLabel: "Tablero",
-      onChange: (value) => void switchBoard(value)
+      onChange: (value) => handleBoardSelect(value)
     });
     const projectSelect = menuSelect({
       ariaLabel: "Proyecto del tablero",
@@ -2945,7 +2966,7 @@ ${card?.description || ""}`);
     brand.append(el2("span", "brand-dot"), el2("span", "", "Kanban"));
     const boardSelect = menuSelect({
       ariaLabel: "Tablero",
-      onChange: (value) => void switchBoard(value)
+      onChange: (value) => handleBoardSelect(value)
     });
     const projectSelect = menuSelect({
       ariaLabel: "Proyecto del tablero",
