@@ -1157,35 +1157,104 @@ var LocalClient = class {
 };
 var LOCAL_BOARD_ID = BOARD_ID;
 
-// src/shared/links.js
+// src/shared/board-projects.js
+var import_node_child_process = require("node:child_process");
 var import_node_fs3 = require("node:fs");
 var import_node_os = require("node:os");
 var import_node_path3 = require("node:path");
 var DIR = (0, import_node_path3.join)((0, import_node_os.homedir)(), ".kanban");
-var FILE = (0, import_node_path3.join)(DIR, "links.json");
-var empty = () => ({ version: 1, links: {} });
-var readLinks = () => {
+var FILE = process.env.KANBAN_BOARD_PROJECTS_PATH || (0, import_node_path3.join)(DIR, "board-projects.json");
+var empty = () => ({ version: 1, boards: {}, projects: {} });
+var normalize = (value) => String(value || "").trim().replace(/\/+$/, "");
+var ancestors = (directory) => {
+  const dir = normalize(directory);
+  const list = [];
+  let current = dir;
+  while (current) {
+    list.push(current);
+    const parent = (0, import_node_path3.dirname)(current);
+    if (parent === current) break;
+    current = normalize(parent);
+  }
+  return list;
+};
+var repoCache = /* @__PURE__ */ new Map();
+var repoKey = (directory) => {
+  const dir = normalize(directory);
+  if (!dir) return "";
+  if (repoCache.has(dir)) return repoCache.get(dir);
+  let key = dir;
+  try {
+    const common = (0, import_node_child_process.execFileSync)(
+      "git",
+      ["-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 2e3 }
+    ).trim();
+    if (common) key = normalize(common.replace(/[\\/]\.git$/, ""));
+  } catch {
+  }
+  repoCache.set(dir, key);
+  return key;
+};
+var readBoardProjects = () => {
   try {
     const parsed = JSON.parse((0, import_node_fs3.readFileSync)(FILE, "utf8"));
-    if (!parsed || typeof parsed !== "object" || typeof parsed.links !== "object" || !parsed.links) return empty();
+    if (!parsed || typeof parsed !== "object" || typeof parsed.boards !== "object" || !parsed.boards) return empty();
+    if (!parsed.projects || typeof parsed.projects !== "object") parsed.projects = {};
     return parsed;
   } catch {
     return empty();
   }
 };
+var resolveProjectBoard = (directory) => {
+  const dir = normalize(directory);
+  if (!dir) return "";
+  const data = readBoardProjects();
+  const pins = Object.entries(data.projects || {}).filter(([, entry]) => entry?.boardId);
+  const candidates = new Set(ancestors(dir));
+  for (const [pinned, entry] of pins) {
+    if (candidates.has(normalize(pinned))) return String(entry.boardId);
+  }
+  const key = repoKey(dir);
+  for (const [pinned, entry] of pins) {
+    if (repoKey(pinned) === key) return String(entry.boardId);
+  }
+  const mapped = Object.entries(data.boards).filter(([, project]) => {
+    if (!project?.directory) return false;
+    return candidates.has(normalize(project.directory)) || repoKey(project.directory) === key;
+  });
+  return mapped.length === 1 ? String(mapped[0][0]) : "";
+};
+
+// src/shared/links.js
+var import_node_fs4 = require("node:fs");
+var import_node_os2 = require("node:os");
+var import_node_path4 = require("node:path");
+var DIR2 = (0, import_node_path4.join)((0, import_node_os2.homedir)(), ".kanban");
+var FILE2 = (0, import_node_path4.join)(DIR2, "links.json");
+var empty2 = () => ({ version: 1, links: {} });
+var readLinks = () => {
+  try {
+    const parsed = JSON.parse((0, import_node_fs4.readFileSync)(FILE2, "utf8"));
+    if (!parsed || typeof parsed !== "object" || typeof parsed.links !== "object" || !parsed.links) return empty2();
+    return parsed;
+  } catch {
+    return empty2();
+  }
+};
 var withLock2 = (work) => {
-  (0, import_node_fs3.mkdirSync)(DIR, { recursive: true, mode: 448 });
-  const lock = `${FILE}.lock`;
+  (0, import_node_fs4.mkdirSync)(DIR2, { recursive: true, mode: 448 });
+  const lock = `${FILE2}.lock`;
   const deadline = Date.now() + 2500;
   let handle = null;
   while (handle === null) {
     try {
-      handle = (0, import_node_fs3.openSync)(lock, "wx");
+      handle = (0, import_node_fs4.openSync)(lock, "wx");
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
       try {
-        if (Date.now() - (0, import_node_fs3.statSync)(lock).mtimeMs > 5e3) {
-          (0, import_node_fs3.unlinkSync)(lock);
+        if (Date.now() - (0, import_node_fs4.statSync)(lock).mtimeMs > 5e3) {
+          (0, import_node_fs4.unlinkSync)(lock);
           continue;
         }
       } catch {
@@ -1197,23 +1266,23 @@ var withLock2 = (work) => {
     return work();
   } finally {
     try {
-      (0, import_node_fs3.closeSync)(handle);
+      (0, import_node_fs4.closeSync)(handle);
     } catch {
     }
     try {
-      (0, import_node_fs3.unlinkSync)(lock);
+      (0, import_node_fs4.unlinkSync)(lock);
     } catch {
     }
   }
 };
 var writeLinks = (data) => {
-  (0, import_node_fs3.mkdirSync)(DIR, { recursive: true, mode: 448 });
-  const temp = (0, import_node_path3.join)(DIR, `.links-${process.pid}.tmp`);
-  (0, import_node_fs3.writeFileSync)(temp, `${JSON.stringify(data, null, 2)}
+  (0, import_node_fs4.mkdirSync)(DIR2, { recursive: true, mode: 448 });
+  const temp = (0, import_node_path4.join)(DIR2, `.links-${process.pid}.tmp`);
+  (0, import_node_fs4.writeFileSync)(temp, `${JSON.stringify(data, null, 2)}
 `, { mode: 384 });
-  (0, import_node_fs3.renameSync)(temp, FILE);
+  (0, import_node_fs4.renameSync)(temp, FILE2);
   try {
-    (0, import_node_fs3.chmodSync)(FILE, 384);
+    (0, import_node_fs4.chmodSync)(FILE2, 384);
   } catch {
   }
 };
@@ -1279,7 +1348,12 @@ var context = async () => {
     throw new Error("Kanban is not connected to Planka yet. Sign in from the Kanban panel in OpenChamber.");
   }
   const client = new PlankaClient(config);
-  const boardId = await client.resolveBoardId(config.boardId);
+  const boardId = resolveProjectBoard(process.cwd());
+  if (!boardId) {
+    throw new Error(
+      "Este proyecto no tiene tablero de Kanban fijado. Abre el panel de Kanban en esta sesi\xF3n, en Ajustes, y fija el tablero del agente; hasta entonces no toco ninguna tarjeta."
+    );
+  }
   return { client, boardId };
 };
 var resolveCard = async (client, boardId, reference) => {

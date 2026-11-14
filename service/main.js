@@ -474,16 +474,49 @@ var removeLink = (cardId) => {
 var listLinks = () => readLinks().links;
 
 // src/shared/board-projects.js
+var import_node_child_process = require("node:child_process");
 var import_node_fs3 = require("node:fs");
 var import_node_os2 = require("node:os");
 var import_node_path3 = require("node:path");
 var DIR2 = (0, import_node_path3.join)((0, import_node_os2.homedir)(), ".kanban");
-var FILE2 = (0, import_node_path3.join)(DIR2, "board-projects.json");
-var empty2 = () => ({ version: 1, boards: {} });
+var FILE2 = process.env.KANBAN_BOARD_PROJECTS_PATH || (0, import_node_path3.join)(DIR2, "board-projects.json");
+var empty2 = () => ({ version: 1, boards: {}, projects: {} });
+var normalize = (value) => String(value || "").trim().replace(/\/+$/, "");
+var ancestors = (directory) => {
+  const dir = normalize(directory);
+  const list = [];
+  let current = dir;
+  while (current) {
+    list.push(current);
+    const parent = (0, import_node_path3.dirname)(current);
+    if (parent === current) break;
+    current = normalize(parent);
+  }
+  return list;
+};
+var repoCache = /* @__PURE__ */ new Map();
+var repoKey = (directory) => {
+  const dir = normalize(directory);
+  if (!dir) return "";
+  if (repoCache.has(dir)) return repoCache.get(dir);
+  let key = dir;
+  try {
+    const common = (0, import_node_child_process.execFileSync)(
+      "git",
+      ["-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 2e3 }
+    ).trim();
+    if (common) key = normalize(common.replace(/[\\/]\.git$/, ""));
+  } catch {
+  }
+  repoCache.set(dir, key);
+  return key;
+};
 var readBoardProjects = () => {
   try {
     const parsed = JSON.parse((0, import_node_fs3.readFileSync)(FILE2, "utf8"));
     if (!parsed || typeof parsed !== "object" || typeof parsed.boards !== "object" || !parsed.boards) return empty2();
+    if (!parsed.projects || typeof parsed.projects !== "object") parsed.projects = {};
     return parsed;
   } catch {
     return empty2();
@@ -527,6 +560,45 @@ var setBoardProject = (boardId, project) => {
   data.boards[id] = value;
   write(data);
   return value;
+};
+var getProjectBoard = (directory) => {
+  const dir = normalize(directory);
+  if (!dir) return "";
+  const entry = readBoardProjects().projects[dir];
+  return entry?.boardId ? String(entry.boardId) : "";
+};
+var setProjectBoard = (directory, boardId) => {
+  const dir = normalize(directory);
+  if (!dir) throw new Error("Falta el proyecto.");
+  const data = readBoardProjects();
+  const value = String(boardId || "");
+  if (!value) {
+    delete data.projects[dir];
+    write(data);
+    return null;
+  }
+  data.projects[dir] = { boardId: value, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+  write(data);
+  return data.projects[dir];
+};
+var resolveProjectBoard = (directory) => {
+  const dir = normalize(directory);
+  if (!dir) return "";
+  const data = readBoardProjects();
+  const pins = Object.entries(data.projects || {}).filter(([, entry]) => entry?.boardId);
+  const candidates = new Set(ancestors(dir));
+  for (const [pinned, entry] of pins) {
+    if (candidates.has(normalize(pinned))) return String(entry.boardId);
+  }
+  const key = repoKey(dir);
+  for (const [pinned, entry] of pins) {
+    if (repoKey(pinned) === key) return String(entry.boardId);
+  }
+  const mapped = Object.entries(data.boards).filter(([, project]) => {
+    if (!project?.directory) return false;
+    return candidates.has(normalize(project.directory)) || repoKey(project.directory) === key;
+  });
+  return mapped.length === 1 ? String(mapped[0][0]) : "";
 };
 
 // src/shared/appearance.js
@@ -2565,6 +2637,37 @@ var routes = {
     if (!boardId) throw new PlankaError("Falta el tablero.", { kind: "validation" });
     const project = setBoardProject(boardId, body);
     return { project };
+  },
+  // The board the agent uses for the project of this session. Pinning is
+  // manual on purpose: a project with several boards is never guessed.
+  "GET /project-board": async () => {
+    const directory = currentProject();
+    return {
+      directory,
+      pinned: getProjectBoard(directory),
+      resolved: resolveProjectBoard(directory)
+    };
+  },
+  "POST /project-board": async (body) => {
+    requireConnected();
+    const directory = currentProject();
+    if (!directory) {
+      throw new PlankaError("Abre Kanban desde una sesi\xF3n con proyecto para fijar su tablero.", {
+        kind: "validation"
+      });
+    }
+    const boardId = String(body.boardId || "");
+    if (!boardId) throw new PlankaError("Falta el tablero.", { kind: "validation" });
+    const boards = await client().getBoards();
+    const board = boards.find((item) => item.id === boardId);
+    if (!board) throw new PlankaError("Ese tablero no est\xE1 disponible.", { kind: "not-found", status: 404 });
+    setProjectBoard(directory, boardId);
+    return { directory, pinned: boardId, boardName: board.name };
+  },
+  "DELETE /project-board": async () => {
+    const directory = currentProject();
+    if (directory) setProjectBoard(directory, "");
+    return { directory, pinned: "" };
   },
   "GET /card": async (_body, url) => {
     requireConnected();

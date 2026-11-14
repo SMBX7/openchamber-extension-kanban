@@ -9,7 +9,7 @@ import { basename, join } from 'node:path';
 import { createServiceHost, SESSION_EVENTS_PATH, readSessionEventRequest } from '@openchamber/sdk';
 import { ROOT, clearConfig, isConnected, readConfig, saveConfig } from '../shared/config.js';
 import { clearClosePending, getLink, linksForSession, listLinks, removeLink, removeLinksForSession, setLink } from '../shared/links.js';
-import { getBoardProject, setBoardProject } from '../shared/board-projects.js';
+import { getBoardProject, getProjectBoard, resolveProjectBoard, setBoardProject, setProjectBoard } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
 import { LOCAL_BOARD_ID, LocalClient, exportBoard, importBoard } from '../shared/local.js';
 import { PlankaClient, PlankaError, flattenCards, searchCards } from '../shared/planka.js';
@@ -875,6 +875,40 @@ const routes = {
     if (!boardId) throw new PlankaError('Falta el tablero.', { kind: 'validation' });
     const project = setBoardProject(boardId, body);
     return { project };
+  },
+
+  // The board the agent uses for the project of this session. Pinning is
+  // manual on purpose: a project with several boards is never guessed.
+  'GET /project-board': async () => {
+    const directory = currentProject();
+    return {
+      directory,
+      pinned: getProjectBoard(directory),
+      resolved: resolveProjectBoard(directory),
+    };
+  },
+
+  'POST /project-board': async (body) => {
+    requireConnected();
+    const directory = currentProject();
+    if (!directory) {
+      throw new PlankaError('Abre Kanban desde una sesión con proyecto para fijar su tablero.', {
+        kind: 'validation',
+      });
+    }
+    const boardId = String(body.boardId || '');
+    if (!boardId) throw new PlankaError('Falta el tablero.', { kind: 'validation' });
+    const boards = await client().getBoards();
+    const board = boards.find((item) => item.id === boardId);
+    if (!board) throw new PlankaError('Ese tablero no está disponible.', { kind: 'not-found', status: 404 });
+    setProjectBoard(directory, boardId);
+    return { directory, pinned: boardId, boardName: board.name };
+  },
+
+  'DELETE /project-board': async () => {
+    const directory = currentProject();
+    if (directory) setProjectBoard(directory, '');
+    return { directory, pinned: '' };
   },
 
   'GET /card': async (_body, url) => {

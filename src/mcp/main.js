@@ -3,6 +3,7 @@
 import { readConfig } from '../shared/config.js';
 import { LOCAL_BOARD_ID, LocalClient } from '../shared/local.js';
 import { workListFor } from '../shared/defaults.js';
+import { resolveProjectBoard } from '../shared/board-projects.js';
 import { clearClosePending, removeLink, setLink } from '../shared/links.js';
 import {
   PlankaClient,
@@ -43,7 +44,15 @@ const context = async () => {
     throw new Error('Kanban is not connected to Planka yet. Sign in from the Kanban panel in OpenChamber.');
   }
   const client = new PlankaClient(config);
-  const boardId = await client.resolveBoardId(config.boardId);
+  // The board follows the session, not a global selection: the project this
+  // server was started in must have a board pinned. A worktree or a subfolder
+  // inherits the board of its project.
+  const boardId = resolveProjectBoard(process.cwd());
+  if (!boardId) {
+    throw new Error(
+      'Este proyecto no tiene tablero de Kanban fijado. Abre el panel de Kanban en esta sesión, en Ajustes, y fija el tablero del agente; hasta entonces no toco ninguna tarjeta.',
+    );
+  }
   return { client, boardId };
 };
 
