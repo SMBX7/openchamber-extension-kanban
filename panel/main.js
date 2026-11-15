@@ -1872,7 +1872,6 @@ ${GUEST_UI_LOOK_CSS}`;
     edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/>',
     trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>',
     compress: '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
-    summary: '<path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
     expand: '<path d="m13 7 5 5-5 5"/><path d="m6 7 5 5-5 5"/>',
     chevron: '<path d="m6 9 6 6 6-6"/>',
     sort: '<path d="M7 4v16"/><path d="m4 17 3 3 3-3"/><path d="M13 6h7M13 11h5M13 16h3"/>',
@@ -3219,9 +3218,9 @@ ${card.description}`.toLowerCase();
     sesionesBox.append(
       fact("IDEAS", "el + de la columna crea una tarjeta. El l\xE1piz abre la tarjeta para editar t\xEDtulo, detalles, checklist y sesi\xF3n, y para borrarla. El tic la pasa a EN PROGRESO."),
       fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el + del Work Status y el agente deja la tarjeta para que la revises; en autom\xE1tico te pregunta antes de sumar cada tarjeta y el agente la mueve a HECHO al terminar."),
-      fact("HECHO", "la tarjeta queda terminada. El bot\xF3n de la columna HECHO pide el resumen de cada sesi\xF3n y suelta las tarjetas; la sesi\xF3n sigue abierta para que la archives.")
+      fact("HECHO", "la tarjeta queda terminada. El bot\xF3n de la columna HECHO cierra el lote: pide el resumen de cada sesi\xF3n y suelta las tarjetas; la sesi\xF3n sigue abierta para que la archives.")
     );
-    sesionesBox.append(el2("p", "settings-note", "Al resumir se borra el v\xEDnculo: si vuelves a mover la tarjeta, se suma al lote que siga abierto o abre uno nuevo. La sesi\xF3n sigue abierta para que la archives cuando quieras."));
+    sesionesBox.append(el2("p", "settings-note", "Al cerrar el lote se sueltan sus tarjetas: si vuelves a mover una, se suma al lote que siga abierto o abre uno nuevo. La sesi\xF3n sigue abierta para que la archives cuando quieras."));
     sesiones.append(sesionesBox);
     const avanzado = el2("section", "settings-section");
     avanzado.append(el2("div", "settings-heading", "Avanzado"));
@@ -3505,14 +3504,14 @@ ${card.description}`.toLowerCase();
       if (count && pending) {
         toast(
           "success",
-          `Resumen pedido a ${count} sesi\xF3n${count === 1 ? "" : "es"}; ${pending} lote${pending === 1 ? "" : "s"} sigue${pending === 1 ? "" : "n"} con tarjetas fuera de HECHO.`
+          `Cerrando ${count} lote${count === 1 ? "" : "s"}; ${pending} sigue${pending === 1 ? "" : "n"} con tarjetas fuera de HECHO.`
         );
       } else if (count) {
-        toast("success", `Resumen pedido a ${count} sesi\xF3n${count === 1 ? "" : "es"}; siguen abiertas.`);
+        toast("success", `Cerrando ${count} lote${count === 1 ? "" : "s"}; la sesi\xF3n se queda abierta.`);
       } else if (pending) {
-        toast("info", "Los lotes con tarjetas fuera de HECHO se resumen cuando est\xE9n todas.");
+        toast("info", "Los lotes con tarjetas fuera de HECHO se cierran cuando est\xE9n todas.");
       } else {
-        toast("info", "No hay sesiones que resumir en HECHO.");
+        toast("info", "No hay lotes que cerrar en HECHO.");
       }
     } catch (error) {
       toast("error", error.message);
@@ -3825,11 +3824,11 @@ ${card.description}`.toLowerCase();
         if (linked) {
           closeDone = el2("button", "ghost-btn done-close");
           closeDone.type = "button";
-          closeDone.title = "Pedir el resumen de las sesiones de HECHO y soltar las tarjetas; la sesi\xF3n sigue abierta";
+          closeDone.title = "Cerrar los lotes de HECHO: pide el resumen, suelta las tarjetas y la sesi\xF3n sigue abierta";
           closeDone.setAttribute("aria-label", closeDone.title);
           closeDone.append(
-            makeIcon("summary"),
-            el2("span", "", linked === 1 ? "Resumir sesi\xF3n" : `Resumir ${linked} sesiones`)
+            makeIcon("check"),
+            el2("span", "", linked === 1 ? "Cerrar lote" : `Cerrar ${linked} lotes`)
           );
           closeDone.addEventListener("click", () => void closeDoneSessions(closeDone));
         }

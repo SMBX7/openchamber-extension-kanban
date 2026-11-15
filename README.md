@@ -185,14 +185,14 @@ Choose the mode in **Settings → Delegation** (Delegación) or from the Work St
 When an agent takes a card, the extension links it to that session: the card moves to IN
 PROGRESS when linked. A batch stays open while any of its cards is outside DONE. In
 automatic mode, when the last card arrives the session reviews the set and writes the
-summary; in manual it waits for you to ask from the DONE column. In both modes the session
-stays open:
+summary; in manual it waits for you to close the batch from the DONE column. In both modes
+the session stays open:
 
 - Moving to **DONE** finishes the card: it stops pointing at its session, so the session
   dot never survives the move and the session stays open for you to archive. Inside a
   batch the cards keep their links until the whole batch is done.
-- **Summarise sessions** (Resumir sesiones) in the DONE column asks each linked session
-  for its summary once and releases its links; the session stays open for you to archive.
+- **Close batches** (Cerrar lote/lotes) in the DONE column asks each linked session for
+  its summary once and releases its cards; the session stays open for you to archive.
 - Moving back to **IDEAS** releases the card. In a batch only that card leaves; the
   session keeps working the rest.
 

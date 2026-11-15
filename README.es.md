@@ -188,14 +188,14 @@ Elige el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status
 Cuando un agente toma una tarjeta, la extensión la vincula a esa sesión: pasa a EN
 PROGRESO al vincularse. Un lote sigue abierto mientras le quede alguna tarjeta fuera de
 HECHO. En automático, cuando llega la última, la sesión revisa el conjunto y escribe el resumen;
-en manual espera a que lo pidas desde la columna HECHO. En los dos, la sesión sigue abierta
-para que la archives:
+en manual espera a que cierres el lote desde la columna HECHO. En los dos, la sesión sigue
+abierta para que la archives:
 
 - Pasar a **HECHO** termina la tarjeta: deja de apuntar a su sesión, así que el punto de
   sesión no sobrevive al movimiento y la sesión queda abierta para que la archives.
   Dentro de un lote, las tarjetas mantienen sus vínculos hasta que el lote termina.
-- **Resumir sesiones** en la columna HECHO pide el resumen de cada sesión vinculada una
-  vez y suelta sus vínculos; la sesión sigue abierta para que la archives.
+- **Cerrar lote/lotes** en la columna HECHO pide el resumen de cada sesión vinculada una
+  vez y suelta sus tarjetas; la sesión sigue abierta para que la archives.
 - Volver a **IDEAS** suelta la tarjeta. En un lote solo sale esa tarjeta: la sesión sigue
   con las demás.
 
