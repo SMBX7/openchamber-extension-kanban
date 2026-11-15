@@ -128,8 +128,9 @@ It opens from the **Kanban** icon on the right sidebar. This is also where you c
 Planka and change the settings.
 
 - **Create**: the `+` next to a column title opens the card box above the cards. Type a
-  title and an optional description; `Enter` or **Create** (Crear) saves it. The
-  description stays on one line and scrolls sideways.
+  title and an optional description; `Enter` or **Create** (Crear) saves it. Both fields
+  grow as you type — the title to two lines and the description to four — and scroll
+  inside after that. `Shift+Enter` starts a new line.
 - **Edit**: the pencil, a double click on the card, or `Enter` with the card focused
   opens the card. There you change the title, details and session; **Confirm**
   (Confirmar) saves and closes, **Cancel** (Cancelar) discards.
@@ -172,13 +173,16 @@ it can work the card without opening the panel. Cards in DONE stay out.
 ## Sessions: manual and automatic
 
 Choose the mode in **Settings → Delegation** (Delegación) or from the Work Status pill.
+When you work from a chat, that session is the one that takes the cards: each card goes to
+a subagent, and several ready at once run in parallel, each on its own files.
 
-- **Manual**: moving a card to IN PROGRESS links it to the session you are working in, so
-  the Work Status stops saying it has no session. Open the batch with the `+` in the Work
+- **Manual**: working a card from the chat links it to that session, so the Work Status
+  stops saying it has no session. Open the batch with the `+` in the Work
   Status when you want the agent to take it. Both modes work in batches with subagents.
   The agent works the card and leaves it in IN PROGRESS with a note that it is ready: you
-  review it, move it to DONE and ask for the summary when the batch is done. Referencing a card in the chat to work on it — with `@` or
-  by name — moves it to IN PROGRESS if it is still in IDEAS.
+  review it, move it to DONE and ask for the summary when the batch is done. Referencing
+  a card in the chat to work on it — with `@` or by name — moves it to IN PROGRESS if it
+  is still in IDEAS.
 - **Automatic**: the prompt asks before adding each card to the batch, so nothing joins
   silently. The agent reviews each subagent, moves the card to DONE itself and summarises
   when the batch ends; the session stays open for you to archive.

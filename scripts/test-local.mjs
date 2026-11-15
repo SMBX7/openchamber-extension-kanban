@@ -583,12 +583,12 @@ assert.equal(
 
 const projects = [
   { id: 'p-ext', name: 'openchamber-kanban', directory: '/home/ana/proyectos/ext' },
-  { id: 'p-smb', name: 'smbpoints', directory: '/home/ana/proyectos/smbpoints' },
+  { id: 'p-shop', name: 'tienda', directory: '/home/ana/proyectos/tienda' },
   { id: 'p-nested', name: 'app', directory: '/home/ana/proyectos/ext/packages/app' },
 ];
 assert.equal(
-  projectForDirectory(projects, '/home/ana/proyectos/smbpoints')?.id,
-  'p-smb',
+  projectForDirectory(projects, '/home/ana/proyectos/tienda')?.id,
+  'p-shop',
   'the exact directory is the project',
 );
 assert.equal(

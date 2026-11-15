@@ -129,7 +129,8 @@ con Planka y se cambian los ajustes.
 
 - **Crear**: el `+` junto al título de una columna abre el recuadro encima de las
   tarjetas. Escribe un título y una descripción opcional; `Enter` o **Crear** lo guarda.
-  La descripción se queda en una línea y se desplaza en horizontal.
+  Los dos campos crecen mientras escribes —el título hasta dos líneas y la descripción
+  hasta cuatro— y después hacen scroll por dentro. `Mayús+Enter` salta de línea.
 - **Editar**: el lápiz, un doble clic en la tarjeta o `Enter` con la tarjeta enfocada
   abre la tarjeta. Ahí cambias título, detalles y sesión; **Confirmar** guarda y cierra,
   **Cancelar** descarta.
@@ -173,16 +174,17 @@ trabajar la tarjeta sin abrir el panel. Las de HECHO quedan fuera.
 
 ## Sesiones: manual y automático
 
-Elige el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status.
+Elige el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status. Cuando
+trabajas desde un chat, esa sesión es la que toma las tarjetas: cada una va a un
+subagente, y varias a la vez van en paralelo, cada una con sus archivos.
 
-- **Manual**: al mover una tarjeta a EN PROGRESO queda vinculada a la sesión en la que
-  estás trabajando, así que el Work Status deja de decir que no tiene sesión. Abre el lote
+- **Manual**: al trabajar una tarjeta desde el chat queda vinculada a esa sesión, así
+  que el Work Status deja de decir que no tiene sesión. Abre el lote
   con el `+` del Work Status cuando quieras que el agente la trabaje. Los dos modos van por
   lotes con subagentes. El agente trabaja la tarjeta y la deja en EN PROGRESO avisando de
   que está lista: tú la revisas, la pasas a HECHO y pides el resumen cuando el lote esté
-  listo. Referenciar una tarjeta en el chat para
-  trabajar en ella —con `@` o
-  por su nombre— la pasa a EN PROGRESO si aún está en IDEAS.
+  listo. Referenciar una tarjeta en el chat para trabajar en ella —con `@` o por su
+  nombre— la pasa a EN PROGRESO si aún está en IDEAS.
 - **Automática**: el aviso pregunta antes de sumar cada tarjeta al lote, así que ninguna
   entra sin avisar. El agente revisa cada subagente, mueve la tarjeta a HECHO y resume al
   terminar el lote; la sesión sigue abierta para que la archives.
