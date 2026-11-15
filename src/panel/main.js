@@ -1,6 +1,6 @@
 import { connectHost } from '@openchamber/sdk';
 import { applyHostReady } from '@openchamber/sdk/ui';
-import { PRIORITY_LEVELS, classifyPriority, prioritySummary, sortCardsByPriority } from '../shared/priority.js';
+import { PRIORITY_LEVELS, sortCardsByPriority } from '../shared/priority.js';
 
 const host = connectHost();
 const root = document.querySelector('#root');
@@ -1989,7 +1989,7 @@ const openSortPopover = (anchor, listId) => {
   const note = el(
     'p',
     'sort-pop-note',
-    'Solo IDEAS. Cada tarjeta se puntúa por su título y sus detalles, con más peso para los fallos; a igual categoría manda la que más señales tiene.',
+    'Primero lo que no funciona, después lo que quieres mejorar y al final los detalles.',
   );
 
   const criteria = el('ol', 'sort-criteria');
@@ -1998,32 +1998,11 @@ const openSortPopover = (anchor, listId) => {
     const text = el('span', 'sort-criterion-text');
     text.append(
       el('span', 'sort-criterion-label', criterion.label),
-      el('span', 'sort-criterion-hint', `${criterion.hint} · peso ×${criterion.weight}`),
+      el('span', 'sort-criterion-hint', criterion.hint),
     );
     item.append(el('span', 'sort-step', String(index + 1)), text);
     criteria.append(item);
   });
-
-  // A small preview makes the rule visible before anything moves.
-  const ordered = sortCardsByPriority(findList(listId)?.cards || []);
-  const summary = prioritySummary(ordered);
-  const preview = el('div', 'sort-preview');
-  preview.append(el('span', 'sort-preview-title', 'Vista previa'));
-  const previewList = el('ol', 'sort-preview-list');
-  for (const card of ordered.slice(0, 4)) {
-    const info = classifyPriority(card);
-    const row = el('li', 'sort-preview-row');
-    row.append(
-      el('span', 'sort-preview-name', card.name),
-      el('span', 'sort-preview-level', info.unclassified ? 'Sin clasificar' : info.label),
-    );
-    previewList.append(row);
-  }
-  if (!ordered.length) previewList.append(el('li', 'sort-preview-row', 'No hay tarjetas en IDEAS.'));
-  const counts = `${summary.counts.flow} fallos · ${summary.counts.parity} paridad · ${summary.counts.ux} UX · ${summary.counts.polish} pulido${
-    summary.unclassified ? ` · ${summary.unclassified} sin clasificar` : ''
-  }`;
-  preview.append(previewList, el('div', 'sort-summary', counts));
 
   const foot = el('div', 'sort-pop-foot');
   const action = el('button', 'btn-mint sort-run', 'Ordenar IDEAS');
@@ -2031,7 +2010,7 @@ const openSortPopover = (anchor, listId) => {
   const status = el('div', 'sort-pop-status', 'El orden se guarda en el tablero.');
   foot.append(action, status);
 
-  node.append(head, note, criteria, preview, foot);
+  node.append(head, note, criteria, foot);
   document.body.append(node);
 
   const width = Math.min(268, window.innerWidth - 16);

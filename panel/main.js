@@ -1829,34 +1829,30 @@ ${GUEST_UI_LOOK_CSS}`;
   // src/shared/priority.js
   var PRIORITY_LEVELS = [
     {
-      key: "flow",
-      label: "Fallos que rompen el flujo",
-      hint: "Rompe, no deja, se pierde, error\u2026",
-      // A bug costs more than any amount of interface wording, so one flow
-      // signal beats several UX words.
+      key: "broken",
+      label: "No funciona",
+      hint: "Errores, algo roto o que no deja seguir",
+      // A broken thing wins on its own, however many interface words the card
+      // carries.
       weight: 3,
-      pattern: /\b(rompe|rompen|roto|rota|fallo|fallos|falla|fallas|error|errores|bug|bugs|crash|congela|congelado|bloquea|bloqueado|bloqueada|imposible|se pierde|se pasa|se mueve|se queda|se cierra|salta|vuelve a|en vez de|deberia|no deja|no me deja|no funciona|no guarda|no carga|no abre|no se puede|no puedo|no responde|no aparece|no se ve|desaparece)\b/g
+      pattern: /\b(rompe|rompen|roto|rota|fallo|fallos|falla|fallas|error|errores|bug|bugs|crash|congela|congelado|bloquea|bloqueado|bloqueada|imposible|se pierde|se pasa|se mueve|se queda|se cierra|salta|vuelve a|en vez de|deberia|no deja|no me deja|no funciona|no guarda|no carga|no abre|no se puede|no puedo|no responde|no aparece|no se ve|desaparece)\b/g,
+      // A local/Planka difference is broken too, but it ranks below an explicit
+      // failure: it only promotes the card to this level.
+      extra: /\b(planka|local|paridad|paralelo|sincroniz\w*|servidor|remoto|dos modos|modo local|mismo comportamiento|tambien en|igual en|los dos|ambos)\b/g
     },
     {
-      key: "parity",
-      label: "Paridad local/Planka",
-      hint: "Local, Planka, servidor, sincronizar\u2026",
-      weight: 2,
-      pattern: /\b(planka|local|paridad|paralelo|sincroniz\w*|servidor|remoto|nube|dos modos|modo local|mismo comportamiento|tambien en|igual en|los dos|ambos)\b/g
-    },
-    {
-      key: "ux",
-      label: "UX grande",
-      hint: "Interfaz, panel, botones, arrastrar\u2026",
+      key: "improve",
+      label: "Mejorar",
+      hint: "Cambios de interfaz, mejoras y cosas nuevas",
       weight: 1.5,
-      pattern: /\b(ux|usabilidad|interfaz|experiencia|diseno|visual|pantalla|panel|lateral|ventana|boton|botones|clic|clics|arrastr\w*|mover|ordenar|filtrado|complicad\w*|lio|lioso|confus\w*|entiendo|entiende|accesib\w*|movil|responsive|columna|columnas)\b/g
+      pattern: /\b(ux|usabilidad|interfaz|experiencia|diseno|visual|pantalla|panel|lateral|ventana|boton|botones|clic|clics|arrastr\w*|mover|ordenar|filtrado|filtro|complicad\w*|lio|lioso|confus\w*|entiendo|entiende|accesib\w*|movil|responsive|columna|columnas|quiero|anadir|agregar|mejorar|mejora|cambiar|cambio|nuevo|nueva|opcion|opciones|dame)\b/g
     },
     {
-      key: "polish",
-      label: "Pulido y arquitectura",
-      hint: "Refactor, c\xF3digo, tests, rendimiento\u2026",
+      key: "detail",
+      label: "Detalle",
+      hint: "Limpieza, textos y documentaci\xF3n",
       weight: 1,
-      pattern: /\b(refactor\w*|arquitectura|arquitect\w*|codigo|limpia\w*|limpiar|duplicad\w*|rendimiento|lento|test|tests|pruebas|documentacion|readme|docs|indice|guia|estructura|nombres|pulir|pulido|deuda|mantener|json|persist\w*|almacen\w*|migrac\w*|guard\w*)\b/g
+      pattern: /\b(refactor\w*|arquitectura|arquitect\w*|codigo|limpia\w*|limpiar|duplicad\w*|rendimiento|lento|test|tests|pruebas|documentacion|readme|docs|index|indice|guia|estructura|nombres|pulir|pulido|deuda|mantener|json|persist\w*|almacen\w*|migrac\w*|guard\w*)\b/g
     }
   ];
   var PRIORITY_UNCLASSIFIED = PRIORITY_LEVELS.length;
@@ -1865,9 +1861,12 @@ ${GUEST_UI_LOOK_CSS}`;
   var classifyPriority = (card) => {
     const title = normalizeText(card?.name);
     const body = normalizeText(card?.description);
-    const scores = PRIORITY_LEVELS.map(
-      (criterion2) => criterion2.weight * (2 * hits(title, criterion2.pattern) + hits(body, criterion2.pattern))
-    );
+    const scores = PRIORITY_LEVELS.map((criterion2) => {
+      const base = criterion2.weight * (2 * hits(title, criterion2.pattern) + hits(body, criterion2.pattern));
+      if (!criterion2.extra) return base;
+      const extra = 2 * hits(title, criterion2.extra) + hits(body, criterion2.extra);
+      return base > 0 ? base + extra : extra > 0 ? 1 : 0;
+    });
     let level = 0;
     if (scores[0] === 0) {
       level = PRIORITY_UNCLASSIFIED;
@@ -1889,16 +1888,6 @@ ${GUEST_UI_LOOK_CSS}`;
   var sortCardsByPriority = (cards) => (Array.isArray(cards) ? cards : []).map((card, index) => ({ card, index, priority: classifyPriority(card) })).sort(
     (a, b) => a.priority.level - b.priority.level || b.priority.score - a.priority.score || a.index - b.index
   ).map((entry) => entry.card);
-  var prioritySummary = (cards) => {
-    const counts = Object.fromEntries(PRIORITY_LEVELS.map((criterion) => [criterion.key, 0]));
-    let unclassified = 0;
-    for (const card of Array.isArray(cards) ? cards : []) {
-      const priority = classifyPriority(card);
-      if (priority.unclassified) unclassified += 1;
-      else counts[priority.key] += 1;
-    }
-    return { counts, unclassified, total: Array.isArray(cards) ? cards.length : 0 };
-  };
 
   // src/panel/main.js
   var host = connectHost();
@@ -3639,7 +3628,7 @@ ${card.description}`.toLowerCase();
     const note = el2(
       "p",
       "sort-pop-note",
-      "Solo IDEAS. Cada tarjeta se punt\xFAa por su t\xEDtulo y sus detalles, con m\xE1s peso para los fallos; a igual categor\xEDa manda la que m\xE1s se\xF1ales tiene."
+      "Primero lo que no funciona, despu\xE9s lo que quieres mejorar y al final los detalles."
     );
     const criteria = el2("ol", "sort-criteria");
     PRIORITY_LEVELS.forEach((criterion, index) => {
@@ -3647,34 +3636,17 @@ ${card.description}`.toLowerCase();
       const text = el2("span", "sort-criterion-text");
       text.append(
         el2("span", "sort-criterion-label", criterion.label),
-        el2("span", "sort-criterion-hint", `${criterion.hint} \xB7 peso \xD7${criterion.weight}`)
+        el2("span", "sort-criterion-hint", criterion.hint)
       );
       item.append(el2("span", "sort-step", String(index + 1)), text);
       criteria.append(item);
     });
-    const ordered = sortCardsByPriority(findList(listId)?.cards || []);
-    const summary = prioritySummary(ordered);
-    const preview = el2("div", "sort-preview");
-    preview.append(el2("span", "sort-preview-title", "Vista previa"));
-    const previewList = el2("ol", "sort-preview-list");
-    for (const card of ordered.slice(0, 4)) {
-      const info = classifyPriority(card);
-      const row = el2("li", "sort-preview-row");
-      row.append(
-        el2("span", "sort-preview-name", card.name),
-        el2("span", "sort-preview-level", info.unclassified ? "Sin clasificar" : info.label)
-      );
-      previewList.append(row);
-    }
-    if (!ordered.length) previewList.append(el2("li", "sort-preview-row", "No hay tarjetas en IDEAS."));
-    const counts = `${summary.counts.flow} fallos \xB7 ${summary.counts.parity} paridad \xB7 ${summary.counts.ux} UX \xB7 ${summary.counts.polish} pulido${summary.unclassified ? ` \xB7 ${summary.unclassified} sin clasificar` : ""}`;
-    preview.append(previewList, el2("div", "sort-summary", counts));
     const foot = el2("div", "sort-pop-foot");
     const action = el2("button", "btn-mint sort-run", "Ordenar IDEAS");
     action.type = "button";
     const status = el2("div", "sort-pop-status", "El orden se guarda en el tablero.");
     foot.append(action, status);
-    node.append(head, note, criteria, preview, foot);
+    node.append(head, note, criteria, foot);
     document.body.append(node);
     const width = Math.min(268, window.innerWidth - 16);
     node.style.width = `${width}px`;

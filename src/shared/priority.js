@@ -1,39 +1,39 @@
 // IDEAS priority: a weighted read of each card's text. No model, no session:
 // the classification is deterministic and happens inside the panel.
+//
+// Three levels, in the order anyone would explain them: something is broken,
+// then something should improve, then a detail. A parity problem (local vs
+// Planka) is a broken thing, not a level of its own.
 export const PRIORITY_LEVELS = [
   {
-    key: 'flow',
-    label: 'Fallos que rompen el flujo',
-    hint: 'Rompe, no deja, se pierde, error…',
-    // A bug costs more than any amount of interface wording, so one flow
-    // signal beats several UX words.
+    key: 'broken',
+    label: 'No funciona',
+    hint: 'Errores, algo roto o que no deja seguir',
+    // A broken thing wins on its own, however many interface words the card
+    // carries.
     weight: 3,
     pattern:
       /\b(rompe|rompen|roto|rota|fallo|fallos|falla|fallas|error|errores|bug|bugs|crash|congela|congelado|bloquea|bloqueado|bloqueada|imposible|se pierde|se pasa|se mueve|se queda|se cierra|salta|vuelve a|en vez de|deberia|no deja|no me deja|no funciona|no guarda|no carga|no abre|no se puede|no puedo|no responde|no aparece|no se ve|desaparece)\b/g,
+    // A local/Planka difference is broken too, but it ranks below an explicit
+    // failure: it only promotes the card to this level.
+    extra:
+      /\b(planka|local|paridad|paralelo|sincroniz\w*|servidor|remoto|dos modos|modo local|mismo comportamiento|tambien en|igual en|los dos|ambos)\b/g,
   },
   {
-    key: 'parity',
-    label: 'Paridad local/Planka',
-    hint: 'Local, Planka, servidor, sincronizar…',
-    weight: 2,
-    pattern:
-      /\b(planka|local|paridad|paralelo|sincroniz\w*|servidor|remoto|nube|dos modos|modo local|mismo comportamiento|tambien en|igual en|los dos|ambos)\b/g,
-  },
-  {
-    key: 'ux',
-    label: 'UX grande',
-    hint: 'Interfaz, panel, botones, arrastrar…',
+    key: 'improve',
+    label: 'Mejorar',
+    hint: 'Cambios de interfaz, mejoras y cosas nuevas',
     weight: 1.5,
     pattern:
-      /\b(ux|usabilidad|interfaz|experiencia|diseno|visual|pantalla|panel|lateral|ventana|boton|botones|clic|clics|arrastr\w*|mover|ordenar|filtrado|complicad\w*|lio|lioso|confus\w*|entiendo|entiende|accesib\w*|movil|responsive|columna|columnas)\b/g,
+      /\b(ux|usabilidad|interfaz|experiencia|diseno|visual|pantalla|panel|lateral|ventana|boton|botones|clic|clics|arrastr\w*|mover|ordenar|filtrado|filtro|complicad\w*|lio|lioso|confus\w*|entiendo|entiende|accesib\w*|movil|responsive|columna|columnas|quiero|anadir|agregar|mejorar|mejora|cambiar|cambio|nuevo|nueva|opcion|opciones|dame)\b/g,
   },
   {
-    key: 'polish',
-    label: 'Pulido y arquitectura',
-    hint: 'Refactor, código, tests, rendimiento…',
+    key: 'detail',
+    label: 'Detalle',
+    hint: 'Limpieza, textos y documentación',
     weight: 1,
     pattern:
-      /\b(refactor\w*|arquitectura|arquitect\w*|codigo|limpia\w*|limpiar|duplicad\w*|rendimiento|lento|test|tests|pruebas|documentacion|readme|docs|indice|guia|estructura|nombres|pulir|pulido|deuda|mantener|json|persist\w*|almacen\w*|migrac\w*|guard\w*)\b/g,
+      /\b(refactor\w*|arquitectura|arquitect\w*|codigo|limpia\w*|limpiar|duplicad\w*|rendimiento|lento|test|tests|pruebas|documentacion|readme|docs|index|indice|guia|estructura|nombres|pulir|pulido|deuda|mantener|json|persist\w*|almacen\w*|migrac\w*|guard\w*)\b/g,
   },
 ];
 
@@ -47,16 +47,18 @@ const normalizeText = (value) =>
 
 const hits = (text, pattern) => (text.match(pattern) || []).length;
 
-// A bug wins on its own: the four criteria are a hierarchy, and "fallos que
-// rompen el flujo" is the first one. One signal there beats any amount of UX
-// wording. The remaining levels score their words, so more signals or a signal
-// in the title weigh more; the first level breaks a tie.
+// A signal in the title weighs double: it is what the person had in mind.
+// "No funciona" is a gate; below it, the weighted score decides between
+// improving and a detail, and the first level breaks a tie.
 export const classifyPriority = (card) => {
   const title = normalizeText(card?.name);
   const body = normalizeText(card?.description);
-  const scores = PRIORITY_LEVELS.map(
-    (criterion) => criterion.weight * (2 * hits(title, criterion.pattern) + hits(body, criterion.pattern)),
-  );
+  const scores = PRIORITY_LEVELS.map((criterion) => {
+    const base = criterion.weight * (2 * hits(title, criterion.pattern) + hits(body, criterion.pattern));
+    if (!criterion.extra) return base;
+    const extra = 2 * hits(title, criterion.extra) + hits(body, criterion.extra);
+    return base > 0 ? base + extra : extra > 0 ? 1 : 0;
+  });
   let level = 0;
   if (scores[0] === 0) {
     level = PRIORITY_UNCLASSIFIED;

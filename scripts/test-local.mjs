@@ -523,33 +523,33 @@ const { classifyPriority, sortCardsByPriority, prioritySummary } = require(prior
 
 assert.equal(
   classifyPriority({ name: 'El panel no funciona', description: 'El panel lateral y el botón del panel fallan' }).key,
-  'flow',
-  'a bug wins over any amount of UX wording',
+  'broken',
+  'a broken thing wins over any amount of UX wording',
 );
 assert.equal(
   classifyPriority({ name: 'Ordenar el panel de ideas', description: 'no guarda' }).key,
-  'flow',
-  'a bug in the description still wins',
+  'broken',
+  'a break in the description still wins',
 );
 assert.equal(
   classifyPriority({ name: 'Mismo comportamiento en local y Planka', description: '' }).key,
-  'parity',
-  'parity is the second level',
+  'broken',
+  'a local/Planka difference is a broken thing, not its own level',
 );
 assert.equal(
   classifyPriority({ name: 'Mejorar el panel lateral', description: 'La columna y el botón de ordenar' }).key,
-  'ux',
-  'interface wording lands in UX',
+  'improve',
+  'interface wording and wishes land in improve',
 );
 assert.equal(
   classifyPriority({ name: 'Refactor del código de tests', description: 'limpiar duplicados' }).key,
-  'polish',
-  'code and tests land in polish',
+  'detail',
+  'code and tests land in detail',
 );
 assert.equal(
-  classifyPriority({ name: 'Añadir un índice al README', description: '' }).key,
-  'polish',
-  'documentation wording lands in polish',
+  classifyPriority({ name: 'Añadir un index al README', description: '' }).key,
+  'detail',
+  'documentation wording lands in detail',
 );
 assert.equal(
   classifyPriority({ name: 'Pintar el logo', description: '' }).unclassified,
@@ -582,8 +582,8 @@ const priorityTotals = prioritySummary([
   { name: 'Local y Planka', description: '' },
   { name: 'Pintar el logo', description: '' },
 ]);
-assert.equal(priorityTotals.counts.flow, 1);
-assert.equal(priorityTotals.counts.parity, 1);
+assert.equal(priorityTotals.counts.broken, 2);
+assert.equal(priorityTotals.counts.improve, 0);
 assert.equal(priorityTotals.unclassified, 1);
 assert.equal(priorityTotals.total, 3);
 
