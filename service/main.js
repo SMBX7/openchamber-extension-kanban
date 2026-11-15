@@ -2158,8 +2158,16 @@ var mentionContext = (directory) => {
 };
 var boardIdOf = async (config, requested) => {
   if (config.source === "local") return LOCAL_BOARD_ID;
-  const candidate = requested || config.boardId;
-  if (candidate) return String(candidate);
+  if (requested) return String(requested);
+  const directory = currentProject();
+  if (directory) {
+    const followed = resolveProjectBoard(directory);
+    const known = Array.isArray(config.boards) ? config.boards : [];
+    if (followed && (!known.length || known.some((board) => String(board.id) === followed))) {
+      return String(followed);
+    }
+  }
+  if (config.boardId) return String(config.boardId);
   return client().resolveBoardId();
 };
 var getSnapshot = async ({ boardId = "", fresh = false } = {}) => {

@@ -252,8 +252,18 @@ const mentionContext = (directory) => {
 
 const boardIdOf = async (config, requested) => {
   if (config.source === 'local') return LOCAL_BOARD_ID;
-  const candidate = requested || config.boardId;
-  if (candidate) return String(candidate);
+  if (requested) return String(requested);
+  // The board follows the project of the session, exactly as the agent does, so
+  // the panel, the Work Status and the agent never point at different boards.
+  const directory = currentProject();
+  if (directory) {
+    const followed = resolveProjectBoard(directory);
+    const known = Array.isArray(config.boards) ? config.boards : [];
+    if (followed && (!known.length || known.some((board) => String(board.id) === followed))) {
+      return String(followed);
+    }
+  }
+  if (config.boardId) return String(config.boardId);
   return client().resolveBoardId();
 };
 

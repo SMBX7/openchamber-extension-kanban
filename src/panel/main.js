@@ -1672,24 +1672,27 @@ const switchBoard = async (boardId) => {
 // without asking. With no project the pick is only a pick.
 const chooseBoard = async (boardId) => {
   if (!boardId) return;
-  await switchBoard(boardId);
   const project = projectForDirectory(state.projects, state.directory);
-  if (!project) return;
-  try {
-    await api('POST', '/mapping', {
-      boardId,
-      projectId: project.id,
-      directory: project.directory,
-      name: project.name,
-      autoSession: state.snapshot?.project?.autoSession === true,
-    });
-    await api('POST', '/project-board', { boardId });
-    state.pinnedBoard = boardId;
-    paintPin();
-    toast('success', `Tablero vinculado a ${project.name}.`);
-  } catch (error) {
-    toast('error', error.message);
+  // Bind before switching: the service resolves the board from the project, so
+  // a poll landing between the two would undo the switch.
+  if (project) {
+    try {
+      await api('POST', '/mapping', {
+        boardId,
+        projectId: project.id,
+        directory: project.directory,
+        name: project.name,
+        autoSession: state.snapshot?.project?.autoSession === true,
+      });
+      await api('POST', '/project-board', { boardId });
+      state.pinnedBoard = boardId;
+      toast('success', `Tablero vinculado a ${project.name}.`);
+    } catch (error) {
+      toast('error', error.message);
+    }
   }
+  await switchBoard(boardId);
+  paintPin();
   await refresh(true);
 };
 
