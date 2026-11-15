@@ -486,7 +486,7 @@ await build({
   format: 'cjs',
   logLevel: 'silent',
 });
-const { resolveProjectBoard, setProjectBoard, getProjectBoard, setBoardProject } = require(projectsBundle);
+const { resolveProjectBoard, setProjectBoard, getProjectBoard, setBoardProject, pinForDirectory } = require(projectsBundle);
 
 const pinProjectA = join(dir, 'proj-a');
 const pinProjectB = join(dir, 'proj-b');
@@ -521,6 +521,26 @@ const worktree = join(dir, 'repo-worktree');
 execFileSync('git', ['-C', repo, 'worktree', 'add', '-q', worktree]);
 setProjectBoard(repo, 'board-repo');
 assert.equal(resolveProjectBoard(worktree), 'board-repo', 'a worktree inherits the board pinned for its project');
+assert.deepEqual(
+  pinForDirectory(repo),
+  { key: repo, boardId: 'board-repo' },
+  'a project directory reads its own pin',
+);
+assert.deepEqual(
+  pinForDirectory(join(repo, 'packages', 'app')),
+  { key: repo, boardId: 'board-repo' },
+  'a subfolder reads the project pin, not an empty one',
+);
+assert.deepEqual(
+  pinForDirectory(worktree),
+  { key: repo, boardId: 'board-repo' },
+  'a worktree reads the project pin through the shared repository',
+);
+assert.deepEqual(
+  pinForDirectory(pinProjectB),
+  { key: '', boardId: '' },
+  'a project with no pin reads nothing instead of guessing',
+);
 
 // The panel follows the board bound to the project of the session it is open
 // in, and binds a picked board to that project.
@@ -674,4 +694,4 @@ assert.ok(
   'the Work Status opens tall enough for three cards',
 );
 
-console.log('local mode: 142 assertions ok');
+console.log('local mode: 146 assertions ok');

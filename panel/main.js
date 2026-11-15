@@ -4421,6 +4421,7 @@ ${card.description}`.toLowerCase();
       state.snapshot = snapshot;
       setBanner("");
       renderAll();
+      void refreshPinnedBoard();
     } catch (error) {
       if (error.kind === "not-configured" || error.kind === "auth") {
         showLogin(error.message);

@@ -2906,6 +2906,9 @@ const refresh = async (silent = false) => {
     state.snapshot = snapshot;
     setBanner('');
     renderAll();
+    // The pin follows the directory, which can arrive after the first paint:
+    // refresh it with every turn so the pill never shows a stale binding.
+    void refreshPinnedBoard();
   } catch (error) {
     if (error.kind === 'not-configured' || error.kind === 'auth') {
       showLogin(error.message);

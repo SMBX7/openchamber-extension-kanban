@@ -562,11 +562,23 @@ var setBoardProject = (boardId, project) => {
   write(data);
   return value;
 };
-var getProjectBoard = (directory) => {
+var pinForDirectory = (directory) => {
   const dir = normalize(directory);
-  if (!dir) return "";
-  const entry = readBoardProjects().projects[dir];
-  return entry?.boardId ? String(entry.boardId) : "";
+  if (!dir) return { key: "", boardId: "" };
+  const pins = Object.entries(readBoardProjects().projects || {}).filter(
+    ([, entry]) => entry?.boardId
+  );
+  const candidates = new Set(ancestors(dir));
+  for (const [pinned, entry] of pins) {
+    if (candidates.has(normalize(pinned))) {
+      return { key: pinned, boardId: String(entry.boardId) };
+    }
+  }
+  const key = repoKey(dir);
+  for (const [pinned, entry] of pins) {
+    if (repoKey(pinned) === key) return { key: pinned, boardId: String(entry.boardId) };
+  }
+  return { key: "", boardId: "" };
 };
 var setProjectBoard = (directory, boardId) => {
   const dir = normalize(directory);
@@ -585,16 +597,11 @@ var setProjectBoard = (directory, boardId) => {
 var resolveProjectBoard = (directory) => {
   const dir = normalize(directory);
   if (!dir) return "";
+  const pinned = pinForDirectory(dir);
+  if (pinned.boardId) return pinned.boardId;
   const data = readBoardProjects();
-  const pins = Object.entries(data.projects || {}).filter(([, entry]) => entry?.boardId);
-  const candidates = new Set(ancestors(dir));
-  for (const [pinned, entry] of pins) {
-    if (candidates.has(normalize(pinned))) return String(entry.boardId);
-  }
   const key = repoKey(dir);
-  for (const [pinned, entry] of pins) {
-    if (repoKey(pinned) === key) return String(entry.boardId);
-  }
+  const candidates = new Set(ancestors(dir));
   const mapped = Object.entries(data.boards).filter(([, project]) => {
     if (!project?.directory) return false;
     return candidates.has(normalize(project.directory)) || repoKey(project.directory) === key;
@@ -2765,9 +2772,13 @@ var routes = {
   // manual on purpose: a project with several boards is never guessed.
   "GET /project-board": async () => {
     const directory = currentProject();
+    const pin = pinForDirectory(directory);
     return {
       directory,
-      pinned: getProjectBoard(directory),
+      // The pin that applies here, not only the one stored for this exact
+      // directory: a worktree or a subfolder must read the project's pin.
+      pinned: pin.boardId,
+      pinnedAt: pin.key,
       resolved: resolveProjectBoard(directory)
     };
   },
@@ -2789,8 +2800,10 @@ var routes = {
   },
   "DELETE /project-board": async () => {
     const directory = currentProject();
-    if (directory) setProjectBoard(directory, "");
-    return { directory, pinned: "" };
+    const pin = pinForDirectory(directory);
+    if (pin.key) setProjectBoard(pin.key, "");
+    else if (directory) setProjectBoard(directory, "");
+    return { directory, pinned: "", pinnedAt: "" };
   },
   // Rows for the composer's `@` menu. A search carries the composer's project;
   // the picked row comes back alone, so its id carries the board.

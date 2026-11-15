@@ -109,6 +109,28 @@ export const getProjectBoard = (directory) => {
   return entry?.boardId ? String(entry.boardId) : '';
 };
 
+// The pin that applies to a directory: its own, an ancestor's, or one stored
+// for the same repository, so a worktree or a subfolder reads the pin of the
+// project instead of looking unpinned.
+export const pinForDirectory = (directory) => {
+  const dir = normalize(directory);
+  if (!dir) return { key: '', boardId: '' };
+  const pins = Object.entries(readBoardProjects().projects || {}).filter(
+    ([, entry]) => entry?.boardId,
+  );
+  const candidates = new Set(ancestors(dir));
+  for (const [pinned, entry] of pins) {
+    if (candidates.has(normalize(pinned))) {
+      return { key: pinned, boardId: String(entry.boardId) };
+    }
+  }
+  const key = repoKey(dir);
+  for (const [pinned, entry] of pins) {
+    if (repoKey(pinned) === key) return { key: pinned, boardId: String(entry.boardId) };
+  }
+  return { key: '', boardId: '' };
+};
+
 export const setProjectBoard = (directory, boardId) => {
   const dir = normalize(directory);
   if (!dir) throw new Error('Falta el proyecto.');
@@ -131,19 +153,11 @@ export const setProjectBoard = (directory, boardId) => {
 export const resolveProjectBoard = (directory) => {
   const dir = normalize(directory);
   if (!dir) return '';
+  const pinned = pinForDirectory(dir);
+  if (pinned.boardId) return pinned.boardId;
   const data = readBoardProjects();
-  const pins = Object.entries(data.projects || {}).filter(([, entry]) => entry?.boardId);
-  const candidates = new Set(ancestors(dir));
-
-  for (const [pinned, entry] of pins) {
-    if (candidates.has(normalize(pinned))) return String(entry.boardId);
-  }
-
   const key = repoKey(dir);
-  for (const [pinned, entry] of pins) {
-    if (repoKey(pinned) === key) return String(entry.boardId);
-  }
-
+  const candidates = new Set(ancestors(dir));
   const mapped = Object.entries(data.boards).filter(([, project]) => {
     if (!project?.directory) return false;
     return candidates.has(normalize(project.directory)) || repoKey(project.directory) === key;

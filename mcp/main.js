@@ -1206,19 +1206,32 @@ var readBoardProjects = () => {
     return empty();
   }
 };
-var resolveProjectBoard = (directory) => {
+var pinForDirectory = (directory) => {
   const dir = normalize(directory);
-  if (!dir) return "";
-  const data = readBoardProjects();
-  const pins = Object.entries(data.projects || {}).filter(([, entry]) => entry?.boardId);
+  if (!dir) return { key: "", boardId: "" };
+  const pins = Object.entries(readBoardProjects().projects || {}).filter(
+    ([, entry]) => entry?.boardId
+  );
   const candidates = new Set(ancestors(dir));
   for (const [pinned, entry] of pins) {
-    if (candidates.has(normalize(pinned))) return String(entry.boardId);
+    if (candidates.has(normalize(pinned))) {
+      return { key: pinned, boardId: String(entry.boardId) };
+    }
   }
   const key = repoKey(dir);
   for (const [pinned, entry] of pins) {
-    if (repoKey(pinned) === key) return String(entry.boardId);
+    if (repoKey(pinned) === key) return { key: pinned, boardId: String(entry.boardId) };
   }
+  return { key: "", boardId: "" };
+};
+var resolveProjectBoard = (directory) => {
+  const dir = normalize(directory);
+  if (!dir) return "";
+  const pinned = pinForDirectory(dir);
+  if (pinned.boardId) return pinned.boardId;
+  const data = readBoardProjects();
+  const key = repoKey(dir);
+  const candidates = new Set(ancestors(dir));
   const mapped = Object.entries(data.boards).filter(([, project]) => {
     if (!project?.directory) return false;
     return candidates.has(normalize(project.directory)) || repoKey(project.directory) === key;

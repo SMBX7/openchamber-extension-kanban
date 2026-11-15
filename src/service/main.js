@@ -9,7 +9,7 @@ import { basename, join } from 'node:path';
 import { createServiceHost, SESSION_EVENTS_PATH, readSessionEventRequest } from '@openchamber/sdk';
 import { ROOT, clearConfig, isConnected, readConfig, saveConfig } from '../shared/config.js';
 import { clearClosePending, getLink, linksForSession, listLinks, removeLink, removeLinksForSession, setLink } from '../shared/links.js';
-import { getBoardProject, getProjectBoard, resolveProjectBoard, setBoardProject, setProjectBoard } from '../shared/board-projects.js';
+import { getBoardProject, pinForDirectory, resolveProjectBoard, setBoardProject, setProjectBoard } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
 import { LOCAL_BOARD_ID, LocalClient, exportBoard, importBoard } from '../shared/local.js';
 import { PlankaClient, PlankaError, flattenCards, searchCards } from '../shared/planka.js';
@@ -939,9 +939,13 @@ const routes = {
   // manual on purpose: a project with several boards is never guessed.
   'GET /project-board': async () => {
     const directory = currentProject();
+    const pin = pinForDirectory(directory);
     return {
       directory,
-      pinned: getProjectBoard(directory),
+      // The pin that applies here, not only the one stored for this exact
+      // directory: a worktree or a subfolder must read the project's pin.
+      pinned: pin.boardId,
+      pinnedAt: pin.key,
       resolved: resolveProjectBoard(directory),
     };
   },
@@ -965,8 +969,10 @@ const routes = {
 
   'DELETE /project-board': async () => {
     const directory = currentProject();
-    if (directory) setProjectBoard(directory, '');
-    return { directory, pinned: '' };
+    const pin = pinForDirectory(directory);
+    if (pin.key) setProjectBoard(pin.key, '');
+    else if (directory) setProjectBoard(directory, '');
+    return { directory, pinned: '', pinnedAt: '' };
   },
 
   // Rows for the composer's `@` menu. A search carries the composer's project;
