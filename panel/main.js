@@ -2977,7 +2977,7 @@ ${card.description}`.toLowerCase();
         autoSession: Boolean(enabled)
       });
       state.snapshot.project = answer.project || mapping;
-      toast("success", enabled ? "Delegaci\xF3n autom\xE1tica: pregunta al abrir el lote y el agente cierra al terminar." : "Delegaci\xF3n manual: abres y cierras t\xFA; el agente deja las tarjetas para revisar.");
+      toast("success", enabled ? "Delegaci\xF3n autom\xE1tica: pregunta antes de sumar cada tarjeta al lote y el agente cierra al terminar." : "Delegaci\xF3n manual: abres y cierras t\xFA; el agente deja las tarjetas para revisar.");
     } catch (error) {
       toast("error", error.message);
     }
@@ -3121,7 +3121,7 @@ ${card.description}`.toLowerCase();
     conexion.append(sourceBox);
     const delegacion = el2("section", "settings-section");
     delegacion.append(el2("div", "settings-heading", "Delegaci\xF3n"));
-    delegacion.append(el2("p", "settings-note", "Las dos usan una sesi\xF3n por lote con subagentes. En manual t\xFA abres y cierras; en autom\xE1tico el agente pregunta al empezar y cierra al terminar."));
+    delegacion.append(el2("p", "settings-note", "Las dos usan una sesi\xF3n por lote con subagentes. En manual t\xFA abres y cierras; en autom\xE1tico te pregunta antes de sumar cada tarjeta y el agente cierra al terminar."));
     const modes = el2("div", "settings-modes");
     const modeCard = (label, description, active2, enabled) => {
       const button2 = el2("button", "mode-card");
@@ -3132,7 +3132,7 @@ ${card.description}`.toLowerCase();
       return button2;
     };
     const manualCard = modeCard("Manual", "T\xFA abres la sesi\xF3n del lote con el + del Work Status; el agente trabaja y te avisa, pero no mueve la tarjeta a HECHO. T\xFA revisas y cierras.", mapping?.autoSession !== true, Boolean(mapping));
-    const autoCard = modeCard("Autom\xE1tica", "El aviso pregunta por la primera tarjeta del lote; las siguientes se suman. El agente revisa, mueve a HECHO, resume y cierra.", mapping?.autoSession === true, Boolean(mapping));
+    const autoCard = modeCard("Autom\xE1tica", "El aviso pregunta antes de sumar cada tarjeta al lote. El agente revisa, mueve a HECHO, resume y cierra.", mapping?.autoSession === true, Boolean(mapping));
     manualCard.addEventListener("click", () => {
       if (mapping?.autoSession === true) void changeAutoMode(false);
     });
@@ -3217,7 +3217,7 @@ ${card.description}`.toLowerCase();
     };
     sesionesBox.append(
       fact("IDEAS", "el + de la columna crea una tarjeta. El l\xE1piz abre la tarjeta para editar t\xEDtulo, detalles, checklist y sesi\xF3n, y para borrarla. El tic la pasa a EN PROGRESO."),
-      fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el + del Work Status y el agente deja la tarjeta para que la revises; en autom\xE1tico se suma sin preguntar y el agente la cierra al terminar."),
+      fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el + del Work Status y el agente deja la tarjeta para que la revises; en autom\xE1tico te pregunta antes de sumar cada tarjeta y el agente la cierra al terminar."),
       fact("HECHO", "la tarjeta queda terminada. Las sesiones se cierran cuando pulses el bot\xF3n de la columna HECHO.")
     );
     sesionesBox.append(el2("p", "settings-note", "Al cerrar se borra el v\xEDnculo: si vuelves a mover la tarjeta, se suma al lote que siga abierto o abre uno nuevo. La sesi\xF3n detenida sigue en la lista para que la archives."));

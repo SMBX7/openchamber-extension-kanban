@@ -1284,7 +1284,7 @@ const changeAutoMode = async (enabled) => {
       autoSession: Boolean(enabled),
     });
     state.snapshot.project = answer.project || mapping;
-    toast('success', enabled ? 'Delegación automática: pregunta al abrir el lote y el agente cierra al terminar.' : 'Delegación manual: abres y cierras tú; el agente deja las tarjetas para revisar.');
+    toast('success', enabled ? 'Delegación automática: pregunta antes de sumar cada tarjeta al lote y el agente cierra al terminar.' : 'Delegación manual: abres y cierras tú; el agente deja las tarjetas para revisar.');
   } catch (error) {
     toast('error', error.message);
   }
@@ -1442,7 +1442,7 @@ const openSettings = () => {
   /* Delegación */
   const delegacion = el('section', 'settings-section');
   delegacion.append(el('div', 'settings-heading', 'Delegación'));
-  delegacion.append(el('p', 'settings-note', 'Las dos usan una sesión por lote con subagentes. En manual tú abres y cierras; en automático el agente pregunta al empezar y cierra al terminar.'));
+  delegacion.append(el('p', 'settings-note', 'Las dos usan una sesión por lote con subagentes. En manual tú abres y cierras; en automático te pregunta antes de sumar cada tarjeta y el agente cierra al terminar.'));
   const modes = el('div', 'settings-modes');
   const modeCard = (label, description, active, enabled) => {
     const button = el('button', 'mode-card');
@@ -1453,7 +1453,7 @@ const openSettings = () => {
     return button;
   };
   const manualCard = modeCard('Manual', 'Tú abres la sesión del lote con el + del Work Status; el agente trabaja y te avisa, pero no mueve la tarjeta a HECHO. Tú revisas y cierras.', mapping?.autoSession !== true, Boolean(mapping));
-  const autoCard = modeCard('Automática', 'El aviso pregunta por la primera tarjeta del lote; las siguientes se suman. El agente revisa, mueve a HECHO, resume y cierra.', mapping?.autoSession === true, Boolean(mapping));
+  const autoCard = modeCard('Automática', 'El aviso pregunta antes de sumar cada tarjeta al lote. El agente revisa, mueve a HECHO, resume y cierra.', mapping?.autoSession === true, Boolean(mapping));
   manualCard.addEventListener('click', () => { if (mapping?.autoSession === true) void changeAutoMode(false); });
   autoCard.addEventListener('click', () => { if (mapping?.autoSession !== true) void changeAutoMode(true); });
   modes.append(manualCard, autoCard);
@@ -1548,7 +1548,7 @@ const openSettings = () => {
   };
   sesionesBox.append(
     fact('IDEAS', 'el + de la columna crea una tarjeta. El lápiz abre la tarjeta para editar título, detalles, checklist y sesión, y para borrarla. El tic la pasa a EN PROGRESO.'),
-    fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el + del Work Status y el agente deja la tarjeta para que la revises; en automático se suma sin preguntar y el agente la cierra al terminar.'),
+    fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el + del Work Status y el agente deja la tarjeta para que la revises; en automático te pregunta antes de sumar cada tarjeta y el agente la cierra al terminar.'),
     fact('HECHO', 'la tarjeta queda terminada. Las sesiones se cierran cuando pulses el botón de la columna HECHO.'),
   );
   sesionesBox.append(el('p', 'settings-note', 'Al cerrar se borra el vínculo: si vuelves a mover la tarjeta, se suma al lote que siga abierto o abre uno nuevo. La sesión detenida sigue en la lista para que la archives.'));

@@ -1130,18 +1130,6 @@ const routes = {
           needsMapping = true;
         } else if (project.autoSession !== true) {
           manual = true;
-        } else if (reusableBatchSession(listLinks(), before, { manual: false })) {
-          // The batch was already approved: only the first card of a batch
-          // asks before opening. Later cards join it directly.
-          try {
-            const result = await startCardFromStatus(id, { forceSession: true });
-            sessionId = result.sessionId || '';
-            sent = result.sent === true;
-            reused = result.reused === true;
-            if (result.sessionError) sessionError = result.sessionError;
-          } catch (error) {
-            sessionError = error.message;
-          }
         } else {
           autoPending = true;
         }

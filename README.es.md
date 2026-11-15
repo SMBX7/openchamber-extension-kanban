@@ -180,8 +180,8 @@ Elige el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status
   la deja en EN PROGRESO avisando de que está lista: tú la revisas, la pasas a HECHO y
   cierras la sesión. Referenciar una tarjeta en el chat para trabajar en ella —con `@` o
   por su nombre— la pasa a EN PROGRESO si aún está en IDEAS.
-- **Automática**: el aviso pregunta por la primera tarjeta del lote; las siguientes se
-  suman sin preguntar. El agente revisa cada subagente, mueve la tarjeta a HECHO, resume y
+- **Automática**: el aviso pregunta antes de sumar cada tarjeta al lote, así que ninguna
+  entra sin avisar. El agente revisa cada subagente, mueve la tarjeta a HECHO, resume y
   cierra al terminar el lote.
 
 Cuando un agente toma una tarjeta, la extensión la vincula a esa sesión: pasa a EN

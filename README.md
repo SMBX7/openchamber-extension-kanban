@@ -178,9 +178,9 @@ Choose the mode in **Settings → Delegation** (Delegación) or from the Work St
   and leaves it in IN PROGRESS with a note that it is ready: you review it, move it to
   DONE and close the session. Referencing a card in the chat to work on it — with `@` or
   by name — moves it to IN PROGRESS if it is still in IDEAS.
-- **Automatic**: the prompt asks for the first card of the batch; cards launched after it
-  join without asking. The agent reviews each subagent, moves the card to DONE itself,
-  summarises and closes when the batch ends.
+- **Automatic**: the prompt asks before adding each card to the batch, so nothing joins
+  silently. The agent reviews each subagent, moves the card to DONE itself, summarises and
+  closes when the batch ends.
 
 When an agent takes a card, the extension links it to that session: the card moves to IN
 PROGRESS when linked. A batch stays open while any of its cards is outside DONE. In

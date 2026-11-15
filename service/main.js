@@ -2941,16 +2941,6 @@ var routes = {
           needsMapping = true;
         } else if (project.autoSession !== true) {
           manual = true;
-        } else if (reusableBatchSession(listLinks(), before, { manual: false })) {
-          try {
-            const result = await startCardFromStatus(id, { forceSession: true });
-            sessionId = result.sessionId || "";
-            sent = result.sent === true;
-            reused = result.reused === true;
-            if (result.sessionError) sessionError = result.sessionError;
-          } catch (error) {
-            sessionError = error.message;
-          }
         } else {
           autoPending = true;
         }
