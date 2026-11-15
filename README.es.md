@@ -151,8 +151,9 @@ lateral derecha.
 ### Desde el chat
 
 Escribe `@` en el composer y elige **Tarjetas**: primero sale EN PROGRESO y después IDEAS,
-con la columna en cada fila. El chip le pasa al agente el título, el id, la columna y los
-detalles, así puede trabajar la tarjeta sin abrir el panel. Las de HECHO quedan fuera.
+con la columna en cada fila. La lista es corta: escribe para buscar por título o detalles,
+y un título exacto sale primero. El chip le pasa al agente el título, el id, la columna y
+los detalles, así puede trabajar la tarjeta sin abrir el panel. Las de HECHO quedan fuera.
 
 ## Sesiones: manual y automático
 

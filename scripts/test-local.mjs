@@ -509,6 +509,42 @@ const mentionCardText = mentionText(mentionBoard.lists[0].cards[0], 'IDEAS', 'Ta
 assert.ok(mentionCardText.includes('id c1'), 'the chip text carries the card id');
 assert.ok(mentionCardText.includes('Se sale'), 'the chip text carries the description');
 
+// The host draws this list at the bottom of the composer, so it stays short:
+// a query ranks exact and prefix title matches first, and accents do not matter.
+const manyBoard = {
+  name: 'Tablero',
+  doneListId: 'done',
+  lists: [
+    {
+      id: 'ideas',
+      name: 'IDEAS',
+      cards: Array.from({ length: 8 }, (_, index) => ({
+        id: `m${index}`,
+        name: index === 7 ? 'borde' : `borde ${index}`,
+        description: '',
+        taskLists: [],
+      })),
+    },
+    { id: 'done', name: 'HECHO', cards: [] },
+  ],
+};
+const manyItems = mentionItems(manyBoard, 'borde', mentionOrigin);
+assert.equal(manyItems.length, 6, 'the menu caps at six rows');
+assert.equal(manyItems[0].title, 'borde', 'an exact title comes first');
+const accentedBoard = {
+  name: 'Tablero',
+  doneListId: 'done',
+  lists: [
+    { id: 'ideas', name: 'IDEAS', cards: [{ id: 'a1', name: 'Índice del README', description: '', taskLists: [] }] },
+    { id: 'done', name: 'HECHO', cards: [] },
+  ],
+};
+assert.equal(
+  mentionItems(accentedBoard, 'indice', mentionOrigin).length,
+  1,
+  'the search ignores accents',
+);
+
 // IDEAS size: speed and complexity read the same text.
 const workBundle = join(dir, 'work.cjs');
 await build({
@@ -553,4 +589,4 @@ assert.deepEqual(
 );
 
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 102 assertions ok');
+console.log('local mode: 105 assertions ok');

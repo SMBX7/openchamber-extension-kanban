@@ -149,9 +149,10 @@ The Work Status section beside the chat; it lets you work without opening the pa
 ### From the chat
 
 Type `@` in the composer and pick **Tarjetas** (Cards): IN PROGRESS comes first and IDEAS
-after, each row labelled with its column. The chip hands the agent the title, the id, the
-column and the details, so it can work the card without opening the panel. Cards in DONE
-stay out.
+after, each row labelled with its column. The list stays short — type to search by title
+or details, and an exact title comes first. The chip hands the agent the title, the id,
+the column and the details, so it can work the card without opening the panel. Cards in
+DONE stay out.
 
 ## Sessions: manual and automatic
 

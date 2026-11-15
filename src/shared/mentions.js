@@ -3,7 +3,7 @@
 // id, so the id has to carry the board (or the local project) and the card.
 import { workListFor } from './defaults.js';
 
-export const MENTION_ITEMS_MAX = 20;
+export const MENTION_ITEMS_MAX = 6;
 export const MENTION_TITLE_MAX = 120;
 export const MENTION_ID_MAX = 256;
 export const MENTION_TEXT_MAX = 16000;
@@ -39,30 +39,53 @@ export const parseMentionId = (value) => {
 };
 
 // The cards the menu offers: the work column first, then the backlog, each
-// card with its column as the subtitle so the two groups never blur together.
-// A card in DONE is finished and stays out; an empty query lists what is left.
+// card with its column as the subtitle. A card in DONE is finished and stays
+// out. The list is short on purpose (the host draws it at the bottom of the
+// composer): a query ranks exact and prefix title matches first, and the rest
+// is search, not scrolling.
+const normalize = (value) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
 export const mentionItems = (board, query, origin) => {
-  const needle = String(query || '').trim().toLowerCase();
+  const needle = normalize(String(query || '').trim());
   const lists = Array.isArray(board?.lists) ? board.lists : [];
   const work = workListFor(board);
   const ordered = work
     ? [work, ...lists.filter((list) => String(list.id) !== String(work.id))]
     : lists;
+  const rows = [];
+  ordered.forEach((list, listIndex) => {
+    if (String(list.id) === String(board?.doneListId || '')) return;
+    (list.cards || []).forEach((card, cardIndex) => {
+      const name = normalize(card.name);
+      const description = normalize(card.description);
+      let score = 0;
+      if (needle) {
+        if (name === needle) score = 4;
+        else if (name.startsWith(needle)) score = 3;
+        else if (name.includes(needle)) score = 2;
+        else if (description.includes(needle)) score = 1;
+        else return;
+      }
+      rows.push({ list, card, listIndex, cardIndex, score });
+    });
+  });
+  rows.sort(
+    (a, b) => b.score - a.score || a.listIndex - b.listIndex || a.cardIndex - b.cardIndex,
+  );
   const items = [];
-  for (const list of ordered) {
-    if (String(list.id) === String(board?.doneListId || '')) continue;
-    for (const card of list.cards || []) {
-      const haystack = `${card.name}\n${card.description}`.toLowerCase();
-      if (needle && !haystack.includes(needle)) continue;
-      const id = mentionId({ ...origin, cardId: card.id });
-      if (!id) continue;
-      items.push({
-        id,
-        title: clip(card.name, MENTION_TITLE_MAX),
-        subtitle: clip(list.name, MENTION_TITLE_MAX),
-      });
-      if (items.length >= MENTION_ITEMS_MAX) return items;
-    }
+  for (const { list, card } of rows) {
+    const id = mentionId({ ...origin, cardId: card.id });
+    if (!id) continue;
+    items.push({
+      id,
+      title: clip(card.name, MENTION_TITLE_MAX),
+      subtitle: clip(list.name, MENTION_TITLE_MAX),
+    });
+    if (items.length >= MENTION_ITEMS_MAX) break;
   }
   return items;
 };

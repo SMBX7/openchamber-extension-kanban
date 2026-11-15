@@ -1888,7 +1888,7 @@ var reusableBatchSession = (links, snapshot) => {
 };
 
 // src/shared/mentions.js
-var MENTION_ITEMS_MAX = 20;
+var MENTION_ITEMS_MAX = 6;
 var MENTION_TITLE_MAX2 = 120;
 var MENTION_ID_MAX2 = 256;
 var MENTION_TEXT_MAX2 = 16e3;
@@ -1916,27 +1916,42 @@ var parseMentionId = (value) => {
   }
   return null;
 };
+var normalize2 = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 var mentionItems = (board, query, origin) => {
-  const needle = String(query || "").trim().toLowerCase();
+  const needle = normalize2(String(query || "").trim());
   const lists = Array.isArray(board?.lists) ? board.lists : [];
   const work = workListFor(board);
   const ordered = work ? [work, ...lists.filter((list) => String(list.id) !== String(work.id))] : lists;
+  const rows = [];
+  ordered.forEach((list, listIndex) => {
+    if (String(list.id) === String(board?.doneListId || "")) return;
+    (list.cards || []).forEach((card, cardIndex) => {
+      const name = normalize2(card.name);
+      const description = normalize2(card.description);
+      let score = 0;
+      if (needle) {
+        if (name === needle) score = 4;
+        else if (name.startsWith(needle)) score = 3;
+        else if (name.includes(needle)) score = 2;
+        else if (description.includes(needle)) score = 1;
+        else return;
+      }
+      rows.push({ list, card, listIndex, cardIndex, score });
+    });
+  });
+  rows.sort(
+    (a, b) => b.score - a.score || a.listIndex - b.listIndex || a.cardIndex - b.cardIndex
+  );
   const items = [];
-  for (const list of ordered) {
-    if (String(list.id) === String(board?.doneListId || "")) continue;
-    for (const card of list.cards || []) {
-      const haystack = `${card.name}
-${card.description}`.toLowerCase();
-      if (needle && !haystack.includes(needle)) continue;
-      const id = mentionId({ ...origin, cardId: card.id });
-      if (!id) continue;
-      items.push({
-        id,
-        title: clip(card.name, MENTION_TITLE_MAX2),
-        subtitle: clip(list.name, MENTION_TITLE_MAX2)
-      });
-      if (items.length >= MENTION_ITEMS_MAX) return items;
-    }
+  for (const { list, card } of rows) {
+    const id = mentionId({ ...origin, cardId: card.id });
+    if (!id) continue;
+    items.push({
+      id,
+      title: clip(card.name, MENTION_TITLE_MAX2),
+      subtitle: clip(list.name, MENTION_TITLE_MAX2)
+    });
+    if (items.length >= MENTION_ITEMS_MAX) break;
   }
   return items;
 };
