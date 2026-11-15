@@ -1994,7 +1994,9 @@ var AGENT_INSTRUCTIONS = [
   // The panel cannot always tell which chat session it is in, so the card would
   // stay without a session while you work it. Linking it here is the reliable
   // way: the session doing the work is you.
-  "When you start working on a card that is in EN PROGRESO and has no session, link it to this session with kanban_link_session before you continue: it uses your session by default, and the Work Status then shows which session has the card."
+  "When you start working on a card that is in EN PROGRESO and has no session, link it to this session with kanban_link_session before you continue: it uses your session by default, and the Work Status then shows which session has the card.",
+  // One session orchestrates: the chat you are in, not a new one per card.
+  "Work the cards in this session. Give each card to its own subagent, review what comes back, and do not open another session for them. When several cards are ready at once, launch their subagents together so they work in parallel, each on its own files; keep two cards that need the same file in the same subagent, one after the other."
 ].join(" ");
 var instructionDirs = /* @__PURE__ */ new Set();
 var ensureInstructions = (directory) => {
