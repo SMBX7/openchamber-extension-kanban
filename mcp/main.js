@@ -1502,9 +1502,12 @@ var tools = [
       type: "object",
       properties: {
         card: { type: "string", description: "Card id or part of the title." },
-        sessionId: { type: "string", description: "OpenChamber session id working on that card." }
+        sessionId: {
+          type: "string",
+          description: "OpenChamber session id working on that card. Defaults to this agent session."
+        }
       },
-      required: ["card", "sessionId"],
+      required: ["card"],
       additionalProperties: false
     }
   },
@@ -1607,8 +1610,10 @@ var callTool = async (name, args = {}) => {
   }
   if (name === "kanban_link_session") {
     const { board, card } = await resolveCard(client, boardId, args.card);
-    const sessionId = String(args.sessionId || "").trim();
-    if (!sessionId) throw new Error("sessionId is required.");
+    const sessionId = String(args.sessionId || process.env.OPENCODE_SESSION_ID || "").trim();
+    if (!sessionId) {
+      throw new Error("sessionId is required: pass one, or run inside an OpenCode session.");
+    }
     const workList = workListFor(board);
     const moved = Boolean(workList && card.listId !== workList.id && card.listId !== board.doneListId);
     if (moved) await client.moveCard(card.id, workList.id, void 0, boardId);

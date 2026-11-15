@@ -1989,7 +1989,13 @@ try {
 } catch {
   serviceHost = null;
 }
-var AGENT_INSTRUCTIONS = "When the user asks you to work on a Kanban card, referenced with @ or by name, and that card is still in IDEAS, move it to EN PROGRESO with kanban_move_card before you start. Do this only when they ask you to work on the card, not when they only ask about it or want to read it.";
+var AGENT_INSTRUCTIONS = [
+  "When the user asks you to work on a Kanban card, referenced with @ or by name, and that card is still in IDEAS, move it to EN PROGRESO with kanban_move_card before you start. Do this only when they ask you to work on the card, not when they only ask about it or want to read it.",
+  // The panel cannot always tell which chat session it is in, so the card would
+  // stay without a session while you work it. Linking it here is the reliable
+  // way: the session doing the work is you.
+  "When you start working on a card that is in EN PROGRESO and has no session, link it to this session with kanban_link_session before you continue: it uses your session by default, and the Work Status then shows which session has the card."
+].join(" ");
 var instructionDirs = /* @__PURE__ */ new Set();
 var ensureInstructions = (directory) => {
   if (!serviceHost || !directory || instructionDirs.has(directory)) return;

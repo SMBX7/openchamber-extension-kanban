@@ -2219,6 +2219,9 @@ ${card.description}`.toLowerCase();
     state.booted = true;
     void boot();
   });
+  host.onSession((session) => {
+    state.session = session || null;
+  });
   host.onDirectory((directory) => {
     const next = directory || "";
     if (next === state.directory) return;
@@ -4010,7 +4013,7 @@ ${card.description}`.toLowerCase();
       } else if (answer?.autoPending) {
         offerSession(cardId, card?.name, answer.project, document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`));
       } else if (answer?.manual) {
-        toast("info", "Delegaci\xF3n manual: abre la sesi\xF3n del lote con el + del Work Status; el agente dejar\xE1 la tarjeta para revisar.");
+        toast("info", "Movida a EN PROGRESO sin sesi\xF3n: este panel no sabe en qu\xE9 sesi\xF3n est\xE1s. Abre Kanban desde el chat para vincularla, o abre el lote con el + del Work Status.");
       } else if (answer?.needsMapping) {
         toast("error", "Asigna un proyecto a este tablero para crear la sesi\xF3n.");
       }

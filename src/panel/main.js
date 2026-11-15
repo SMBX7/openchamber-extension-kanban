@@ -403,6 +403,13 @@ host.onReady((context) => {
   void boot();
 });
 
+// The panel is mounted once and lives in the rail, so the session it saw at
+// mount can be null or belong to another chat. Keep it current: linking a card
+// to "this session" needs the session the person is looking at now.
+host.onSession((session) => {
+  state.session = session || null;
+});
+
 host.onDirectory((directory) => {
   const next = directory || '';
   if (next === state.directory) return;
@@ -2444,7 +2451,9 @@ const moveCard = async (cardId, listId, index) => {
     } else if (answer?.autoPending) {
       offerSession(cardId, card?.name, answer.project, document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`));
     } else if (answer?.manual) {
-      toast('info', 'Delegación manual: abre la sesión del lote con el + del Work Status; el agente dejará la tarjeta para revisar.');
+      // Reaching this means the panel did not know which session you are in, so
+      // it could not link the card. Say it, instead of looking like it worked.
+      toast('info', 'Movida a EN PROGRESO sin sesión: este panel no sabe en qué sesión estás. Abre Kanban desde el chat para vincularla, o abre el lote con el + del Work Status.');
     } else if (answer?.needsMapping) {
       toast('error', 'Asigna un proyecto a este tablero para crear la sesión.');
     }

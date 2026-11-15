@@ -203,9 +203,13 @@ const tools = [
       type: 'object',
       properties: {
         card: { type: 'string', description: 'Card id or part of the title.' },
-        sessionId: { type: 'string', description: 'OpenChamber session id working on that card.' },
+        sessionId: {
+          type: 'string',
+          description:
+            'OpenChamber session id working on that card. Defaults to this agent session.',
+        },
       },
-      required: ['card', 'sessionId'],
+      required: ['card'],
       additionalProperties: false,
     },
   },
@@ -319,8 +323,12 @@ const callTool = async (name, args = {}) => {
 
   if (name === 'kanban_link_session') {
     const { board, card } = await resolveCard(client, boardId, args.card);
-    const sessionId = String(args.sessionId || '').trim();
-    if (!sessionId) throw new Error('sessionId is required.');
+    // The agent's own session is the one doing the work, so it is the default:
+    // asking the model to repeat its id only added a way to get it wrong.
+    const sessionId = String(args.sessionId || process.env.OPENCODE_SESSION_ID || '').trim();
+    if (!sessionId) {
+      throw new Error('sessionId is required: pass one, or run inside an OpenCode session.');
+    }
     // Delegating moves the card to the working column unless it is done. The
     // card follows this agent session from now on, not the orchestrator's.
     const workList = workListFor(board);
