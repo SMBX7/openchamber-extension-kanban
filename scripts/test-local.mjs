@@ -519,7 +519,8 @@ await build({
   format: 'cjs',
   logLevel: 'silent',
 });
-const { classifyPriority, sortCardsByPriority, prioritySummary } = require(priorityBundle);
+const { classifyPriority, sortCardsByPriority, prioritySummary, classifyWork, sortCardsByWork } =
+  require(priorityBundle);
 
 assert.equal(
   classifyPriority({ name: 'El panel no funciona', description: 'El panel lateral y el botón del panel fallan' }).key,
@@ -587,5 +588,37 @@ assert.equal(priorityTotals.counts.improve, 0);
 assert.equal(priorityTotals.unclassified, 1);
 assert.equal(priorityTotals.total, 3);
 
+// Speed and complexity read the same text: small work against big work.
+assert.equal(
+  classifyWork({ name: 'Añadir un index al README', description: '' }).key,
+  'quick',
+  'texts and documentation count as quick work',
+);
+assert.equal(
+  classifyWork({ name: 'Rediseñar todo el panel', description: 'reescribir la interfaz' }).key,
+  'big',
+  'a redesign is big work',
+);
+assert.equal(
+  classifyWork({ name: 'Pintar el logo', description: '' }).key,
+  'medium',
+  'a card with no size signal is a normal change',
+);
+const workCards = [
+  { name: 'Pintar el logo', description: '' },
+  { name: 'Rediseñar todo el panel', description: '' },
+  { name: 'Añadir un index al README', description: '' },
+];
+assert.deepEqual(
+  sortCardsByWork(workCards, 'quick').map((card) => card.name),
+  ['Añadir un index al README', 'Pintar el logo', 'Rediseñar todo el panel'],
+  'speed puts the small work first',
+);
+assert.deepEqual(
+  sortCardsByWork(workCards, 'big').map((card) => card.name),
+  ['Rediseñar todo el panel', 'Pintar el logo', 'Añadir un index al README'],
+  'complexity puts the big work first',
+);
+
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 110 assertions ok');
+console.log('local mode: 115 assertions ok');

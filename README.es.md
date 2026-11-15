@@ -126,8 +126,9 @@ con Planka y se cambian los ajustes.
   queda completada. Una tarjeta con su propia sesión se mueve allí cuando esa sesión
   termina su turno; en un lote, la mueve el agente principal tras revisar a su subagente.
   Lo que muevas a mano no se toca.
-- **Ordenar IDEAS**: **Ordenar** abre una regla corta —lo que no funciona, lo que quieres
-  mejorar y los detalles— y reordena IDEAS con ella.
+- **Ordenar IDEAS**: **Ordenar** ordena por **Prioridad** (no funciona, mejorar,
+  detalle), **Rápido** (lo pequeño primero) o **Complejo** (rediseños y cambios de
+  interfaz primero).
 - **Buscar** con la lupa.
 - **Paradas** filtra las tarjetas de EN PROGRESO **sin una sesión activa**.
 

@@ -101,3 +101,46 @@ export const prioritySummary = (cards) => {
   }
   return { counts, unclassified, total: Array.isArray(cards) ? cards.length : 0 };
 };
+
+/* --- How much work a card is --------------------------------------- */
+/* Two readings of the same text: quick wins (texts, small fixes) and big
+   work (redesigns, rewrites, whole flows). A card with neither signal is
+   a normal change, so it sits in the middle. */
+
+const WORK_QUICK =
+  /\b(readme|docs|documentacion|texto|textos|titulo|titulos|nombre|nombres|etiqueta|etiquetas|color|colores|icono|iconos|indice|index|typo|renombrar|alinear|margen|espacio|pequen\w*|simple|rapido|rapida|minimo|quitar|ocultar|mostrar)\b/g;
+
+const WORK_BIG =
+  /\b(redisen\w*|reescrib\w*|reescritura|refactor\w*|arquitectura|migrac\w*|integrac\w*|inteligencia artificial|nuevo modo|desde cero|todo el panel|toda la interfaz|panel completo|flujo completo|sistema|complejo|compleja|rehacer|interfaz|panel|pantalla|columna|columnas|ventana|lateral)\b/g;
+
+export const WORK_LEVELS = [
+  { key: 'quick', label: 'Rápido' },
+  { key: 'medium', label: 'Medio' },
+  { key: 'big', label: 'Complejo' },
+];
+
+export const classifyWork = (card) => {
+  const title = normalizeText(card?.name);
+  const body = normalizeText(card?.description);
+  const quick = 2 * hits(title, WORK_QUICK) + hits(body, WORK_QUICK);
+  const big = 2 * hits(title, WORK_BIG) + hits(body, WORK_BIG);
+  const level = big > quick ? 2 : quick > big ? 0 : 1;
+  const criterion = WORK_LEVELS[level];
+  return { level, key: criterion.key, label: criterion.label, quick, big };
+};
+
+// 'quick' puts the small work first, 'big' the large work first. A card with
+// no signal counts as a normal change and keeps its place in the middle.
+export const sortCardsByWork = (cards, direction = 'quick') => {
+  const sign = direction === 'big' ? -1 : 1;
+  return (Array.isArray(cards) ? cards : [])
+    .map((card, index) => ({ card, index, work: classifyWork(card) }))
+    .sort((a, b) => {
+      const levelDiff = a.work.level - b.work.level;
+      if (levelDiff) return sign * levelDiff;
+      const aScore = direction === 'big' ? a.work.big : a.work.quick;
+      const bScore = direction === 'big' ? b.work.big : b.work.quick;
+      return bScore - aScore || a.index - b.index;
+    })
+    .map((entry) => entry.card);
+};

@@ -1,6 +1,6 @@
 import { connectHost } from '@openchamber/sdk';
 import { applyHostReady } from '@openchamber/sdk/ui';
-import { PRIORITY_LEVELS, sortCardsByPriority } from '../shared/priority.js';
+import { sortCardsByPriority, sortCardsByWork } from '../shared/priority.js';
 
 const host = connectHost();
 const root = document.querySelector('#root');
@@ -57,6 +57,7 @@ const state = {
   dragging: false,
   sorting: false,
   sortPop: null,
+  sortMode: 'priority',
   composerListId: '',
   saving: 0,
   fetching: false,
@@ -1912,17 +1913,43 @@ const closeSortPopover = () => {
   state.sortPop = null;
 };
 
-const sortIdeasByPriority = async (listId, action, status) => {
+// Three ways to read the backlog. The labels are the only thing a person has
+// to understand; the note explains the chosen one in a line.
+const SORT_MODES = [
+  {
+    key: 'priority',
+    label: 'Prioridad',
+    note: 'Primero lo que no funciona, después lo que quieres mejorar y al final los detalles.',
+  },
+  {
+    key: 'quick',
+    label: 'Rápido',
+    note: 'Primero lo que se hace en un rato: textos, detalles y cambios pequeños.',
+  },
+  {
+    key: 'big',
+    label: 'Complejo',
+    note: 'Primero lo grande: rediseños, interfaz, reescrituras y flujos completos.',
+  },
+];
+
+const sortIdeas = async (listId, mode, action, status) => {
   if (state.sorting) return;
   const list = findList(listId);
   if (!list) {
     closeSortPopover();
     return;
   }
-  const targetIds = sortCardsByPriority(list.cards).map((card) => card.id);
+  const sorted =
+    mode === 'quick'
+      ? sortCardsByWork(list.cards, 'quick')
+      : mode === 'big'
+        ? sortCardsByWork(list.cards, 'big')
+        : sortCardsByPriority(list.cards);
+  const targetIds = sorted.map((card) => card.id);
   const currentIds = list.cards.map((card) => card.id);
   if (targetIds.join('|') === currentIds.join('|')) {
-    status.textContent = 'Ya está ordenada por prioridad.';
+    status.textContent = 'Ya está en ese orden.';
     return;
   }
 
@@ -1960,14 +1987,14 @@ const sortIdeasByPriority = async (listId, action, status) => {
   const saved = (findList(listId)?.cards || []).map((card) => card.id).join('|');
   if (moved && saved === targetIds.join('|')) {
     status.textContent = 'Orden aplicado y guardado en el tablero.';
-    toast('success', 'IDEAS ordenadas por prioridad.');
+    toast('success', 'IDEAS ordenadas.');
     // The order is saved; the popover has done its job.
     closeSortPopover();
   } else if (moved) {
     status.textContent = 'No se pudo guardar el orden completo. Prueba otra vez.';
     toast('error', 'No se pudo guardar el orden de IDEAS.');
   } else {
-    status.textContent = 'Ya está ordenada por prioridad.';
+    status.textContent = 'Ya está en ese orden.';
   }
 };
 
@@ -1986,23 +2013,26 @@ const openSortPopover = (anchor, listId) => {
   close.append(makeIcon('close'));
   head.append(close);
 
-  const note = el(
-    'p',
-    'sort-pop-note',
-    'Primero lo que no funciona, después lo que quieres mejorar y al final los detalles.',
-  );
-
-  const criteria = el('ol', 'sort-criteria');
-  PRIORITY_LEVELS.forEach((criterion, index) => {
-    const item = el('li', 'sort-criterion');
-    const text = el('span', 'sort-criterion-text');
-    text.append(
-      el('span', 'sort-criterion-label', criterion.label),
-      el('span', 'sort-criterion-hint', criterion.hint),
-    );
-    item.append(el('span', 'sort-step', String(index + 1)), text);
-    criteria.append(item);
-  });
+  const modes = el('div', 'sort-modes');
+  const note = el('p', 'sort-pop-note');
+  const paintMode = () => {
+    const mode = SORT_MODES.find((entry) => entry.key === state.sortMode) || SORT_MODES[0];
+    note.textContent = mode.note;
+    for (const button of modes.children) {
+      button.setAttribute('aria-pressed', button.dataset.mode === mode.key ? 'true' : 'false');
+    }
+  };
+  for (const mode of SORT_MODES) {
+    const button = el('button', 'sort-mode', mode.label);
+    button.type = 'button';
+    button.dataset.mode = mode.key;
+    button.addEventListener('click', () => {
+      state.sortMode = mode.key;
+      paintMode();
+    });
+    modes.append(button);
+  }
+  paintMode();
 
   const foot = el('div', 'sort-pop-foot');
   const action = el('button', 'btn-mint sort-run', 'Ordenar IDEAS');
@@ -2010,7 +2040,7 @@ const openSortPopover = (anchor, listId) => {
   const status = el('div', 'sort-pop-status', 'El orden se guarda en el tablero.');
   foot.append(action, status);
 
-  node.append(head, note, criteria, foot);
+  node.append(head, modes, note, foot);
   document.body.append(node);
 
   const width = Math.min(268, window.innerWidth - 16);
@@ -2029,7 +2059,7 @@ const openSortPopover = (anchor, listId) => {
   state.sortPop = { node, anchor };
 
   close.addEventListener('click', () => closeSortPopover());
-  action.addEventListener('click', () => void sortIdeasByPriority(listId, action, status));
+  action.addEventListener('click', () => void sortIdeas(listId, state.sortMode, action, status));
   node.addEventListener('click', (event) => event.stopPropagation());
 };
 

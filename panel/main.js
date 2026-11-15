@@ -1888,6 +1888,32 @@ ${GUEST_UI_LOOK_CSS}`;
   var sortCardsByPriority = (cards) => (Array.isArray(cards) ? cards : []).map((card, index) => ({ card, index, priority: classifyPriority(card) })).sort(
     (a, b) => a.priority.level - b.priority.level || b.priority.score - a.priority.score || a.index - b.index
   ).map((entry) => entry.card);
+  var WORK_QUICK = /\b(readme|docs|documentacion|texto|textos|titulo|titulos|nombre|nombres|etiqueta|etiquetas|color|colores|icono|iconos|indice|index|typo|renombrar|alinear|margen|espacio|pequen\w*|simple|rapido|rapida|minimo|quitar|ocultar|mostrar)\b/g;
+  var WORK_BIG = /\b(redisen\w*|reescrib\w*|reescritura|refactor\w*|arquitectura|migrac\w*|integrac\w*|inteligencia artificial|nuevo modo|desde cero|todo el panel|toda la interfaz|panel completo|flujo completo|sistema|complejo|compleja|rehacer|interfaz|panel|pantalla|columna|columnas|ventana|lateral)\b/g;
+  var WORK_LEVELS = [
+    { key: "quick", label: "R\xE1pido" },
+    { key: "medium", label: "Medio" },
+    { key: "big", label: "Complejo" }
+  ];
+  var classifyWork = (card) => {
+    const title = normalizeText(card?.name);
+    const body = normalizeText(card?.description);
+    const quick = 2 * hits(title, WORK_QUICK) + hits(body, WORK_QUICK);
+    const big = 2 * hits(title, WORK_BIG) + hits(body, WORK_BIG);
+    const level = big > quick ? 2 : quick > big ? 0 : 1;
+    const criterion = WORK_LEVELS[level];
+    return { level, key: criterion.key, label: criterion.label, quick, big };
+  };
+  var sortCardsByWork = (cards, direction = "quick") => {
+    const sign = direction === "big" ? -1 : 1;
+    return (Array.isArray(cards) ? cards : []).map((card, index) => ({ card, index, work: classifyWork(card) })).sort((a, b) => {
+      const levelDiff = a.work.level - b.work.level;
+      if (levelDiff) return sign * levelDiff;
+      const aScore = direction === "big" ? a.work.big : a.work.quick;
+      const bScore = direction === "big" ? b.work.big : b.work.quick;
+      return bScore - aScore || a.index - b.index;
+    }).map((entry) => entry.card);
+  };
 
   // src/panel/main.js
   var host = connectHost();
@@ -1940,6 +1966,7 @@ ${GUEST_UI_LOOK_CSS}`;
     dragging: false,
     sorting: false,
     sortPop: null,
+    sortMode: "priority",
     composerListId: "",
     saving: 0,
     fetching: false,
@@ -3564,17 +3591,35 @@ ${card.description}`.toLowerCase();
     }
     state.sortPop = null;
   };
-  var sortIdeasByPriority = async (listId, action, status) => {
+  var SORT_MODES = [
+    {
+      key: "priority",
+      label: "Prioridad",
+      note: "Primero lo que no funciona, despu\xE9s lo que quieres mejorar y al final los detalles."
+    },
+    {
+      key: "quick",
+      label: "R\xE1pido",
+      note: "Primero lo que se hace en un rato: textos, detalles y cambios peque\xF1os."
+    },
+    {
+      key: "big",
+      label: "Complejo",
+      note: "Primero lo grande: redise\xF1os, interfaz, reescrituras y flujos completos."
+    }
+  ];
+  var sortIdeas = async (listId, mode, action, status) => {
     if (state.sorting) return;
     const list = findList(listId);
     if (!list) {
       closeSortPopover();
       return;
     }
-    const targetIds = sortCardsByPriority(list.cards).map((card) => card.id);
+    const sorted = mode === "quick" ? sortCardsByWork(list.cards, "quick") : mode === "big" ? sortCardsByWork(list.cards, "big") : sortCardsByPriority(list.cards);
+    const targetIds = sorted.map((card) => card.id);
     const currentIds = list.cards.map((card) => card.id);
     if (targetIds.join("|") === currentIds.join("|")) {
-      status.textContent = "Ya est\xE1 ordenada por prioridad.";
+      status.textContent = "Ya est\xE1 en ese orden.";
       return;
     }
     state.sorting = true;
@@ -3603,13 +3648,13 @@ ${card.description}`.toLowerCase();
     const saved = (findList(listId)?.cards || []).map((card) => card.id).join("|");
     if (moved && saved === targetIds.join("|")) {
       status.textContent = "Orden aplicado y guardado en el tablero.";
-      toast("success", "IDEAS ordenadas por prioridad.");
+      toast("success", "IDEAS ordenadas.");
       closeSortPopover();
     } else if (moved) {
       status.textContent = "No se pudo guardar el orden completo. Prueba otra vez.";
       toast("error", "No se pudo guardar el orden de IDEAS.");
     } else {
-      status.textContent = "Ya est\xE1 ordenada por prioridad.";
+      status.textContent = "Ya est\xE1 en ese orden.";
     }
   };
   var openSortPopover = (anchor, listId) => {
@@ -3625,28 +3670,32 @@ ${card.description}`.toLowerCase();
     close.setAttribute("aria-label", "Cerrar el orden de IDEAS");
     close.append(makeIcon("close"));
     head.append(close);
-    const note = el2(
-      "p",
-      "sort-pop-note",
-      "Primero lo que no funciona, despu\xE9s lo que quieres mejorar y al final los detalles."
-    );
-    const criteria = el2("ol", "sort-criteria");
-    PRIORITY_LEVELS.forEach((criterion, index) => {
-      const item = el2("li", "sort-criterion");
-      const text = el2("span", "sort-criterion-text");
-      text.append(
-        el2("span", "sort-criterion-label", criterion.label),
-        el2("span", "sort-criterion-hint", criterion.hint)
-      );
-      item.append(el2("span", "sort-step", String(index + 1)), text);
-      criteria.append(item);
-    });
+    const modes = el2("div", "sort-modes");
+    const note = el2("p", "sort-pop-note");
+    const paintMode = () => {
+      const mode = SORT_MODES.find((entry) => entry.key === state.sortMode) || SORT_MODES[0];
+      note.textContent = mode.note;
+      for (const button2 of modes.children) {
+        button2.setAttribute("aria-pressed", button2.dataset.mode === mode.key ? "true" : "false");
+      }
+    };
+    for (const mode of SORT_MODES) {
+      const button2 = el2("button", "sort-mode", mode.label);
+      button2.type = "button";
+      button2.dataset.mode = mode.key;
+      button2.addEventListener("click", () => {
+        state.sortMode = mode.key;
+        paintMode();
+      });
+      modes.append(button2);
+    }
+    paintMode();
     const foot = el2("div", "sort-pop-foot");
     const action = el2("button", "btn-mint sort-run", "Ordenar IDEAS");
     action.type = "button";
     const status = el2("div", "sort-pop-status", "El orden se guarda en el tablero.");
     foot.append(action, status);
-    node.append(head, note, criteria, foot);
+    node.append(head, modes, note, foot);
     document.body.append(node);
     const width = Math.min(268, window.innerWidth - 16);
     node.style.width = `${width}px`;
@@ -3662,7 +3711,7 @@ ${card.description}`.toLowerCase();
     anchor.classList.add("open");
     state.sortPop = { node, anchor };
     close.addEventListener("click", () => closeSortPopover());
-    action.addEventListener("click", () => void sortIdeasByPriority(listId, action, status));
+    action.addEventListener("click", () => void sortIdeas(listId, state.sortMode, action, status));
     node.addEventListener("click", (event) => event.stopPropagation());
   };
   var buildSortControl = (list) => {
