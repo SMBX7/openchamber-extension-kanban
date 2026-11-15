@@ -1,6 +1,7 @@
 import { connectHost } from '@openchamber/sdk';
 import { applyHostReady } from '@openchamber/sdk/ui';
 import { sortCardsByWork } from '../shared/work.js';
+import { pinState } from '../shared/board-pin.js';
 
 const host = connectHost();
 const root = document.querySelector('#root');
@@ -17,6 +18,7 @@ const ICONS = {
   check: '<path d="m5 12 4.5 4.5L19 7"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   external: '<path d="M14 4h6v6M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
+  pin: '<path d="M8 3h8"/><path d="M9 3v5.5L5.5 12h13L15 8.5V3"/><path d="M12 12v9"/>',
   calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>',
   edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/>',
   trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>',
@@ -41,6 +43,7 @@ const state = {
   session: null,
   directory: '',
   snapshot: null,
+  pinnedBoard: '',
   sessions: {},
   search: '',
   labels: new Set(),
@@ -493,6 +496,7 @@ const boot = async () => {
     await loadSnapshot();
     await loadSessionStates();
     showBoard();
+    void refreshPinnedBoard();
     startPolling();
   } catch (error) {
     showFatal(error.message);
@@ -1072,9 +1076,62 @@ const openCreateBoard = () => {
   requestAnimationFrame(() => nameInput.focus());
 };
 
+// The board the agent uses for this session's project lives in the header, not
+// in settings: pinning is a per-project decision you make while looking at the
+// board. `paintPin` is replaced on every build so the state follows the board.
+let paintPin = () => {};
+
+const refreshPinnedBoard = async () => {
+  try {
+    const answer = await api('GET', '/project-board');
+    state.pinnedBoard = answer?.pinned || '';
+  } catch {
+    // Without the answer the pin still works: it reads the state on click.
+    state.pinnedBoard = state.pinnedBoard || '';
+  }
+  paintPin();
+};
+
 const boardControl = (boardSelect) => {
   const wrap = el('div', 'board-control');
   wrap.append(boardSelect.wrap);
+
+  const pin = el('button', 'icon-btn board-pin');
+  pin.type = 'button';
+  pin.append(makeIcon('pin'));
+  const paint = () => {
+    const next = pinState({
+      pinned: state.pinnedBoard,
+      boardId: state.snapshot?.board?.id || '',
+      hasProject: Boolean(state.directory),
+    });
+    pin.classList.toggle('is-pinned', next.pinned);
+    pin.setAttribute('aria-pressed', next.pinned ? 'true' : 'false');
+    pin.disabled = next.disabled;
+    pin.title = next.label;
+    pin.setAttribute('aria-label', next.label);
+  };
+  pin.addEventListener('click', async () => {
+    const boardId = state.snapshot?.board?.id || '';
+    if (!boardId) return;
+    const pinned = state.pinnedBoard === boardId;
+    pin.disabled = true;
+    try {
+      const answer = await api(pinned ? 'DELETE' : 'POST', '/project-board', pinned ? {} : { boardId });
+      state.pinnedBoard = answer?.pinned || '';
+      toast(
+        'success',
+        pinned
+          ? 'Tablero del agente quitado para este proyecto.'
+          : 'Este tablero queda fijado para el agente en este proyecto.',
+      );
+    } catch (error) {
+      toast('error', error.message);
+    }
+    paint();
+  });
+  paintPin = paint;
+
   if ((state.config?.source || 'planka') !== 'local') {
     const create = el('button', 'icon-btn board-add');
     create.type = 'button';
@@ -1084,6 +1141,7 @@ const boardControl = (boardSelect) => {
     create.addEventListener('click', () => openCreateBoard());
     wrap.append(create);
   }
+  wrap.append(pin);
   return wrap;
 };
 
@@ -1461,55 +1519,13 @@ const openSettings = () => {
   if (!mapping) delegacion.append(el('p', 'settings-note warning', 'Asigna primero un proyecto al tablero.'));
 
   /* Tablero del agente */
-  const agenteBox = el('div', 'settings-box');
-  agenteBox.append(
+  delegacion.append(
     el(
       'p',
       'settings-note',
-      'El agente usa el tablero que fijes para este proyecto. Si no fijas ninguno y el proyecto tiene varios, el agente no toca tarjetas.',
+      'El tablero del agente se fija con el pin de la cabecera, junto al selector de tablero. Si no fijas ninguno y el proyecto tiene varios, el agente no toca tarjetas.',
     ),
   );
-  const agenteState = el('p', 'settings-note', 'Comprobando el tablero del agente…');
-  const agentePin = el('button', 'btn-mint', 'Fijar este tablero a este proyecto');
-  agentePin.type = 'button';
-  agenteBox.append(agenteState, agentePin);
-  delegacion.append(agenteBox);
-
-  let pinnedBoard = '';
-  const paintAgentBoard = () => {
-    const isPinned = Boolean(pinnedBoard) && pinnedBoard === snapshot.board.id;
-    agenteState.textContent = !state.directory
-      ? 'Abre Kanban desde una sesión con proyecto para fijar su tablero.'
-      : isPinned
-        ? 'El agente usa este tablero en las sesiones de este proyecto.'
-        : pinnedBoard
-          ? 'El agente usa otro tablero en este proyecto.'
-          : 'Este proyecto no tiene tablero fijado para el agente.';
-    agentePin.textContent = isPinned ? 'Quitar el tablero del agente' : 'Fijar este tablero a este proyecto';
-    agentePin.disabled = !state.directory;
-  };
-  const refreshAgentBoard = async () => {
-    try {
-      const answer = await api('GET', '/project-board');
-      pinnedBoard = answer?.pinned || '';
-    } catch (error) {
-      agenteState.textContent = `No se pudo leer el tablero del agente: ${error.message}`;
-      return;
-    }
-    paintAgentBoard();
-  };
-  agentePin.addEventListener('click', async () => {
-    const isPinned = Boolean(pinnedBoard) && pinnedBoard === snapshot.board.id;
-    try {
-      await api(isPinned ? 'DELETE' : 'POST', '/project-board', isPinned ? {} : { boardId: snapshot.board.id });
-      await refreshAgentBoard();
-      toast('success', isPinned ? 'Tablero del agente quitado.' : 'Este tablero queda fijado para el proyecto.');
-    } catch (error) {
-      toast('error', error.message);
-    }
-  });
-  paintAgentBoard();
-  void refreshAgentBoard();
 
   /* Estilo */
   const estilo = el('section', 'settings-section');
@@ -1621,6 +1637,7 @@ const renderAll = () => {
   syncProjectSelect();
   syncProjectChip();
   syncStoppedChip();
+  paintPin();
   if (state.surface === 'page') renderFilters();
   renderBoard();
 };

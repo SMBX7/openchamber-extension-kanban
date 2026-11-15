@@ -200,10 +200,11 @@ the session stays open:
 
 The panel and the agent are two separate processes. The panel follows the connection you
 see here; the agent's tools decide their board from the project the session was opened
-in. Pin it once per project in **Settings → Delegation → Board for the agent** (Tablero
-del agente). While a project has several boards and none is pinned, the agent refuses to
-touch cards instead of guessing. A worktree or a subfolder of the project inherits the
-pinned board.
+in. Pin it once per project with the **pin button in the header**, next to the board
+selector: it fills when this board is the one the agent uses for the session's project,
+and pressing it again releases it. While a project has several boards and none is pinned,
+the agent refuses to touch cards instead of guessing. A worktree or a subfolder of the
+project inherits the pinned board.
 
 ## Styles
 
@@ -223,8 +224,8 @@ Change them in **Settings → Appearance** (Apariencia).
   on the right sidebar. Show it with "Show or hide right sidebar" (Mostrar u ocultar
   barra lateral derecha) and open **Kanban**.
 - **The agent cannot see the cards**: restart OpenCode after updating the extension.
-- **The agent refuses to touch cards**: its board follows the project of the session. Pin
-  it in **Settings → Delegation → Board for the agent**.
+- **The agent refuses to touch cards**: its board follows the project of the session. Open
+  the board you want and press the pin next to the board selector.
 - **The panel and the Work Status section disagree**: they are separate areas; reload
   OpenChamber.
 - **The board does not change**: in Planka mode, check that Planka is up and the session

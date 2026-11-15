@@ -490,6 +490,48 @@ execFileSync('git', ['-C', repo, 'worktree', 'add', '-q', worktree]);
 setProjectBoard(repo, 'board-repo');
 assert.equal(resolveProjectBoard(worktree), 'board-repo', 'a worktree inherits the board pinned for its project');
 
+// The header pin says what pressing it does, so the state and the copy are
+// derived in one place and checked here without a browser.
+const pinBundle = join(dir, 'board-pin.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/board-pin.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: pinBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const { pinState } = require(pinBundle);
+assert.deepEqual(
+  pinState({ pinned: '', boardId: 'board-a', hasProject: true }),
+  {
+    pinned: false,
+    disabled: false,
+    label: 'Fijar este tablero para el agente en este proyecto',
+  },
+  'a board that is not pinned offers to pin itself',
+);
+assert.equal(
+  pinState({ pinned: 'board-a', boardId: 'board-a', hasProject: true }).pinned,
+  true,
+  'the pinned board fills the pin',
+);
+assert.equal(
+  pinState({ pinned: 'board-b', boardId: 'board-a', hasProject: true }).pinned,
+  false,
+  'another pinned board never fills this one',
+);
+assert.equal(
+  pinState({ pinned: '', boardId: 'board-a', hasProject: false }).disabled,
+  true,
+  'without a project the pin cannot be pressed',
+);
+assert.equal(
+  pinState({ pinned: '', boardId: '', hasProject: true }).disabled,
+  true,
+  'without a board the pin cannot be pressed',
+);
+
 // The chat's @ menu asks the service for cards. The picked row comes back as an
 // id alone, so the id must round-trip the board or the local project.
 const mentionsBundle = join(dir, 'mentions.cjs');
@@ -633,4 +675,4 @@ assert.equal(promoteCardList(promoteBoard, 'ideas'), 'work', 'a backlog card mov
 assert.equal(promoteCardList(promoteBoard, 'work'), '', 'a card already in progress stays');
 assert.equal(promoteCardList(promoteBoard, 'done'), '', 'a finished card never moves');
 
-console.log('local mode: 116 assertions ok');
+console.log('local mode: 121 assertions ok');

@@ -203,10 +203,11 @@ abierta para que la archives:
 
 El panel y el agente son dos procesos distintos. El panel sigue la conexión que ves aquí;
 las herramientas del agente deciden su tablero según el proyecto en el que se abrió la
-sesión. Fíjalo una vez por proyecto en **Ajustes → Delegación → Tablero del agente**.
-Mientras un proyecto tenga varios tableros y ninguno esté fijado, el agente se niega a
-tocar tarjetas en vez de adivinar. Un worktree o una subcarpeta del proyecto hereda el
-tablero fijado.
+sesión. Fíjalo una vez por proyecto con el **botón de pin de la cabecera**, junto al
+selector de tablero: se rellena cuando ese tablero es el que usa el agente para el
+proyecto de la sesión, y al volver a pulsarlo se suelta. Mientras un proyecto tenga varios
+tableros y ninguno esté fijado, el agente se niega a tocar tarjetas en vez de adivinar. Un
+worktree o una subcarpeta del proyecto hereda el tablero fijado.
 
 ## Estilos
 
@@ -226,8 +227,8 @@ Se cambian en **Ajustes → Apariencia**.
   icono vive en la barra lateral derecha. Muéstrala con «Mostrar u ocultar barra lateral
   derecha» y abre **Kanban**.
 - **El agente no ve las tarjetas**: reinicia OpenCode después de actualizar la extensión.
-- **El agente se niega a tocar tarjetas**: su tablero sigue al proyecto de la sesión.
-  Fíjalo en **Ajustes → Delegación → Tablero del agente**.
+- **El agente se niega a tocar tarjetas**: su tablero sigue al proyecto de la sesión. Abre
+  el tablero que quieras y pulsa el pin junto al selector de tablero.
 - **El panel y la sección Work Status no coinciden**: son zonas distintas; recarga
   OpenChamber.
 - **El tablero no cambia**: en modo Planka, comprueba que Planka está encendido y que la

@@ -703,6 +703,12 @@
       .board-control { display: flex; align-items: center; gap: 6px; min-width: 0; }
       .board-control > .menu-select { flex: 1 1 auto; }
       .board-control .board-add { flex: none; }
+      .board-control .board-pin { flex: none; }
+      .board-pin.is-pinned {
+        color: var(--mint-text, var(--oc-success));
+        background: color-mix(in srgb, var(--mint) 16%, transparent);
+      }
+      .board-pin:disabled { opacity: .45; cursor: not-allowed; }
       .create-sheet .settings-actions { margin-top: 2px; }
       .column {
         flex: 1 1 0; min-width: 232px; min-height: 0;
