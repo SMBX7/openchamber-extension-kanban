@@ -1840,6 +1840,7 @@ ${GUEST_UI_LOOK_CSS}`;
     edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>'
   };
+  var STATUS_HEIGHT = 320;
   var state = { data: null, error: "", busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: "", confirmId: "", askSession: "", pendingDelete: null, sessions: [], sessionsProjectId: "", sessionsAt: 0, directory: "", editId: "", editDraft: "", expanded: /* @__PURE__ */ new Set() };
   var confirmTimer = null;
   var poll = null;
@@ -2211,7 +2212,7 @@ ${GUEST_UI_LOOK_CSS}`;
     document.querySelector(".session-menu")?.remove();
     if (!state.menuOpen) return;
     state.menuOpen = false;
-    host.setHeight(190).catch(() => {
+    host.setHeight(STATUS_HEIGHT).catch(() => {
     });
     render();
   };
@@ -2226,14 +2227,13 @@ ${GUEST_UI_LOOK_CSS}`;
     }
     document.querySelector(".session-menu")?.remove();
     state.menuOpen = true;
-    await host.setHeight(320).catch(() => {
+    await host.setHeight(STATUS_HEIGHT).catch(() => {
     });
     const menu = el2("div", "session-menu");
     const rect = anchor.getBoundingClientRect();
     const width = Math.min(240, window.innerWidth - 8);
     menu.style.width = `${width}px`;
     menu.style.left = `${Math.max(4, Math.min(window.innerWidth - width - 4, rect.right - width))}px`;
-    menu.style.top = `${Math.max(4, Math.min(window.innerHeight - 228, rect.bottom + 4))}px`;
     const list = el2("div", "session-menu-list");
     const item = (label, value, active2) => {
       const button2 = el2("button", "", label);
@@ -2273,6 +2273,10 @@ ${GUEST_UI_LOOK_CSS}`;
     }
     menu.append(list);
     document.body.append(menu);
+    const height = menu.offsetHeight || 0;
+    const below = rect.bottom + 4;
+    const top = below + height <= window.innerHeight - 4 ? below : Math.max(4, rect.top - height - 4);
+    menu.style.top = `${top}px`;
     setTimeout(() => {
       document.addEventListener("click", closeSessionMenu, { once: true });
     }, 0);
@@ -2633,6 +2637,8 @@ ${GUEST_UI_LOOK_CSS}`;
     applyHostReady(context, document.documentElement);
     if (state.booted) return;
     state.booted = true;
+    host.setHeight(STATUS_HEIGHT).catch(() => {
+    });
     void load(true);
     startPolling();
   });

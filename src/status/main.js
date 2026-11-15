@@ -16,6 +16,12 @@ const ICONS = {
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
 };
 
+// The Work Status is a section the host sizes to this number. 190 fitted a card
+// and a half, so the list was only readable while the session menu was open
+// (which asked for 320). The section starts tall and stays there: three cards
+// are visible with the menu closed.
+const STATUS_HEIGHT = 320;
+
 const state = { data: null, error: '', busy: false, booted: false, picking: false, menuOpen: false, adding: false, draft: '', confirmId: '', askSession: '', pendingDelete: null, sessions: [], sessionsProjectId: '', sessionsAt: 0, directory: '', editId: '', editDraft: '', expanded: new Set() };
 let confirmTimer = null;
 let poll = null;
@@ -448,7 +454,7 @@ const closeSessionMenu = () => {
   document.querySelector('.session-menu')?.remove();
   if (!state.menuOpen) return;
   state.menuOpen = false;
-  host.setHeight(190).catch(() => {});
+  host.setHeight(STATUS_HEIGHT).catch(() => {});
   render();
 };
 
@@ -463,13 +469,12 @@ const openSessionMenu = async (current, anchor) => {
   }
   document.querySelector('.session-menu')?.remove();
   state.menuOpen = true;
-  await host.setHeight(320).catch(() => {});
+  await host.setHeight(STATUS_HEIGHT).catch(() => {});
   const menu = el('div', 'session-menu');
   const rect = anchor.getBoundingClientRect();
   const width = Math.min(240, window.innerWidth - 8);
   menu.style.width = `${width}px`;
   menu.style.left = `${Math.max(4, Math.min(window.innerWidth - width - 4, rect.right - width))}px`;
-  menu.style.top = `${Math.max(4, Math.min(window.innerHeight - 228, rect.bottom + 4))}px`;
   const list = el('div', 'session-menu-list');
 
   const item = (label, value, active) => {
@@ -511,6 +516,13 @@ const openSessionMenu = async (current, anchor) => {
   }
   menu.append(list);
   document.body.append(menu);
+  // Below the picker when it fits and above it otherwise, so the list never
+  // covers the header with the board, the mode and the count.
+  const height = menu.offsetHeight || 0;
+  const below = rect.bottom + 4;
+  const top =
+    below + height <= window.innerHeight - 4 ? below : Math.max(4, rect.top - height - 4);
+  menu.style.top = `${top}px`;
   setTimeout(() => {
     document.addEventListener('click', closeSessionMenu, { once: true });
   }, 0);
@@ -898,6 +910,7 @@ host.onReady((context) => {
   applyHostReady(context, document.documentElement);
   if (state.booted) return;
   state.booted = true;
+  host.setHeight(STATUS_HEIGHT).catch(() => {});
   void load(true);
   startPolling();
 });

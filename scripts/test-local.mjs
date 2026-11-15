@@ -707,4 +707,13 @@ assert.equal(promoteCardList(promoteBoard, 'ideas'), 'work', 'a backlog card mov
 assert.equal(promoteCardList(promoteBoard, 'work'), '', 'a card already in progress stays');
 assert.equal(promoteCardList(promoteBoard, 'done'), '', 'a finished card never moves');
 
-console.log('local mode: 126 assertions ok');
+// The Work Status section is sized by the manifest before any script runs, and
+// 190px showed a card and a half: three cards only fitted while the session
+// menu asked for more height. It has to open tall.
+const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+assert.ok(
+  manifest.openchamber.contributes.statusSection.height >= 320,
+  'the Work Status opens tall enough for three cards',
+);
+
+console.log('local mode: 127 assertions ok');
