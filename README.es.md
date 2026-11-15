@@ -127,6 +127,12 @@ El archivo lo escribe la extensión donde corre OpenChamber, no el navegador.
 Se abre con el icono de **Kanban** de la barra lateral derecha. Aquí también se conecta
 con Planka y se cambian los ajustes.
 
+![La cabecera del panel](docs/panel-header.png)
+
+La cabecera lleva el tablero y, a su lado, la **pastilla que lo vincula al proyecto**:
+pone «Vincular» hasta que la pulsas y después muestra el nombre del proyecto con un tic.
+Cuando la sesión ya dice a qué proyecto pertenece, el selector de proyecto no aparece.
+
 - **Crear**: el `+` junto al título de una columna abre el recuadro encima de las
   tarjetas. Escribe un título y una descripción opcional; `Enter` o **Crear** lo guarda.
   Los dos campos crecen mientras escribes —el título hasta dos líneas y la descripción

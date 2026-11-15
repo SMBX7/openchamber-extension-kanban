@@ -127,6 +127,12 @@ The file is written by the extension where OpenChamber runs, not by the browser.
 It opens from the **Kanban** icon on the right sidebar. This is also where you connect
 Planka and change the settings.
 
+![The panel header](docs/panel-header.png)
+
+The header holds the board and, next to it, the **pill that binds it to the project**:
+it reads «Vincular» until you press it and then shows the project's name with a tick.
+When the session already names its project, the project selector no longer appears.
+
 - **Create**: the `+` next to a column title opens the card box above the cards. Type a
   title and an optional description; `Enter` or **Create** (Crear) saves it. Both fields
   grow as you type — the title to two lines and the description to four — and scroll
