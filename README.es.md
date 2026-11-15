@@ -229,6 +229,9 @@ Se cambian en **Ajustes → Apariencia**.
 
 ## Problemas frecuentes
 
+<details>
+<summary>Abrir la lista de problemas</summary>
+
 - **Kanban no aparece en la barra lateral derecha**: actívalo en **Ajustes → Extensiones**
   y recarga OpenChamber.
 - **No encuentro dónde configurar la extensión**: no está en la lista de sesiones; el
@@ -236,12 +239,14 @@ Se cambian en **Ajustes → Apariencia**.
   derecha» y abre **Kanban**.
 - **El agente no ve las tarjetas**: reinicia OpenCode después de actualizar la extensión.
 - **El agente se niega a tocar tarjetas**: su tablero sigue al proyecto de la sesión. Abre
-  el tablero que quieras y pulsa el pin junto al selector de tablero.
+  el tablero que quieras y pulsa la pastilla junto al selector de tablero.
 - **El panel y la sección Work Status no coinciden**: son zonas distintas; recarga
   OpenChamber.
 - **El tablero no cambia**: en modo Planka, comprueba que Planka está encendido y que la
   sesión no ha caducado; **Ajustes → Conexión** muestra la cuenta o el error.
 - **He borrado una tarjeta sin querer**: **Deshacer** dura cinco segundos.
+
+</details>
 
 ## Licencia
 

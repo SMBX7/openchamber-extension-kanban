@@ -226,6 +226,9 @@ Change them in **Settings → Appearance** (Apariencia).
 
 ## Common problems
 
+<details>
+<summary>Open the list of usual problems</summary>
+
 - **Kanban is not on the right sidebar**: enable it in **Settings → Extensions** and
   reload OpenChamber.
 - **I cannot find where to configure it**: it is not in the session list; the icon lives
@@ -233,12 +236,14 @@ Change them in **Settings → Appearance** (Apariencia).
   barra lateral derecha) and open **Kanban**.
 - **The agent cannot see the cards**: restart OpenCode after updating the extension.
 - **The agent refuses to touch cards**: its board follows the project of the session. Open
-  the board you want and press the pin next to the board selector.
+  the board you want and press the pill next to the board selector.
 - **The panel and the Work Status section disagree**: they are separate areas; reload
   OpenChamber.
 - **The board does not change**: in Planka mode, check that Planka is up and the session
   has not expired; **Settings → Connection** shows the account or the error.
 - **I deleted a card by mistake**: **Undo** lasts five seconds.
+
+</details>
 
 ## License
 
