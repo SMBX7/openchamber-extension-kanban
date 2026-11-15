@@ -203,6 +203,13 @@ abierta para que la archives:
 
 ### El tablero del agente
 
+El panel sigue al proyecto de la sesión en la que está abierto: una sesión creada en un
+proyecto muestra el tablero de ese proyecto, y al cambiar a una sesión de otro proyecto
+cambia el tablero. Elegir un tablero en el panel lo vincula a ese proyecto, así que la
+siguiente sesión lo muestra sin preguntar. Cuando un proyecto tiene varios tableros y
+ninguno está fijado, el panel se queda con el que tiene en vez de adivinar. Sin proyecto,
+el tablero sigue como lo dejaste.
+
 El panel y el agente son dos procesos distintos. El panel sigue la conexión que ves aquí;
 las herramientas del agente deciden su tablero según el proyecto en el que se abrió la
 sesión. Fíjalo una vez por proyecto con el **botón de pin de la cabecera**, junto al

@@ -199,6 +199,12 @@ the session stays open:
 
 ### The board the agent uses
 
+The panel follows the project of the session it is open in: a session created in a project
+shows that project's board, and switching to a session of another project switches the
+board. Picking a board in the panel binds it to that project, so the next session shows it
+without asking. When a project has several boards and none is pinned, the panel keeps the
+board it has instead of guessing. With no project the board stays as you left it.
+
 The panel and the agent are two separate processes. The panel follows the connection you
 see here; the agent's tools decide their board from the project the session was opened
 in. Pin it once per project with the **pin button in the header**, next to the board

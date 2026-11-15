@@ -3,6 +3,7 @@ import { applyHostReady } from '@openchamber/sdk/ui';
 import { sortCardsByWork } from '../shared/work.js';
 import { pinState } from '../shared/board-pin.js';
 import { composerFieldHeight } from '../shared/composer.js';
+import { projectForDirectory, shouldFollowBoard } from '../shared/board-follow.js';
 
 const host = connectHost();
 const root = document.querySelector('#root');
@@ -416,7 +417,7 @@ host.onDirectory((directory) => {
   state.directory = next;
   if (!state.booted) return;
   void closeSheet();
-  void refresh(true);
+  void followProjectBoard().then(() => refresh(true));
 });
 
 const configWithRetry = async () => {
@@ -501,6 +502,7 @@ const boot = async () => {
     }
     await loadProjects();
     await loadAppearance();
+    await followProjectBoard();
     await loadSnapshot();
     await loadSessionStates();
     showBoard();
@@ -760,6 +762,13 @@ const syncProjectChip = () => {
   refs.projectChip.title = mapping
     ? `${mapping.name} · Delegación ${mode.toLowerCase()}. Pulsa para cambiar.`
     : 'Asigna este tablero a un proyecto de OpenChamber';
+};
+
+// With a session directory the project is known, so the project selector has
+// nothing to ask: the board you pick binds to that project.
+const syncProjectField = () => {
+  const field = state.refs?.projectField;
+  if (field) field.hidden = Boolean(state.directory);
 };
 
 const syncProjectSelect = () => {
@@ -1100,6 +1109,30 @@ const refreshPinnedBoard = async () => {
   paintPin();
 };
 
+// The board follows the project of the session: the panel shows the board that
+// project pinned (or its only board) and never guesses between several.
+const followProjectBoard = async () => {
+  if (!state.directory) return false;
+  let answer;
+  try {
+    answer = await api('GET', '/project-board');
+  } catch {
+    return false;
+  }
+  state.pinnedBoard = answer?.pinned || '';
+  const follow = shouldFollowBoard({
+    resolved: answer?.resolved,
+    current: state.snapshot?.board?.id || state.config?.boardId || '',
+    boards: state.boards,
+  });
+  if (!follow) {
+    paintPin();
+    return false;
+  }
+  await switchBoard(answer.resolved);
+  return true;
+};
+
 const boardControl = (boardSelect) => {
   const wrap = el('div', 'board-control');
   wrap.append(boardSelect.wrap);
@@ -1161,7 +1194,7 @@ const buildPage = () => {
 
   const boardSelect = menuSelect({
     ariaLabel: 'Tablero',
-    onChange: (value) => void switchBoard(value),
+    onChange: (value) => void chooseBoard(value),
   });
 
   const projectSelect = menuSelect({
@@ -1217,9 +1250,10 @@ const buildPage = () => {
     if (url) host.openUrl(url).catch(() => {});
   });
 
+  const projectField = labeledField('Proyecto', projectSelect.wrap);
   topbar.append(
     brand,
-    labeledField('Proyecto', projectSelect.wrap),
+    projectField,
     labeledField('Tablero', boardControl(boardSelect)),
     projectChip,
     stoppedChip,
@@ -1237,7 +1271,7 @@ const buildPage = () => {
   const board = el('div', 'board');
   app.append(topbar, banner, board);
   root.replaceChildren(app);
-  state.refs = { board, banner, boardSelect, projectSelect, projectChip, stoppedChip, settingsButton, searchInput, labelFilters, openButton };
+  state.refs = { board, banner, boardSelect, projectSelect, projectField, projectChip, stoppedChip, settingsButton, searchInput, labelFilters, openButton };
   setBanner(state.bannerText);
 };
 
@@ -1249,7 +1283,7 @@ const buildPanel = () => {
 
   const boardSelect = menuSelect({
     ariaLabel: 'Tablero',
-    onChange: (value) => void switchBoard(value),
+    onChange: (value) => void chooseBoard(value),
   });
 
   const projectSelect = menuSelect({
@@ -1296,10 +1330,8 @@ const buildPanel = () => {
   topbar.append(brand, spacer, openButton, settingsButton);
 
   const selectorRow = el('div', 'selector-row');
-  selectorRow.append(
-    labeledField('Proyecto', projectSelect.wrap),
-    labeledField('Tablero', boardControl(boardSelect)),
-  );
+  const projectField = labeledField('Proyecto', projectSelect.wrap);
+  selectorRow.append(projectField, labeledField('Tablero', boardControl(boardSelect)));
 
   const delegationRow = el('div', 'delegation-row');
   delegationRow.append(projectChip, stoppedChip);
@@ -1311,7 +1343,7 @@ const buildPanel = () => {
   const board = el('div', 'board panel-board');
   app.append(topbar, selectorRow, delegationRow, banner, board);
   root.replaceChildren(app);
-  state.refs = { board, banner, boardSelect, projectSelect, projectChip, stoppedChip, settingsButton, openButton };
+  state.refs = { board, banner, boardSelect, projectSelect, projectField, projectChip, stoppedChip, settingsButton, openButton };
   setBanner(state.bannerText);
 };
 
@@ -1635,6 +1667,32 @@ const switchBoard = async (boardId) => {
   }
 };
 
+// Picking a board while the session names its project binds the two: the board
+// belongs to that project and the project pins it, so the next session shows it
+// without asking. With no project the pick is only a pick.
+const chooseBoard = async (boardId) => {
+  if (!boardId) return;
+  await switchBoard(boardId);
+  const project = projectForDirectory(state.projects, state.directory);
+  if (!project) return;
+  try {
+    await api('POST', '/mapping', {
+      boardId,
+      projectId: project.id,
+      directory: project.directory,
+      name: project.name,
+      autoSession: state.snapshot?.project?.autoSession === true,
+    });
+    await api('POST', '/project-board', { boardId });
+    state.pinnedBoard = boardId;
+    paintPin();
+    toast('success', `Tablero vinculado a ${project.name}.`);
+  } catch (error) {
+    toast('error', error.message);
+  }
+  await refresh(true);
+};
+
 /* ------------------------------------------------------------------ */
 /* Board rendering                                                     */
 /* ------------------------------------------------------------------ */
@@ -1643,6 +1701,7 @@ const renderAll = () => {
   if (state.view !== 'board') return;
   syncBoardOptions();
   syncProjectSelect();
+  syncProjectField();
   syncProjectChip();
   syncStoppedChip();
   paintPin();

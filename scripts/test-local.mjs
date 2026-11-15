@@ -522,6 +522,72 @@ execFileSync('git', ['-C', repo, 'worktree', 'add', '-q', worktree]);
 setProjectBoard(repo, 'board-repo');
 assert.equal(resolveProjectBoard(worktree), 'board-repo', 'a worktree inherits the board pinned for its project');
 
+// The panel follows the board bound to the project of the session it is open
+// in, and binds a picked board to that project.
+const followBundle = join(dir, 'board-follow.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/board-follow.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: followBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const { shouldFollowBoard, projectForDirectory } = require(followBundle);
+const available = [{ id: 'board-a' }, { id: 'board-b' }];
+assert.equal(
+  shouldFollowBoard({ resolved: 'board-b', current: 'board-a', boards: available }),
+  true,
+  'the panel follows the board of the project',
+);
+assert.equal(
+  shouldFollowBoard({ resolved: '', current: 'board-a', boards: available }),
+  false,
+  'a project without a board leaves the panel alone',
+);
+assert.equal(
+  shouldFollowBoard({ resolved: 'board-a', current: 'board-a', boards: available }),
+  false,
+  'the board already shown is not fetched again',
+);
+assert.equal(
+  shouldFollowBoard({ resolved: 'board-z', current: 'board-a', boards: available }),
+  false,
+  'a board that is not available is never followed',
+);
+assert.equal(
+  shouldFollowBoard({ resolved: 'board-b', current: '', boards: [] }),
+  true,
+  'before the board list loads, a resolved board is followed',
+);
+
+const projects = [
+  { id: 'p-ext', name: 'openchamber-kanban', directory: '/home/ana/proyectos/ext' },
+  { id: 'p-smb', name: 'smbpoints', directory: '/home/ana/proyectos/smbpoints' },
+  { id: 'p-nested', name: 'app', directory: '/home/ana/proyectos/ext/packages/app' },
+];
+assert.equal(
+  projectForDirectory(projects, '/home/ana/proyectos/smbpoints')?.id,
+  'p-smb',
+  'the exact directory is the project',
+);
+assert.equal(
+  projectForDirectory(projects, '/home/ana/proyectos/ext/worktrees/rama')?.id,
+  'p-ext',
+  'a worktree belongs to its project',
+);
+assert.equal(
+  projectForDirectory(projects, '/home/ana/proyectos/ext/packages/app/src')?.id,
+  'p-nested',
+  'the closest project wins in a nested folder',
+);
+assert.equal(
+  projectForDirectory(projects, '/home/ana/otra-cosa'),
+  null,
+  'a directory outside every project matches nothing',
+);
+assert.equal(projectForDirectory(projects, ''), null, 'no directory, no project');
+
 // The header pin says what pressing it does, so the state and the copy are
 // derived in one place and checked here without a browser.
 const pinBundle = join(dir, 'board-pin.cjs');
@@ -742,4 +808,4 @@ assert.ok(
   'the Work Status opens tall enough for three cards',
 );
 
-console.log('local mode: 132 assertions ok');
+console.log('local mode: 142 assertions ok');

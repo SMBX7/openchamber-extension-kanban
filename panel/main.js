@@ -1871,6 +1871,27 @@ ${GUEST_UI_LOOK_CSS}`;
     return { height: Math.min(needed, room), scroll: needed > room };
   };
 
+  // src/shared/board-follow.js
+  var shouldFollowBoard = ({ resolved, current, boards }) => {
+    const target = String(resolved || "");
+    if (!target || target === String(current || "")) return false;
+    if (Array.isArray(boards) && boards.length && !boards.some((board) => board.id === target)) {
+      return false;
+    }
+    return true;
+  };
+  var projectForDirectory = (projects, directory) => {
+    const dir = String(directory || "").replace(/\/+$/, "");
+    if (!dir || !Array.isArray(projects)) return null;
+    const exact = projects.find((project) => String(project.directory || "").replace(/\/+$/, "") === dir);
+    if (exact) return exact;
+    const parent = projects.filter((project) => {
+      const base = String(project.directory || "").replace(/\/+$/, "");
+      return base && dir.startsWith(`${base}/`);
+    }).sort((a, b) => String(b.directory).length - String(a.directory).length)[0];
+    return parent || null;
+  };
+
   // src/panel/main.js
   var host = connectHost();
   var root = document.querySelector("#root");
@@ -2228,7 +2249,7 @@ ${card.description}`.toLowerCase();
     state.directory = next;
     if (!state.booted) return;
     void closeSheet();
-    void refresh(true);
+    void followProjectBoard().then(() => refresh(true));
   });
   var configWithRetry = async () => {
     let lastError;
@@ -2303,6 +2324,7 @@ ${card.description}`.toLowerCase();
       }
       await loadProjects();
       await loadAppearance();
+      await followProjectBoard();
       await loadSnapshot();
       await loadSessionStates();
       showBoard();
@@ -2526,6 +2548,10 @@ ${card.description}`.toLowerCase();
     refs.projectChip.setAttribute("aria-pressed", auto ? "true" : "false");
     refs.projectChip.title = mapping ? `${mapping.name} \xB7 Delegaci\xF3n ${mode.toLowerCase()}. Pulsa para cambiar.` : "Asigna este tablero a un proyecto de OpenChamber";
   };
+  var syncProjectField = () => {
+    const field2 = state.refs?.projectField;
+    if (field2) field2.hidden = Boolean(state.directory);
+  };
   var syncProjectSelect = () => {
     const control = state.refs?.projectSelect;
     if (!control) return;
@@ -2731,10 +2757,10 @@ ${card.description}`.toLowerCase();
     );
     const error = el2("p", "settings-note warning");
     error.hidden = true;
-    const syncProjectField = () => {
+    const syncProjectField2 = () => {
       newProjectField.hidden = Boolean(projectSelect.value);
     };
-    projectSelect.addEventListener("change", syncProjectField);
+    projectSelect.addEventListener("change", syncProjectField2);
     const actions = el2("div", "settings-actions");
     const cancel = el2("button", "ghost-btn", "Cancelar");
     cancel.type = "button";
@@ -2746,7 +2772,7 @@ ${card.description}`.toLowerCase();
     sheet.append(head, scroll);
     root.append(backdrop, sheet);
     state.createBoard = { backdrop, sheet };
-    syncProjectField();
+    syncProjectField2();
     let creating = false;
     const create = async () => {
       if (creating) return;
@@ -2826,6 +2852,27 @@ ${card.description}`.toLowerCase();
     }
     paintPin();
   };
+  var followProjectBoard = async () => {
+    if (!state.directory) return false;
+    let answer;
+    try {
+      answer = await api("GET", "/project-board");
+    } catch {
+      return false;
+    }
+    state.pinnedBoard = answer?.pinned || "";
+    const follow = shouldFollowBoard({
+      resolved: answer?.resolved,
+      current: state.snapshot?.board?.id || state.config?.boardId || "",
+      boards: state.boards
+    });
+    if (!follow) {
+      paintPin();
+      return false;
+    }
+    await switchBoard(answer.resolved);
+    return true;
+  };
   var boardControl = (boardSelect) => {
     const wrap = el2("div", "board-control");
     wrap.append(boardSelect.wrap);
@@ -2881,7 +2928,7 @@ ${card.description}`.toLowerCase();
     brand.append(el2("span", "brand-dot"), el2("span", "", "Kanban"), el2("span", "brand-sub", "Planka"));
     const boardSelect = menuSelect({
       ariaLabel: "Tablero",
-      onChange: (value) => void switchBoard(value)
+      onChange: (value) => void chooseBoard(value)
     });
     const projectSelect = menuSelect({
       ariaLabel: "Proyecto del tablero",
@@ -2929,9 +2976,10 @@ ${card.description}`.toLowerCase();
       if (url) host.openUrl(url).catch(() => {
       });
     });
+    const projectField = labeledField("Proyecto", projectSelect.wrap);
     topbar.append(
       brand,
-      labeledField("Proyecto", projectSelect.wrap),
+      projectField,
       labeledField("Tablero", boardControl(boardSelect)),
       projectChip,
       stoppedChip,
@@ -2947,7 +2995,7 @@ ${card.description}`.toLowerCase();
     const board = el2("div", "board");
     app.append(topbar, banner, board);
     root.replaceChildren(app);
-    state.refs = { board, banner, boardSelect, projectSelect, projectChip, stoppedChip, settingsButton, searchInput, labelFilters, openButton };
+    state.refs = { board, banner, boardSelect, projectSelect, projectField, projectChip, stoppedChip, settingsButton, searchInput, labelFilters, openButton };
     setBanner(state.bannerText);
   };
   var buildPanel = () => {
@@ -2957,7 +3005,7 @@ ${card.description}`.toLowerCase();
     brand.append(el2("span", "brand-dot"), el2("span", "", "Kanban"));
     const boardSelect = menuSelect({
       ariaLabel: "Tablero",
-      onChange: (value) => void switchBoard(value)
+      onChange: (value) => void chooseBoard(value)
     });
     const projectSelect = menuSelect({
       ariaLabel: "Proyecto del tablero",
@@ -2997,10 +3045,8 @@ ${card.description}`.toLowerCase();
     });
     topbar.append(brand, spacer, openButton, settingsButton);
     const selectorRow = el2("div", "selector-row");
-    selectorRow.append(
-      labeledField("Proyecto", projectSelect.wrap),
-      labeledField("Tablero", boardControl(boardSelect))
-    );
+    const projectField = labeledField("Proyecto", projectSelect.wrap);
+    selectorRow.append(projectField, labeledField("Tablero", boardControl(boardSelect)));
     const delegationRow = el2("div", "delegation-row");
     delegationRow.append(projectChip, stoppedChip);
     const banner = el2("div", "banner");
@@ -3009,7 +3055,7 @@ ${card.description}`.toLowerCase();
     const board = el2("div", "board panel-board");
     app.append(topbar, selectorRow, delegationRow, banner, board);
     root.replaceChildren(app);
-    state.refs = { board, banner, boardSelect, projectSelect, projectChip, stoppedChip, settingsButton, openButton };
+    state.refs = { board, banner, boardSelect, projectSelect, projectField, projectChip, stoppedChip, settingsButton, openButton };
     setBanner(state.bannerText);
   };
   var syncStoppedChip = () => {
@@ -3303,10 +3349,33 @@ ${card.description}`.toLowerCase();
       renderAll();
     }
   };
+  var chooseBoard = async (boardId) => {
+    if (!boardId) return;
+    await switchBoard(boardId);
+    const project = projectForDirectory(state.projects, state.directory);
+    if (!project) return;
+    try {
+      await api("POST", "/mapping", {
+        boardId,
+        projectId: project.id,
+        directory: project.directory,
+        name: project.name,
+        autoSession: state.snapshot?.project?.autoSession === true
+      });
+      await api("POST", "/project-board", { boardId });
+      state.pinnedBoard = boardId;
+      paintPin();
+      toast("success", `Tablero vinculado a ${project.name}.`);
+    } catch (error) {
+      toast("error", error.message);
+    }
+    await refresh(true);
+  };
   var renderAll = () => {
     if (state.view !== "board") return;
     syncBoardOptions();
     syncProjectSelect();
+    syncProjectField();
     syncProjectChip();
     syncStoppedChip();
     paintPin();
