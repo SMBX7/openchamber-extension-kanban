@@ -87,6 +87,7 @@ export const setLink = (cardId, sessionId, meta = {}) => {
       sessionTitle: String(meta.sessionTitle || meta.title || session).slice(0, 120),
       linkedAt: new Date().toISOString(),
       ...(meta.batch === true ? { batch: true } : {}),
+      ...(meta.manual === true ? { manual: true } : {}),
     };
     writeLinks(data);
     return data.links[id];

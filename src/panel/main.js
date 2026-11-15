@@ -1284,7 +1284,7 @@ const changeAutoMode = async (enabled) => {
       autoSession: Boolean(enabled),
     });
     state.snapshot.project = answer.project || mapping;
-    toast('success', enabled ? 'Delegación automática: el prompt te pide la sesión del lote y el agente reparte las tarjetas a subagentes.' : 'Delegación manual: abres la sesión del lote con el + del Work Status y el agente reparte las tarjetas a subagentes.');
+    toast('success', enabled ? 'Delegación automática: pregunta al abrir el lote y el agente cierra al terminar.' : 'Delegación manual: abres y cierras tú; el agente deja las tarjetas para revisar.');
   } catch (error) {
     toast('error', error.message);
   }
@@ -1442,7 +1442,7 @@ const openSettings = () => {
   /* Delegación */
   const delegacion = el('section', 'settings-section');
   delegacion.append(el('div', 'settings-heading', 'Delegación'));
-  delegacion.append(el('p', 'settings-note', 'Las dos abren una sesión por lote: el agente reparte cada tarjeta a un subagente. Solo cambia quién la abre.'));
+  delegacion.append(el('p', 'settings-note', 'Las dos usan una sesión por lote con subagentes. En manual tú abres y cierras; en automático el agente pregunta al empezar y cierra al terminar.'));
   const modes = el('div', 'settings-modes');
   const modeCard = (label, description, active, enabled) => {
     const button = el('button', 'mode-card');
@@ -1452,8 +1452,8 @@ const openSettings = () => {
     button.append(el('span', 'mode-card-title', label), el('span', 'mode-card-text', description));
     return button;
   };
-  const manualCard = modeCard('Manual', 'Tú abres la sesión del lote con el + del Work Status; el agente reparte cada tarjeta a un subagente.', mapping?.autoSession !== true, Boolean(mapping));
-  const autoCard = modeCard('Automática', 'El prompt te pide abrir la sesión del lote; el agente reparte cada tarjeta a un subagente y te resume.', mapping?.autoSession === true, Boolean(mapping));
+  const manualCard = modeCard('Manual', 'Tú abres la sesión del lote con el + del Work Status; el agente trabaja y te avisa, pero no mueve la tarjeta a HECHO. Tú revisas y cierras.', mapping?.autoSession !== true, Boolean(mapping));
+  const autoCard = modeCard('Automática', 'El aviso pregunta por la primera tarjeta del lote; las siguientes se suman. El agente revisa, mueve a HECHO, resume y cierra.', mapping?.autoSession === true, Boolean(mapping));
   manualCard.addEventListener('click', () => { if (mapping?.autoSession === true) void changeAutoMode(false); });
   autoCard.addEventListener('click', () => { if (mapping?.autoSession !== true) void changeAutoMode(true); });
   modes.append(manualCard, autoCard);
@@ -1548,7 +1548,7 @@ const openSettings = () => {
   };
   sesionesBox.append(
     fact('IDEAS', 'el + de la columna crea una tarjeta. El lápiz abre la tarjeta para editar título, detalles, checklist y sesión, y para borrarla. El tic la pasa a EN PROGRESO.'),
-    fact('EN PROGRESO', 'es la tarjeta actual. Las tarjetas de un lote comparten una sesión y el agente reparte cada una a un subagente: en manual la abres tú con el + del Work Status, en automático se suma a la del lote.'),
+    fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el + del Work Status y el agente deja la tarjeta para que la revises; en automático se suma sin preguntar y el agente la cierra al terminar.'),
     fact('HECHO', 'la tarjeta queda terminada. Las sesiones se cierran cuando pulses el botón de la columna HECHO.'),
   );
   sesionesBox.append(el('p', 'settings-note', 'Al cerrar se borra el vínculo: si vuelves a mover la tarjeta, se suma al lote que siga abierto o abre uno nuevo. La sesión detenida sigue en la lista para que la archives.'));
@@ -2381,7 +2381,7 @@ const moveCard = async (cardId, listId, index) => {
     } else if (answer?.autoPending) {
       offerSession(cardId, card?.name, answer.project, document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`));
     } else if (answer?.manual) {
-      toast('info', 'Delegación manual: abre la sesión del lote con el + del Work Status.');
+      toast('info', 'Delegación manual: abre la sesión del lote con el + del Work Status; el agente dejará la tarjeta para revisar.');
     } else if (answer?.needsMapping) {
       toast('error', 'Asigna un proyecto a este tablero para crear la sesión.');
     }
@@ -2584,7 +2584,7 @@ const loadSessionSheet = async (sheet) => {
   sheet.sessionSelect.value = link?.sessionId || '';
   sheet.sessionRemove.style.display = link ? '' : 'none';
   sheet.sessionNote.textContent = link
-    ? 'Sesión asignada. La tarjeta va a EN PROGRESO mientras se trabaja y a HECHO al terminar.'
+    ? 'Sesión asignada. La tarjeta va a EN PROGRESO; en manual la dejas tú en HECHO, en automático la mueve el agente al terminar.'
     : 'Sin sesión asignada. Elige una para vincularla a esta tarjeta.';
 
   sheet.sessionSelect.onchange = async () => {

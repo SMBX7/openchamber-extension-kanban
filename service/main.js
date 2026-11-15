@@ -425,7 +425,8 @@ var setLink = (cardId, sessionId, meta = {}) => {
       title: String(meta.title || "").slice(0, 200),
       sessionTitle: String(meta.sessionTitle || meta.title || session).slice(0, 120),
       linkedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      ...meta.batch === true ? { batch: true } : {}
+      ...meta.batch === true ? { batch: true } : {},
+      ...meta.manual === true ? { manual: true } : {}
     };
     writeLinks(data);
     return data.links[id];
@@ -1831,25 +1832,25 @@ var cardBlock = (card) => {
 ${checklist.join("\n")}` : ""
   ].filter(Boolean).join("\n");
 };
-var batchRules = [
+var batchRules = (manual) => [
   "Reglas del lote: cada tarjeta la trabaja un subagente, no t\xFA.",
   "Revisa el resultado del subagente antes de dar la tarjeta por buena; si no convence, p\xEDdele otra pasada.",
-  "Solo cuando est\xE9 bien implementada y verificada, mueve la tarjeta a HECHO con kanban_complete_card.",
+  manual ? "Cuando la tarjeta est\xE9 verificada, d\xE9jala en EN PROGRESO y avisa de que est\xE1 lista para revisar. No la muevas a HECHO: lo har\xE1 la persona." : "Solo cuando est\xE9 bien implementada y verificada, mueve la tarjeta a HECHO con kanban_complete_card.",
   "No toques las tarjetas que ya est\xE1n en HECHO.",
-  "Al final del lote, cuando todas las tarjetas est\xE9n en HECHO, revisa el conjunto y da un resumen de lo que hizo cada subagente."
+  manual ? "No des el resumen del lote ni cierres la sesi\xF3n por tu cuenta: la persona te lo pedir\xE1 cuando haya revisado las tarjetas." : "Al final del lote, cuando todas las tarjetas est\xE9n en HECHO, revisa el conjunto y da un resumen de lo que hizo cada subagente."
 ].join("\n");
-var batchStartPrompt = (card, board, project) => [
+var batchStartPrompt = (card, board, project, { manual = false } = {}) => [
   `Trabaja las tarjetas del kanban \xAB${board?.name || ""}\xBB desde esta misma sesi\xF3n, una por una.`,
   `Proyecto: ${project.name}.`,
   cardBlock(card),
-  batchRules,
+  batchRules(manual),
   "Las tarjetas que se lancen despu\xE9s se a\xF1aden a esta misma sesi\xF3n."
 ].filter(Boolean).join("\n\n");
-var batchCardPrompt = (card, board, project) => [
+var batchCardPrompt = (card, board, project, { manual = false } = {}) => [
   `Trabaja esta tarjeta del lote de \xAB${board?.name || ""}\xBB.`,
   `Proyecto: ${project.name}.`,
   cardBlock(card),
-  batchRules
+  batchRules(manual)
 ].filter(Boolean).join("\n\n");
 var batchClosePrompt = () => "Todas las tarjetas del lote est\xE1n en HECHO. Revisa el conjunto, confirma que todo qued\xF3 bien implementado y da un resumen de lo que hizo cada subagente. Despu\xE9s cierra esta sesi\xF3n.";
 var batchCards = (links, snapshot, sessionId) => {
@@ -1870,11 +1871,12 @@ var batchAllDone = (links, snapshot, sessionId) => {
   const { total, cards, open } = batchCards(links, snapshot, sessionId);
   return total > 0 && cards.length > 0 && open.length === 0;
 };
-var reusableBatchSession = (links, snapshot) => {
+var reusableBatchSession = (links, snapshot, { manual = false } = {}) => {
   const boardId = String(snapshot?.board?.id || "");
   const candidates = /* @__PURE__ */ new Map();
   for (const [, link] of Object.entries(links || {})) {
     if (link?.batch !== true) continue;
+    if (link.manual === true !== manual) continue;
     if (String(link.boardId || "") !== boardId) continue;
     const previous = candidates.get(link.sessionId);
     const at = String(link.linkedAt || "");
@@ -2079,6 +2081,7 @@ var handleSessionEvent = async (event) => {
   const sessionId = event?.session?.id;
   if (!sessionId) return;
   const batch = linksForSession(sessionId).some(([, link]) => link?.batch === true);
+  const manualBatch = linksForSession(sessionId).some(([, link]) => link?.manual === true);
   if (event.type === "turn-finished" && !batch) {
     for (const [cardId, link] of linksForSession(sessionId)) {
       try {
@@ -2092,7 +2095,7 @@ var handleSessionEvent = async (event) => {
   }
   const pending = pendingCloses.get(sessionId) || null;
   if (!pending) {
-    if (batch && event.type === "turn-finished") await maybeCloseBatch(sessionId);
+    if (batch && !manualBatch && event.type === "turn-finished") await maybeCloseBatch(sessionId);
     return;
   }
   if (event.type === "turn-finished") {
@@ -2194,7 +2197,8 @@ ${checklist.join("\n")}` : "",
 };
 var startBatchSession = async (card, snapshot, project, boardId) => {
   if (!serviceHost) throw new Error("El servicio no puede abrir sesiones en este host.");
-  const reusable = reusableBatchSession(listLinks(), snapshot);
+  const manual = project.autoSession !== true;
+  const reusable = reusableBatchSession(listLinks(), snapshot, { manual });
   if (reusable) {
     try {
       const status = await serviceHost.sessions.status(reusable);
@@ -2202,11 +2206,15 @@ var startBatchSession = async (card, snapshot, project, boardId) => {
         setLink(card.id, reusable, {
           boardId,
           batch: true,
+          ...manual ? { manual: true } : {},
           title: card.name,
           sessionTitle: "Lote del tablero"
         });
         try {
-          await serviceHost.sessions.send(reusable, batchCardPrompt(card, snapshot.board, project));
+          await serviceHost.sessions.send(
+            reusable,
+            batchCardPrompt(card, snapshot.board, project, { manual })
+          );
           return { sessionId: reusable, reused: true, sent: true, project: project.name };
         } catch {
           removeLink(card.id);
@@ -2217,13 +2225,14 @@ var startBatchSession = async (card, snapshot, project, boardId) => {
     }
   }
   const started = await serviceHost.sessions.start({
-    prompt: batchStartPrompt(card, snapshot.board, project),
+    prompt: batchStartPrompt(card, snapshot.board, project, { manual }),
     title: `Lote \xB7 ${project.name}`.slice(0, 120),
     directory: project.directory
   });
   setLink(card.id, started.sessionId, {
     boardId,
     batch: true,
+    ...manual ? { manual: true } : {},
     title: card.name,
     sessionTitle: "Lote del tablero"
   });
@@ -2264,7 +2273,7 @@ var startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
   const existing = getLink(cardId);
   if (existing) {
     if (!serviceHost) return { sessionId: existing.sessionId, project: project.name };
-    const prompt = existing.batch === true ? batchCardPrompt(card, snapshot.board, project) : sessionPrompt(card, snapshot.board, project);
+    const prompt = existing.batch === true ? batchCardPrompt(card, snapshot.board, project, { manual: existing.manual === true }) : sessionPrompt(card, snapshot.board, project);
     try {
       await serviceHost.sessions.send(existing.sessionId, prompt);
       return { sessionId: existing.sessionId, sent: true, reused: true, project: project.name };
@@ -2932,6 +2941,16 @@ var routes = {
           needsMapping = true;
         } else if (project.autoSession !== true) {
           manual = true;
+        } else if (reusableBatchSession(listLinks(), before, { manual: false })) {
+          try {
+            const result = await startCardFromStatus(id, { forceSession: true });
+            sessionId = result.sessionId || "";
+            sent = result.sent === true;
+            reused = result.reused === true;
+            if (result.sessionError) sessionError = result.sessionError;
+          } catch (error) {
+            sessionError = error.message;
+          }
         } else {
           autoPending = true;
         }

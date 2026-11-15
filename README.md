@@ -174,18 +174,18 @@ it can work the card without opening the panel. Cards in DONE stay out.
 Choose the mode in **Settings → Delegation** (Delegación) or from the Work Status pill.
 
 - **Manual**: moving a card to IN PROGRESS only moves it; open the session with the `+`
-  in the Work Status. Both modes work in batches: the first card opens the session and the
-  rest join it, and the main agent hands each card to a subagent. When you reference a
-  card in the chat to work on it — with `@` or by name — it moves to IN PROGRESS if it is
-  still in IDEAS.
-- **Automatic**: the same batch, but the prompt asks before the session opens. The main
-  agent hands each card to a subagent, reviews the result and moves the card to DONE
-  itself.
+  in the Work Status. Both modes work in batches with subagents. The agent works the card
+  and leaves it in IN PROGRESS with a note that it is ready: you review it, move it to
+  DONE and close the session. Referencing a card in the chat to work on it — with `@` or
+  by name — moves it to IN PROGRESS if it is still in IDEAS.
+- **Automatic**: the prompt asks for the first card of the batch; cards launched after it
+  join without asking. The agent reviews each subagent, moves the card to DONE itself,
+  summarises and closes when the batch ends.
 
 When an agent takes a card, the extension links it to that session: the card moves to IN
-PROGRESS when linked. A batch stays open while any of its cards is outside DONE; when the
-last one arrives, the session reviews the whole set, writes the summary of what each
-subagent did and closes. In both modes:
+PROGRESS when linked. A batch stays open while any of its cards is outside DONE. In
+automatic mode, when the last card arrives the session reviews the set, writes the summary
+and closes; in manual it waits for you to close it from the DONE column. In both modes:
 
 - Moving to **DONE** finishes the card: it stops pointing at its session, so the session
   dot never survives the move and the session stays open for you to archive. Inside a

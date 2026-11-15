@@ -176,18 +176,19 @@ trabajar la tarjeta sin abrir el panel. Las de HECHO quedan fuera.
 Elige el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status.
 
 - **Manual**: mover una tarjeta a EN PROGRESO solo la mueve; abre la sesión con el `+` del
-  Work Status. Los dos modos van por lotes: la primera tarjeta abre la sesión y las demás
-  se suman a ella, y el agente principal le pasa cada tarjeta a un subagente. Cuando
-  referencias una tarjeta en el chat para trabajar en ella —con `@` o por su nombre— pasa
-  a EN PROGRESO si aún está en IDEAS.
-- **Automática**: el mismo lote, pero el aviso pregunta antes de abrir la sesión. El
-  agente principal le pasa cada tarjeta a un subagente, revisa el resultado y mueve la
-  tarjeta a HECHO él mismo.
+  Work Status. Los dos modos van por lotes con subagentes. El agente trabaja la tarjeta y
+  la deja en EN PROGRESO avisando de que está lista: tú la revisas, la pasas a HECHO y
+  cierras la sesión. Referenciar una tarjeta en el chat para trabajar en ella —con `@` o
+  por su nombre— la pasa a EN PROGRESO si aún está en IDEAS.
+- **Automática**: el aviso pregunta por la primera tarjeta del lote; las siguientes se
+  suman sin preguntar. El agente revisa cada subagente, mueve la tarjeta a HECHO, resume y
+  cierra al terminar el lote.
 
 Cuando un agente toma una tarjeta, la extensión la vincula a esa sesión: pasa a EN
 PROGRESO al vincularse. Un lote sigue abierto mientras le quede alguna tarjeta fuera de
-HECHO; cuando llega la última, la sesión revisa el conjunto, escribe el resumen de lo que
-hizo cada subagente y se cierra. En los dos modos:
+HECHO. En automático, cuando llega la última, la sesión revisa el conjunto, escribe el
+resumen y se cierra; en manual espera a que la cierres tú desde la columna HECHO. En los
+dos modos:
 
 - Pasar a **HECHO** termina la tarjeta: deja de apuntar a su sesión, así que el punto de
   sesión no sobrevive al movimiento y la sesión queda abierta para que la archives.

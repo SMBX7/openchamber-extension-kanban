@@ -17,30 +17,36 @@ const cardBlock = (card) => {
 };
 
 // Rules shared by the first card and every card added later. The main agent
-// never implements a card itself: it hands it to a subagent.
-const batchRules = [
-  'Reglas del lote: cada tarjeta la trabaja un subagente, no tú.',
-  'Revisa el resultado del subagente antes de dar la tarjeta por buena; si no convence, pídele otra pasada.',
-  'Solo cuando esté bien implementada y verificada, mueve la tarjeta a HECHO con kanban_complete_card.',
-  'No toques las tarjetas que ya están en HECHO.',
-  'Al final del lote, cuando todas las tarjetas estén en HECHO, revisa el conjunto y da un resumen de lo que hizo cada subagente.',
-].join('\n');
+// never implements a card itself: it hands it to a subagent. In manual mode it
+// also stops before HECHO: the person reviews and closes.
+const batchRules = (manual) =>
+  [
+    'Reglas del lote: cada tarjeta la trabaja un subagente, no tú.',
+    'Revisa el resultado del subagente antes de dar la tarjeta por buena; si no convence, pídele otra pasada.',
+    manual
+      ? 'Cuando la tarjeta esté verificada, déjala en EN PROGRESO y avisa de que está lista para revisar. No la muevas a HECHO: lo hará la persona.'
+      : 'Solo cuando esté bien implementada y verificada, mueve la tarjeta a HECHO con kanban_complete_card.',
+    'No toques las tarjetas que ya están en HECHO.',
+    manual
+      ? 'No des el resumen del lote ni cierres la sesión por tu cuenta: la persona te lo pedirá cuando haya revisado las tarjetas.'
+      : 'Al final del lote, cuando todas las tarjetas estén en HECHO, revisa el conjunto y da un resumen de lo que hizo cada subagente.',
+  ].join('\n');
 
-export const batchStartPrompt = (card, board, project) => [
+export const batchStartPrompt = (card, board, project, { manual = false } = {}) => [
   `Trabaja las tarjetas del kanban «${board?.name || ''}» desde esta misma sesión, una por una.`,
   `Proyecto: ${project.name}.`,
   cardBlock(card),
-  batchRules,
+  batchRules(manual),
   'Las tarjetas que se lancen después se añaden a esta misma sesión.',
 ]
   .filter(Boolean)
   .join('\n\n');
 
-export const batchCardPrompt = (card, board, project) => [
+export const batchCardPrompt = (card, board, project, { manual = false } = {}) => [
   `Trabaja esta tarjeta del lote de «${board?.name || ''}».`,
   `Proyecto: ${project.name}.`,
   cardBlock(card),
-  batchRules,
+  batchRules(manual),
 ]
   .filter(Boolean)
   .join('\n\n');
@@ -72,14 +78,16 @@ export const batchAllDone = (links, snapshot, sessionId) => {
   return total > 0 && cards.length > 0 && open.length === 0;
 };
 
-// The session a new automatic card should join: the newest batch session on
-// this board that still has a card outside HECHO. When every batch is closed,
-// the next card opens a fresh one.
-export const reusableBatchSession = (links, snapshot) => {
+// The session a new card should join: the newest batch on this board with the
+// same mode that still has a card outside HECHO. Manual and automatic batches
+// never mix, because their rules for HECHO are opposite. When every batch is
+// closed, the next card opens a fresh one.
+export const reusableBatchSession = (links, snapshot, { manual = false } = {}) => {
   const boardId = String(snapshot?.board?.id || '');
   const candidates = new Map();
   for (const [, link] of Object.entries(links || {})) {
     if (link?.batch !== true) continue;
+    if ((link.manual === true) !== manual) continue;
     if (String(link.boardId || '') !== boardId) continue;
     const previous = candidates.get(link.sessionId);
     const at = String(link.linkedAt || '');

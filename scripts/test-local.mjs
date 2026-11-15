@@ -410,6 +410,30 @@ assert.equal(
   'a batch never crosses boards',
 );
 
+// Manual batches stop before DONE and never share a session with automatic ones.
+const manualStart = batchStartPrompt(cardA, batchBoard, batchProject, { manual: true });
+assert.ok(manualStart.includes('déjala en EN PROGRESO'), 'a manual batch leaves the card for review');
+assert.ok(!manualStart.includes('mueve la tarjeta a HECHO'), 'a manual batch does not move cards to DONE');
+assert.ok(startPrompt.includes('mueve la tarjeta a HECHO'), 'an automatic batch moves the card to DONE');
+const manualBatchLinks = {
+  'card-a': { sessionId: 'm1', boardId: 'board-1', batch: true, manual: true, linkedAt: '2026-11-14T10:00:00.000Z' },
+};
+assert.equal(
+  reusableBatchSession(manualBatchLinks, openSnapshot, { manual: true }),
+  'm1',
+  'a manual batch is reused by manual',
+);
+assert.equal(
+  reusableBatchSession(manualBatchLinks, openSnapshot, { manual: false }),
+  '',
+  'automatic never joins a manual batch',
+);
+assert.equal(
+  reusableBatchSession(batchLinks, openSnapshot, { manual: true }),
+  '',
+  'manual never joins an automatic batch',
+);
+
 // The board the agent uses follows the project of the session, never a global
 // selection. Pinning is manual; a worktree inherits its project's board.
 process.env.KANBAN_BOARD_PROJECTS_PATH = join(dir, 'board-projects.json');
@@ -601,4 +625,4 @@ assert.equal(promoteCardList(promoteBoard, 'ideas'), 'work', 'a backlog card mov
 assert.equal(promoteCardList(promoteBoard, 'work'), '', 'a card already in progress stays');
 assert.equal(promoteCardList(promoteBoard, 'done'), '', 'a finished card never moves');
 
-console.log('local mode: 108 assertions ok');
+console.log('local mode: 114 assertions ok');

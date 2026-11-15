@@ -157,6 +157,9 @@ const handleSessionEvent = async (event) => {
   const sessionId = event?.session?.id;
   if (!sessionId) return;
   const batch = linksForSession(sessionId).some(([, link]) => link?.batch === true);
+  // A manual batch never closes on its own: the person reviews the cards and
+  // asks for the summary and the close.
+  const manualBatch = linksForSession(sessionId).some(([, link]) => link?.manual === true);
   // A delegated task finishes when its own session goes idle: move only the
   // cards linked to that session to HECHO. A manual move never reaches here.
   // A batch session holds several cards, so only the agent knows which one is
@@ -175,7 +178,7 @@ const handleSessionEvent = async (event) => {
   }
   const pending = pendingCloses.get(sessionId) || null;
   if (!pending) {
-    if (batch && event.type === 'turn-finished') await maybeCloseBatch(sessionId);
+    if (batch && !manualBatch && event.type === 'turn-finished') await maybeCloseBatch(sessionId);
     return;
   }
   if (event.type === 'turn-finished') {
@@ -301,7 +304,8 @@ const sessionPrompt = (card, board, project) => {
 // session, never its shape.
 const startBatchSession = async (card, snapshot, project, boardId) => {
   if (!serviceHost) throw new Error('El servicio no puede abrir sesiones en este host.');
-  const reusable = reusableBatchSession(listLinks(), snapshot);
+  const manual = project.autoSession !== true;
+  const reusable = reusableBatchSession(listLinks(), snapshot, { manual });
   if (reusable) {
     try {
       // A dead session must not swallow the card: check it before sending.
@@ -310,11 +314,15 @@ const startBatchSession = async (card, snapshot, project, boardId) => {
         setLink(card.id, reusable, {
           boardId,
           batch: true,
+          ...(manual ? { manual: true } : {}),
           title: card.name,
           sessionTitle: 'Lote del tablero',
         });
         try {
-          await serviceHost.sessions.send(reusable, batchCardPrompt(card, snapshot.board, project));
+          await serviceHost.sessions.send(
+            reusable,
+            batchCardPrompt(card, snapshot.board, project, { manual }),
+          );
           return { sessionId: reusable, reused: true, sent: true, project: project.name };
         } catch {
           removeLink(card.id);
@@ -326,13 +334,14 @@ const startBatchSession = async (card, snapshot, project, boardId) => {
     }
   }
   const started = await serviceHost.sessions.start({
-    prompt: batchStartPrompt(card, snapshot.board, project),
+    prompt: batchStartPrompt(card, snapshot.board, project, { manual }),
     title: `Lote · ${project.name}`.slice(0, 120),
     directory: project.directory,
   });
   setLink(card.id, started.sessionId, {
     boardId,
     batch: true,
+    ...(manual ? { manual: true } : {}),
     title: card.name,
     sessionTitle: 'Lote del tablero',
   });
@@ -378,7 +387,7 @@ const startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
     if (!serviceHost) return { sessionId: existing.sessionId, project: project.name };
     const prompt =
       existing.batch === true
-        ? batchCardPrompt(card, snapshot.board, project)
+        ? batchCardPrompt(card, snapshot.board, project, { manual: existing.manual === true })
         : sessionPrompt(card, snapshot.board, project);
     try {
       await serviceHost.sessions.send(existing.sessionId, prompt);
@@ -1121,6 +1130,18 @@ const routes = {
           needsMapping = true;
         } else if (project.autoSession !== true) {
           manual = true;
+        } else if (reusableBatchSession(listLinks(), before, { manual: false })) {
+          // The batch was already approved: only the first card of a batch
+          // asks before opening. Later cards join it directly.
+          try {
+            const result = await startCardFromStatus(id, { forceSession: true });
+            sessionId = result.sessionId || '';
+            sent = result.sent === true;
+            reused = result.reused === true;
+            if (result.sessionError) sessionError = result.sessionError;
+          } catch (error) {
+            sessionError = error.message;
+          }
         } else {
           autoPending = true;
         }
