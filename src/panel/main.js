@@ -1564,7 +1564,7 @@ const openSettings = () => {
   };
   sesionesBox.append(
     fact('IDEAS', 'el + de la columna crea una tarjeta. El lápiz abre la tarjeta para editar título, detalles, checklist y sesión, y para borrarla. El tic la pasa a EN PROGRESO.'),
-    fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el + del Work Status y el agente deja la tarjeta para que la revises; en automático te pregunta antes de sumar cada tarjeta y el agente la mueve a HECHO al terminar.'),
+    fact('EN PROGRESO', 'es la tarjeta actual. Al moverla queda vinculada a la sesión en la que estás. En manual abres la sesión del lote con el + del Work Status y el agente deja la tarjeta para que la revises; en automático te pregunta antes de sumar cada tarjeta y el agente la mueve a HECHO al terminar.'),
     fact('HECHO', 'la tarjeta queda terminada. El botón de la columna HECHO cierra el lote: pide el resumen de cada sesión y suelta las tarjetas; la sesión sigue abierta para que la archives.'),
   );
   sesionesBox.append(el('p', 'settings-note', 'Al cerrar el lote se sueltan sus tarjetas: si vuelves a mover una, se suma al lote que siga abierto o abre uno nuevo. La sesión sigue abierta para que la archives cuando quieras.'));
@@ -2374,8 +2374,11 @@ const moveCard = async (cardId, listId, index) => {
   target.cards.splice(bounded, 0, { ...card, listId });
   renderBoard();
 
+  const mine = state.session?.id
+    ? { sessionId: state.session.id, sessionTitle: state.session.title || '' }
+    : {};
   try {
-    const answer = await api('POST', '/card/move', { id: cardId, listId, index: bounded });
+    const answer = await api('POST', '/card/move', { id: cardId, listId, index: bounded, ...mine });
     await refresh(true);
     if (answer?.sent) {
       toast(
@@ -2403,6 +2406,8 @@ const moveCard = async (cardId, listId, index) => {
       } catch {
         toast('error', 'La sesión se creó, pero no se pudo abrir.');
       }
+    } else if (answer?.linked) {
+      toast('success', 'Tarjeta vinculada a esta sesión. Pídeme que la trabaje cuando quieras.');
     } else if (answer?.autoPending) {
       offerSession(cardId, card?.name, answer.project, document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`));
     } else if (answer?.manual) {

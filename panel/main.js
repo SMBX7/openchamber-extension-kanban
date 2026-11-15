@@ -3238,7 +3238,7 @@ ${card.description}`.toLowerCase();
     };
     sesionesBox.append(
       fact("IDEAS", "el + de la columna crea una tarjeta. El l\xE1piz abre la tarjeta para editar t\xEDtulo, detalles, checklist y sesi\xF3n, y para borrarla. El tic la pasa a EN PROGRESO."),
-      fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el + del Work Status y el agente deja la tarjeta para que la revises; en autom\xE1tico te pregunta antes de sumar cada tarjeta y el agente la mueve a HECHO al terminar."),
+      fact("EN PROGRESO", "es la tarjeta actual. Al moverla queda vinculada a la sesi\xF3n en la que est\xE1s. En manual abres la sesi\xF3n del lote con el + del Work Status y el agente deja la tarjeta para que la revises; en autom\xE1tico te pregunta antes de sumar cada tarjeta y el agente la mueve a HECHO al terminar."),
       fact("HECHO", "la tarjeta queda terminada. El bot\xF3n de la columna HECHO cierra el lote: pide el resumen de cada sesi\xF3n y suelta las tarjetas; la sesi\xF3n sigue abierta para que la archives.")
     );
     sesionesBox.append(el2("p", "settings-note", "Al cerrar el lote se sueltan sus tarjetas: si vuelves a mover una, se suma al lote que siga abierto o abre uno nuevo. La sesi\xF3n sigue abierta para que la archives cuando quieras."));
@@ -3943,8 +3943,9 @@ ${card.description}`.toLowerCase();
     const bounded = Math.max(0, Math.min(index, target.cards.length));
     target.cards.splice(bounded, 0, { ...card, listId });
     renderBoard();
+    const mine = state.session?.id ? { sessionId: state.session.id, sessionTitle: state.session.title || "" } : {};
     try {
-      const answer = await api("POST", "/card/move", { id: cardId, listId, index: bounded });
+      const answer = await api("POST", "/card/move", { id: cardId, listId, index: bounded, ...mine });
       await refresh(true);
       if (answer?.sent) {
         toast(
@@ -3968,6 +3969,8 @@ ${card.description}`.toLowerCase();
         } catch {
           toast("error", "La sesi\xF3n se cre\xF3, pero no se pudo abrir.");
         }
+      } else if (answer?.linked) {
+        toast("success", "Tarjeta vinculada a esta sesi\xF3n. P\xEDdeme que la trabaje cuando quieras.");
       } else if (answer?.autoPending) {
         offerSession(cardId, card?.name, answer.project, document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`));
       } else if (answer?.manual) {

@@ -1103,6 +1103,7 @@ const routes = {
     let sessionId = '';
     let needsMapping = false;
     let manual = false;
+    let linked = false;
     let autoPending = false;
     let sent = false;
     let reused = false;
@@ -1128,7 +1129,20 @@ const routes = {
         if (!project) {
           needsMapping = true;
         } else if (project.autoSession !== true) {
-          manual = true;
+          // Manual mode opens no session by itself. The person moved the card
+          // from the session they are working in, so that is the one the card
+          // points at; without it the Work Status would say "sin sesión".
+          const current = String(body.sessionId || '').trim();
+          if (current) {
+            setLink(id, current, {
+              boardId,
+              title: beforeCard?.name || item?.name || '',
+              sessionTitle: String(body.sessionTitle || '').trim() || current,
+            });
+            linked = true;
+          } else {
+            manual = true;
+          }
         } else {
           autoPending = true;
         }
@@ -1138,6 +1152,7 @@ const routes = {
     return {
       card: item,
       sessionId,
+      linked,
       needsMapping,
       manual,
       autoPending,

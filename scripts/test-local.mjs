@@ -285,7 +285,7 @@ const service = spawn(process.execPath, [join(ext, 'service', 'main.js')], {
   stdio: 'ignore',
 });
 const serviceUrl = (path, directory) =>
-  `http://127.0.0.1:${port}${path}?directory=${encodeURIComponent(directory)}`;
+  `http://127.0.0.1:${port}${path}${path.includes('?') ? '&' : '?'}directory=${encodeURIComponent(directory)}`;
 const post = async (path, directory, body) => {
   const response = await fetch(serviceUrl(path, directory), {
     method: 'POST',
@@ -293,6 +293,7 @@ const post = async (path, directory, body) => {
   });
   return response.json();
 };
+const get = async (path, directory) => (await fetch(serviceUrl(path, directory))).json();
 
 try {
   let ready = false;
@@ -324,6 +325,37 @@ try {
     'the other project keeps its board',
   );
   assert.ok(exportBoard('json').includes('Sin proyecto'), 'the legacy board is untouched');
+
+  // A manual move to work links the session it came from: that is the "sin
+  // sesión" the card showed after being dragged, and it is why the panel sends
+  // the session with the move.
+  mkdirSync(join(home, '.kanban'), { recursive: true });
+  writeFileSync(
+    join(home, '.kanban', 'board-projects.json'),
+    JSON.stringify({
+      version: 1,
+      boards: {
+        local: { projectId: 'p-a', directory: projectA, name: 'A', autoSession: false },
+      },
+      projects: {},
+    }),
+  );
+  const before = await get('/snapshot', projectA);
+  const work = before.lists.find((list) => list.id === before.workListId) || before.lists[1];
+  const backlog = before.lists.find((list) => list.id !== work.id && list.id !== before.doneListId);
+  const fresh = await post('/card', projectA, { listId: backlog.id, name: 'Con sesión' });
+  const dragged = await post('/card/move', projectA, {
+    id: fresh.card.id,
+    listId: work.id,
+    sessionId: 'ses-test',
+    sessionTitle: 'Esta sesión',
+  });
+  assert.equal(dragged.linked, true, 'a manual move links the session it came from');
+  assert.equal(dragged.manual, false, 'a linked move does not ask to open a batch');
+  const link = await get(`/link?cardId=${fresh.card.id}`, projectA);
+  assert.equal(link.link.sessionId, 'ses-test', 'the card points at that session');
+  assert.equal(link.link.sessionTitle, 'Esta sesión', 'the link keeps the session title');
+  assert.equal(link.link.batch, undefined, 'the link is not a batch link');
 } finally {
   service.kill('SIGTERM');
   if (service.exitCode === null) {
@@ -675,4 +707,4 @@ assert.equal(promoteCardList(promoteBoard, 'ideas'), 'work', 'a backlog card mov
 assert.equal(promoteCardList(promoteBoard, 'work'), '', 'a card already in progress stays');
 assert.equal(promoteCardList(promoteBoard, 'done'), '', 'a finished card never moves');
 
-console.log('local mode: 121 assertions ok');
+console.log('local mode: 126 assertions ok');

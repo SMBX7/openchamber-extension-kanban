@@ -175,10 +175,12 @@ trabajar la tarjeta sin abrir el panel. Las de HECHO quedan fuera.
 
 Elige el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status.
 
-- **Manual**: mover una tarjeta a EN PROGRESO solo la mueve; abre la sesión con el `+` del
-  Work Status. Los dos modos van por lotes con subagentes. El agente trabaja la tarjeta y
-  la deja en EN PROGRESO avisando de que está lista: tú la revisas, la pasas a HECHO y
-  pides el resumen cuando el lote esté listo. Referenciar una tarjeta en el chat para
+- **Manual**: al mover una tarjeta a EN PROGRESO queda vinculada a la sesión en la que
+  estás trabajando, así que el Work Status deja de decir que no tiene sesión. Abre el lote
+  con el `+` del Work Status cuando quieras que el agente la trabaje. Los dos modos van por
+  lotes con subagentes. El agente trabaja la tarjeta y la deja en EN PROGRESO avisando de
+  que está lista: tú la revisas, la pasas a HECHO y pides el resumen cuando el lote esté
+  listo. Referenciar una tarjeta en el chat para
   trabajar en ella —con `@` o
   por su nombre— la pasa a EN PROGRESO si aún está en IDEAS.
 - **Automática**: el aviso pregunta antes de sumar cada tarjeta al lote, así que ninguna
