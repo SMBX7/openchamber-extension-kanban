@@ -10,6 +10,21 @@ Conéctalo a tu Planka o guárdalo todo en este equipo. La interfaz está en esp
 
 ![El tablero](docs/panel.png)
 
+## Índice
+
+- [Qué te llevas](#qué-te-llevas)
+- [Instalar](#instalar)
+- [Dónde está](#dónde-está)
+- [Actualizar](#actualizar)
+- [Conectar con Planka](#conectar-con-planka)
+- [Tablero local](#tablero-local)
+- [El panel](#el-panel)
+- [Work Status](#work-status)
+- [Sesiones: manual y automático](#sesiones-manual-y-automático)
+- [Estilos](#estilos)
+- [Problemas frecuentes](#problemas-frecuentes)
+- [Licencia](#licencia)
+
 ## Qué te llevas
 
 - **Tres columnas**: IDEAS, EN PROGRESO y HECHO. Nada más.

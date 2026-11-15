@@ -11,6 +11,21 @@ each control below gives its English name and, in brackets, the label on screen.
 
 ![The board](docs/panel.png)
 
+## Contents
+
+- [What you get](#what-you-get)
+- [Install](#install)
+- [Where it lives](#where-it-lives)
+- [Updating](#updating)
+- [Connecting to Planka](#connecting-to-planka)
+- [Local board](#local-board)
+- [The panel](#the-panel)
+- [Work Status](#work-status)
+- [Sessions: manual and automatic](#sessions-manual-and-automatic)
+- [Styles](#styles)
+- [Common problems](#common-problems)
+- [License](#license)
+
 ## What you get
 
 - **Three columns**: IDEAS, IN PROGRESS and DONE. Nothing else.
