@@ -173,13 +173,14 @@ it can work the card without opening the panel. Cards in DONE stay out.
 
 Choose the mode in **Settings → Delegation** (Delegación) or from the Work Status pill.
 
-- **Manual**: moving a card to IN PROGRESS only moves it; open the session with the
-  card's `+`. Each card gets its own session. When you reference a card in the chat to
-  work on it — with `@` or by name — it moves to IN PROGRESS if it is still in IDEAS.
-- **Automatic**: automatic delegation works in batches. The first card you launch opens
-  the session; every card launched after it joins the same session. The main agent hands
-  each card to a subagent, reviews the result and moves the card to DONE itself. The
-  prompt still asks before anything opens.
+- **Manual**: moving a card to IN PROGRESS only moves it; open the session with the `+`
+  in the Work Status. Both modes work in batches: the first card opens the session and the
+  rest join it, and the main agent hands each card to a subagent. When you reference a
+  card in the chat to work on it — with `@` or by name — it moves to IN PROGRESS if it is
+  still in IDEAS.
+- **Automatic**: the same batch, but the prompt asks before the session opens. The main
+  agent hands each card to a subagent, reviews the result and moves the card to DONE
+  itself.
 
 When an agent takes a card, the extension links it to that session: the card moves to IN
 PROGRESS when linked. A batch stays open while any of its cards is outside DONE; when the

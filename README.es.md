@@ -175,14 +175,14 @@ trabajar la tarjeta sin abrir el panel. Las de HECHO quedan fuera.
 
 Elige el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status.
 
-- **Manual**: mover una tarjeta a EN PROGRESO solo la mueve; abre la sesión con el `+` de
-  la tarjeta. Cada tarjeta tiene su propia sesión. Cuando referencias una tarjeta en el
-  chat para trabajar en ella —con `@` o por su nombre— pasa a EN PROGRESO si aún está en
-  IDEAS.
-- **Automática**: la delegación automática va por lotes. La primera tarjeta que lanzas
-  abre la sesión; las siguientes se suman a esa misma sesión. El agente principal le pasa
-  cada tarjeta a un subagente, revisa el resultado y mueve la tarjeta a HECHO él mismo. El
-  aviso sigue preguntando antes de abrir nada.
+- **Manual**: mover una tarjeta a EN PROGRESO solo la mueve; abre la sesión con el `+` del
+  Work Status. Los dos modos van por lotes: la primera tarjeta abre la sesión y las demás
+  se suman a ella, y el agente principal le pasa cada tarjeta a un subagente. Cuando
+  referencias una tarjeta en el chat para trabajar en ella —con `@` o por su nombre— pasa
+  a EN PROGRESO si aún está en IDEAS.
+- **Automática**: el mismo lote, pero el aviso pregunta antes de abrir la sesión. El
+  agente principal le pasa cada tarjeta a un subagente, revisa el resultado y mueve la
+  tarjeta a HECHO él mismo.
 
 Cuando un agente toma una tarjeta, la extensión la vincula a esa sesión: pasa a EN
 PROGRESO al vincularse. Un lote sigue abierto mientras le quede alguna tarjeta fuera de

@@ -295,20 +295,10 @@ const sessionPrompt = (card, board, project) => {
     .join('\n');
 };
 
-const startWorkSession = async (card, board, project, boardId) => {
-  if (!serviceHost) throw new Error('El servicio no puede abrir sesiones en este host.');
-  const started = await serviceHost.sessions.start({
-    prompt: sessionPrompt(card, board, project),
-    title: String(card?.name || 'Tarjeta de Kanban').slice(0, 120),
-    directory: project.directory,
-  });
-  setLink(card.id, started.sessionId, { boardId, title: card.name, sessionTitle: card.name });
-  return { ...started, project: project.name };
-};
-
-// Automatic delegation works in batches: one session for every card launched
-// on the board. The first card opens it; the rest join it and the main agent
-// hands each one to a subagent.
+// Delegation works in batches in both modes: one session for every card
+// launched on the board. The first card opens it; the rest join it and the
+// main agent hands each one to a subagent. The mode only decides who opens the
+// session, never its shape.
 const startBatchSession = async (card, snapshot, project, boardId) => {
   if (!serviceHost) throw new Error('El servicio no puede abrir sesiones en este host.');
   const reusable = reusableBatchSession(listLinks(), snapshot);
@@ -405,12 +395,11 @@ const startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
   if (!forceSession) {
     return { moved: true, autoPending: project.autoSession === true, project: project.name };
   }
-  if (project.autoSession === true) {
-    const batch = await startBatchSession(card, snapshot, project, boardId);
-    return { sessionId: batch.sessionId, sent: true, reused: batch.reused === true, project: project.name };
-  }
-  const started = await startWorkSession(card, snapshot.board, project, boardId);
-  return { sessionId: started.sessionId, sent: true, project: project.name };
+  // Both modes open a batch: the person pressing + in manual mode gets the
+  // same shared session the automatic prompt offers, so the board never ends
+  // up with one session per card by accident.
+  const batch = await startBatchSession(card, snapshot, project, boardId);
+  return { sessionId: batch.sessionId, sent: true, reused: batch.reused === true, project: project.name };
 };
 
 const moveCardToBacklog = async (cardId) => {

@@ -2166,7 +2166,7 @@ ${GUEST_UI_LOOK_CSS}`;
     mode.type = "button";
     mode.disabled = state.busy || !project;
     if (project) {
-      mode.title = project.autoSession ? "Delegaci\xF3n autom\xE1tica: al mover a EN PROGRESO te pedir\xE1 confirmaci\xF3n. Pulsa para pasar a manual." : "Delegaci\xF3n manual: la sesi\xF3n la abres t\xFA. Pulsa para activar la autom\xE1tica.";
+      mode.title = project.autoSession ? "Delegaci\xF3n autom\xE1tica: al mover a EN PROGRESO te pedir\xE1 confirmaci\xF3n. Pulsa para pasar a manual." : "Delegaci\xF3n manual: la sesi\xF3n del lote la abres t\xFA. Pulsa para activar la autom\xE1tica.";
       mode.setAttribute("aria-label", mode.title);
     }
     const board = el2("span", "board-name", data.board?.name || "Kanban");

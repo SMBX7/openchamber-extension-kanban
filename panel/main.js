@@ -2002,7 +2002,7 @@ ${GUEST_UI_LOOK_CSS}`;
     document.body.classList.add("popover-surface");
     const wrap = el2("div", "popover-card");
     const head = el2("div", "popover-head");
-    head.append(el2("span", "popover-dot"), el2("span", "popover-title", "Sesi\xF3n autom\xE1tica"));
+    head.append(el2("span", "popover-dot"), el2("span", "popover-title", "Sesi\xF3n del lote"));
     const text = el2("div", "popover-text", data.name || "Esta tarjeta");
     const where = el2("div", "popover-meta", data.project || "");
     const note = el2("div", "popover-note", "No se abre nada hasta que lo confirmes.");
@@ -2977,7 +2977,7 @@ ${card.description}`.toLowerCase();
         autoSession: Boolean(enabled)
       });
       state.snapshot.project = answer.project || mapping;
-      toast("success", enabled ? "Delegaci\xF3n autom\xE1tica: las tarjetas que lances comparten una sesi\xF3n por lote." : "Delegaci\xF3n manual: usa Crear sesi\xF3n en la tarjeta.");
+      toast("success", enabled ? "Delegaci\xF3n autom\xE1tica: el prompt te pide la sesi\xF3n del lote y el agente reparte las tarjetas a subagentes." : "Delegaci\xF3n manual: abres la sesi\xF3n del lote con el + del Work Status y el agente reparte las tarjetas a subagentes.");
     } catch (error) {
       toast("error", error.message);
     }
@@ -3121,7 +3121,7 @@ ${card.description}`.toLowerCase();
     conexion.append(sourceBox);
     const delegacion = el2("section", "settings-section");
     delegacion.append(el2("div", "settings-heading", "Delegaci\xF3n"));
-    delegacion.append(el2("p", "settings-note", "Solo cambia qui\xE9n abre la sesi\xF3n."));
+    delegacion.append(el2("p", "settings-note", "Las dos abren una sesi\xF3n por lote: el agente reparte cada tarjeta a un subagente. Solo cambia qui\xE9n la abre."));
     const modes = el2("div", "settings-modes");
     const modeCard = (label, description, active2, enabled) => {
       const button2 = el2("button", "mode-card");
@@ -3131,8 +3131,8 @@ ${card.description}`.toLowerCase();
       button2.append(el2("span", "mode-card-title", label), el2("span", "mode-card-text", description));
       return button2;
     };
-    const manualCard = modeCard("Manual", "T\xFA abres la sesi\xF3n con el + de la tarjeta.", mapping?.autoSession !== true, Boolean(mapping));
-    const autoCard = modeCard("Autom\xE1tica", "Una sesi\xF3n por lote: reparte cada tarjeta a un subagente y te resume.", mapping?.autoSession === true, Boolean(mapping));
+    const manualCard = modeCard("Manual", "T\xFA abres la sesi\xF3n del lote con el + del Work Status; el agente reparte cada tarjeta a un subagente.", mapping?.autoSession !== true, Boolean(mapping));
+    const autoCard = modeCard("Autom\xE1tica", "El prompt te pide abrir la sesi\xF3n del lote; el agente reparte cada tarjeta a un subagente y te resume.", mapping?.autoSession === true, Boolean(mapping));
     manualCard.addEventListener("click", () => {
       if (mapping?.autoSession === true) void changeAutoMode(false);
     });
@@ -3217,10 +3217,10 @@ ${card.description}`.toLowerCase();
     };
     sesionesBox.append(
       fact("IDEAS", "el + de la columna crea una tarjeta. El l\xE1piz abre la tarjeta para editar t\xEDtulo, detalles, checklist y sesi\xF3n, y para borrarla. El tic la pasa a EN PROGRESO."),
-      fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el +; en autom\xE1tico se suma a la sesi\xF3n del lote."),
+      fact("EN PROGRESO", "es la tarjeta actual. Las tarjetas de un lote comparten una sesi\xF3n y el agente reparte cada una a un subagente: en manual la abres t\xFA con el + del Work Status, en autom\xE1tico se suma a la del lote."),
       fact("HECHO", "la tarjeta queda terminada. Las sesiones se cierran cuando pulses el bot\xF3n de la columna HECHO.")
     );
-    sesionesBox.append(el2("p", "settings-note", "Al cerrar se borra el v\xEDnculo: si vuelves a mover la tarjeta, empieza una sesi\xF3n nueva. La sesi\xF3n detenida sigue en la lista para que la archives."));
+    sesionesBox.append(el2("p", "settings-note", "Al cerrar se borra el v\xEDnculo: si vuelves a mover la tarjeta, se suma al lote que siga abierto o abre uno nuevo. La sesi\xF3n detenida sigue en la lista para que la archives."));
     sesiones.append(sesionesBox);
     const avanzado = el2("section", "settings-section");
     avanzado.append(el2("div", "settings-heading", "Avanzado"));
@@ -3941,7 +3941,7 @@ ${card.description}`.toLowerCase();
       } else if (answer?.autoPending) {
         offerSession(cardId, card?.name, answer.project, document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`));
       } else if (answer?.manual) {
-        toast("info", "Delegaci\xF3n manual: abre la tarjeta y pulsa Crear sesi\xF3n.");
+        toast("info", "Delegaci\xF3n manual: abre la sesi\xF3n del lote con el + del Work Status.");
       } else if (answer?.needsMapping) {
         toast("error", "Asigna un proyecto a este tablero para crear la sesi\xF3n.");
       }
@@ -4111,7 +4111,7 @@ ${card.description}`.toLowerCase();
     for (const option of options) sheet.sessionSelect.append(new Option(option.title, option.id));
     sheet.sessionSelect.value = link?.sessionId || "";
     sheet.sessionRemove.style.display = link ? "" : "none";
-    sheet.sessionNote.textContent = link ? "Sesi\xF3n asignada. Mientras trabaja, la tarjeta va a EN PROGRESO; al terminar, a HECHO." : "Sin sesi\xF3n asignada. Elige una para vincularla a esta tarjeta.";
+    sheet.sessionNote.textContent = link ? "Sesi\xF3n asignada. La tarjeta va a EN PROGRESO mientras se trabaja y a HECHO al terminar." : "Sin sesi\xF3n asignada. Elige una para vincularla a esta tarjeta.";
     sheet.sessionSelect.onchange = async () => {
       const value = sheet.sessionSelect.value;
       try {

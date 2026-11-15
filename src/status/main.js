@@ -396,7 +396,7 @@ const renderSummary = (data) => {
   if (project) {
     mode.title = project.autoSession
       ? 'Delegación automática: al mover a EN PROGRESO te pedirá confirmación. Pulsa para pasar a manual.'
-      : 'Delegación manual: la sesión la abres tú. Pulsa para activar la automática.';
+      : 'Delegación manual: la sesión del lote la abres tú. Pulsa para activar la automática.';
     mode.setAttribute('aria-label', mode.title);
   }
   const board = el('span', 'board-name', data.board?.name || 'Kanban');

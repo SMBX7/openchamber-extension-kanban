@@ -2192,16 +2192,6 @@ ${checklist.join("\n")}` : "",
     `Proyecto: ${project.name}.`
   ].filter(Boolean).join("\n");
 };
-var startWorkSession = async (card, board, project, boardId) => {
-  if (!serviceHost) throw new Error("El servicio no puede abrir sesiones en este host.");
-  const started = await serviceHost.sessions.start({
-    prompt: sessionPrompt(card, board, project),
-    title: String(card?.name || "Tarjeta de Kanban").slice(0, 120),
-    directory: project.directory
-  });
-  setLink(card.id, started.sessionId, { boardId, title: card.name, sessionTitle: card.name });
-  return { ...started, project: project.name };
-};
 var startBatchSession = async (card, snapshot, project, boardId) => {
   if (!serviceHost) throw new Error("El servicio no puede abrir sesiones en este host.");
   const reusable = reusableBatchSession(listLinks(), snapshot);
@@ -2290,12 +2280,8 @@ var startCardFromStatus = async (cardId, { forceSession = false } = {}) => {
   if (!forceSession) {
     return { moved: true, autoPending: project.autoSession === true, project: project.name };
   }
-  if (project.autoSession === true) {
-    const batch = await startBatchSession(card, snapshot, project, boardId);
-    return { sessionId: batch.sessionId, sent: true, reused: batch.reused === true, project: project.name };
-  }
-  const started = await startWorkSession(card, snapshot.board, project, boardId);
-  return { sessionId: started.sessionId, sent: true, project: project.name };
+  const batch = await startBatchSession(card, snapshot, project, boardId);
+  return { sessionId: batch.sessionId, sent: true, reused: batch.reused === true, project: project.name };
 };
 var moveCardToBacklog = async (cardId) => {
   const config = readConfig();
