@@ -2,6 +2,7 @@ import { connectHost } from '@openchamber/sdk';
 import { applyHostReady } from '@openchamber/sdk/ui';
 import { sortCardsByWork } from '../shared/work.js';
 import { pinState } from '../shared/board-pin.js';
+import { composerFieldHeight } from '../shared/composer.js';
 
 const host = connectHost();
 const root = document.querySelector('#root');
@@ -2078,6 +2079,23 @@ const openSortPopover = (anchor, listId) => {
   node.addEventListener('click', (event) => event.stopPropagation());
 };
 
+// A composer field grows with its text up to the lines it declares and then
+// scrolls. A single-line input hid everything after the first line, so you
+// could not read what you had typed.
+const growComposerField = (field) => {
+  field.style.height = 'auto';
+  const style = getComputedStyle(field);
+  const next = composerFieldHeight({
+    scrollHeight: field.scrollHeight,
+    lineHeight: parseFloat(style.lineHeight) || 16,
+    padding: (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0),
+    border: (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.borderBottomWidth) || 0),
+    lines: Number(field.dataset.lines) || 1,
+  });
+  field.style.height = `${next.height}px`;
+  field.style.overflowY = next.scroll ? 'auto' : 'hidden';
+};
+
 const buildSortControl = (list) => {
   const button = el('button', 'col-sort');
   button.type = 'button';
@@ -2188,18 +2206,30 @@ const renderBoard = () => {
     for (const card of visible) cardsEl.append(buildCard(card, listIndex, list.id === state.snapshot?.workListId));
 
     const composer = el('div', 'composer');
-    const input = el('input', 'composer-title');
-    input.type = 'text';
-    input.placeholder = 'Título';
-    input.setAttribute('aria-label', `Título de la nueva tarjeta en ${list.name}`);
-    // The description is a single-line field on purpose: it scrolls sideways
-    // while you type instead of wrapping and growing the column.
-    const details = el('input', 'composer-description');
-    details.type = 'text';
-    details.placeholder = 'Descripción (opcional)';
-    details.setAttribute('aria-label', `Descripción de la nueva tarjeta en ${list.name}`);
+    const composerField = (className, placeholder, label, lines) => {
+      const box = el('textarea', `composer-field ${className}`);
+      box.rows = 1;
+      box.placeholder = placeholder;
+      box.dataset.lines = String(lines);
+      box.setAttribute('aria-label', label);
+      box.addEventListener('input', () => growComposerField(box));
+      return box;
+    };
+    // The title keeps one line and grows to two; the description grows to four.
+    const input = composerField(
+      'composer-title',
+      'Título',
+      `Título de la nueva tarjeta en ${list.name}`,
+      2,
+    );
+    const details = composerField(
+      'composer-description',
+      'Descripción (opcional)',
+      `Descripción de la nueva tarjeta en ${list.name}`,
+      4,
+    );
     const row = el('div', 'composer-row');
-    const hint = el('span', 'composer-hint', 'Enter guarda · Esc cierra');
+    const hint = el('span', 'composer-hint', 'Enter guarda · Mayús+Enter salta línea · Esc cierra');
     const cancel = el('button', 'ghost-btn', 'Cancelar');
     cancel.type = 'button';
     const create = el('button', 'btn-mint', 'Crear');
@@ -2213,7 +2243,7 @@ const renderBoard = () => {
       void createCard(list.id, value, details.value, composer);
     };
     const onComposerKey = (event) => {
-      if (event.key === 'Enter') {
+      if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         submitComposer();
       } else if (event.key === 'Escape') {
@@ -2350,7 +2380,10 @@ const createCard = async (listId, name, description, composer) => {
     if (details) body.description = details;
     await api('POST', '/card', body);
     if (composer) {
-      for (const field of composer.querySelectorAll('input')) field.value = '';
+      for (const field of composer.querySelectorAll('input, textarea')) {
+        field.value = '';
+        if (field.tagName === 'TEXTAREA') growComposerField(field);
+      }
     }
     await refresh(true);
   } catch (error) {

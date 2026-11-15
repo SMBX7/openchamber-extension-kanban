@@ -135,7 +135,7 @@
       html[data-style="brutalism"] .description,
       html[data-style="brutalism"] .session-select,
       html[data-style="brutalism"] .task-add input,
-      html[data-style="brutalism"] .composer input {
+      html[data-style="brutalism"] .composer-field {
         background-color: var(--oc-elevated);
         border: 2px solid var(--brutal-line);
         box-shadow: 2px 2px 0 var(--brutal-line);
@@ -238,7 +238,7 @@
       html[data-style="glass"] .description,
       html[data-style="glass"] .session-select,
       html[data-style="glass"] .task-add input,
-      html[data-style="glass"] .composer input,
+      html[data-style="glass"] .composer-field,
       html[data-style="glass"] .menu-select-button,
       html[data-style="glass"] .tool-chip {
         background-color: color-mix(in srgb, var(--oc-elevated) 55%, transparent);
@@ -950,12 +950,14 @@
       .column.composing .add-card { display: none; }
       .composer { display: none; padding: 2px 2px 0; margin-bottom: 8px; }
       .column.composing .composer { display: flex; flex-direction: column; gap: 6px; }
-      .composer input {
-        width: 100%; background: color-mix(in srgb, var(--oc-elevated) 82%, var(--oc-fg) 18%);
+      .composer-field {
+        width: 100%; display: block; resize: none; overflow-y: hidden;
+        background: color-mix(in srgb, var(--oc-elevated) 82%, var(--oc-fg) 18%);
         border: 1px solid var(--mint); border-radius: 8px; padding: 7px 9px;
-        color: var(--oc-fg); font-size: 12px; outline: none;
+        color: var(--oc-fg); font: inherit; font-size: 12px; line-height: 1.35;
+        outline: none; word-break: break-word;
       }
-      html[data-oc-theme="light"] .composer input,
+      html[data-oc-theme="light"] .composer-field,
       html[data-oc-theme="light"] .field input,
       html[data-oc-theme="light"] .field select,
       html[data-oc-theme="light"] .description {
@@ -1108,7 +1110,7 @@
       .panel-board .card-title { font-size: 12px; }
       .panel-board .card-desc { font-size: 10.5px; }
       .panel-board .card-meta { gap: 5px; margin-top: 6px; font-size: 9.5px; }
-      .panel-board .composer input { font-size: 11.5px; padding: 6px 7px; }
+      .panel-board .composer-field { font-size: 11.5px; padding: 6px 7px; }
       .panel-board .composer-hint { display: none; }
       .panel-board .composer-row { gap: 4px; }
       .panel-board .btn-mint { padding: 3px 8px; font-size: 10.5px; }

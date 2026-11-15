@@ -1864,6 +1864,13 @@ ${GUEST_UI_LOOK_CSS}`;
     return { pinned: isPinned, disabled: !hasProject || !id, label };
   };
 
+  // src/shared/composer.js
+  var composerFieldHeight = ({ scrollHeight, lineHeight, padding, border: border2, lines }) => {
+    const room = Math.round(lineHeight * lines + padding + border2);
+    const needed = Math.ceil(scrollHeight + border2);
+    return { height: Math.min(needed, room), scroll: needed > room };
+  };
+
   // src/panel/main.js
   var host = connectHost();
   var root = document.querySelector("#root");
@@ -3680,6 +3687,19 @@ ${card.description}`.toLowerCase();
     action.addEventListener("click", () => void sortIdeas(listId, state.sortMode, action, status));
     node.addEventListener("click", (event) => event.stopPropagation());
   };
+  var growComposerField = (field2) => {
+    field2.style.height = "auto";
+    const style = getComputedStyle(field2);
+    const next = composerFieldHeight({
+      scrollHeight: field2.scrollHeight,
+      lineHeight: parseFloat(style.lineHeight) || 16,
+      padding: (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0),
+      border: (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.borderBottomWidth) || 0),
+      lines: Number(field2.dataset.lines) || 1
+    });
+    field2.style.height = `${next.height}px`;
+    field2.style.overflowY = next.scroll ? "auto" : "hidden";
+  };
   var buildSortControl = (list) => {
     const button2 = el2("button", "col-sort");
     button2.type = "button";
@@ -3778,16 +3798,29 @@ ${card.description}`.toLowerCase();
       }
       for (const card of visible) cardsEl.append(buildCard(card, listIndex, list.id === state.snapshot?.workListId));
       const composer = el2("div", "composer");
-      const input = el2("input", "composer-title");
-      input.type = "text";
-      input.placeholder = "T\xEDtulo";
-      input.setAttribute("aria-label", `T\xEDtulo de la nueva tarjeta en ${list.name}`);
-      const details = el2("input", "composer-description");
-      details.type = "text";
-      details.placeholder = "Descripci\xF3n (opcional)";
-      details.setAttribute("aria-label", `Descripci\xF3n de la nueva tarjeta en ${list.name}`);
+      const composerField = (className, placeholder, label, lines) => {
+        const box = el2("textarea", `composer-field ${className}`);
+        box.rows = 1;
+        box.placeholder = placeholder;
+        box.dataset.lines = String(lines);
+        box.setAttribute("aria-label", label);
+        box.addEventListener("input", () => growComposerField(box));
+        return box;
+      };
+      const input = composerField(
+        "composer-title",
+        "T\xEDtulo",
+        `T\xEDtulo de la nueva tarjeta en ${list.name}`,
+        2
+      );
+      const details = composerField(
+        "composer-description",
+        "Descripci\xF3n (opcional)",
+        `Descripci\xF3n de la nueva tarjeta en ${list.name}`,
+        4
+      );
       const row = el2("div", "composer-row");
-      const hint = el2("span", "composer-hint", "Enter guarda \xB7 Esc cierra");
+      const hint = el2("span", "composer-hint", "Enter guarda \xB7 May\xFAs+Enter salta l\xEDnea \xB7 Esc cierra");
       const cancel = el2("button", "ghost-btn", "Cancelar");
       cancel.type = "button";
       const create = el2("button", "btn-mint", "Crear");
@@ -3800,7 +3833,7 @@ ${card.description}`.toLowerCase();
         void createCard(list.id, value, details.value, composer);
       };
       const onComposerKey = (event) => {
-        if (event.key === "Enter") {
+        if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
           submitComposer();
         } else if (event.key === "Escape") {
@@ -3922,7 +3955,10 @@ ${card.description}`.toLowerCase();
       if (details) body.description = details;
       await api("POST", "/card", body);
       if (composer) {
-        for (const field2 of composer.querySelectorAll("input")) field2.value = "";
+        for (const field2 of composer.querySelectorAll("input, textarea")) {
+          field2.value = "";
+          if (field2.tagName === "TEXTAREA") growComposerField(field2);
+        }
       }
       await refresh(true);
     } catch (error) {

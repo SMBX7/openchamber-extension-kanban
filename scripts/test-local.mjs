@@ -707,6 +707,32 @@ assert.equal(promoteCardList(promoteBoard, 'ideas'), 'work', 'a backlog card mov
 assert.equal(promoteCardList(promoteBoard, 'work'), '', 'a card already in progress stays');
 assert.equal(promoteCardList(promoteBoard, 'done'), '', 'a finished card never moves');
 
+// The composer grows with what you type instead of hiding it: the title keeps
+// two lines, the description four, and anything longer scrolls inside the box.
+const composerBundle = join(dir, 'composer.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/composer.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: composerBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const { composerFieldHeight } = require(composerBundle);
+const field = (lines, textLines) =>
+  composerFieldHeight({
+    scrollHeight: textLines * 16 + 14,
+    lineHeight: 16,
+    padding: 14,
+    border: 2,
+    lines,
+  });
+assert.deepEqual(field(2, 1), { height: 32, scroll: false }, 'one line keeps the title short');
+assert.deepEqual(field(2, 2), { height: 48, scroll: false }, 'two lines fit the title');
+assert.deepEqual(field(2, 3), { height: 48, scroll: true }, 'a third line scrolls inside the title');
+assert.deepEqual(field(4, 4), { height: 80, scroll: false }, 'four lines fit the description');
+assert.deepEqual(field(4, 6), { height: 80, scroll: true }, 'a longer description scrolls');
+
 // The Work Status section is sized by the manifest before any script runs, and
 // 190px showed a card and a half: three cards only fitted while the session
 // menu asked for more height. It has to open tall.
@@ -716,4 +742,4 @@ assert.ok(
   'the Work Status opens tall enough for three cards',
 );
 
-console.log('local mode: 127 assertions ok');
+console.log('local mode: 132 assertions ok');
