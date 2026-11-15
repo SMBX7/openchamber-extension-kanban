@@ -382,6 +382,14 @@ assert.ok(
   'a card added later carries the same delegation rule',
 );
 assert.ok(batchClosePrompt().includes('resumen'), 'the batch closes with a summary per subagent');
+assert.ok(
+  !batchClosePrompt().includes('cierra esta sesión'),
+  'the batch summary does not close the session',
+);
+assert.ok(
+  batchClosePrompt().includes('no la cierres'),
+  'the batch summary asks to keep the session open',
+);
 
 const batchLinks = {
   'card-a': { sessionId: 's1', boardId: 'board-1', batch: true, linkedAt: '2026-11-14T10:00:00.000Z' },
@@ -625,4 +633,4 @@ assert.equal(promoteCardList(promoteBoard, 'ideas'), 'work', 'a backlog card mov
 assert.equal(promoteCardList(promoteBoard, 'work'), '', 'a card already in progress stays');
 assert.equal(promoteCardList(promoteBoard, 'done'), '', 'a finished card never moves');
 
-console.log('local mode: 114 assertions ok');
+console.log('local mode: 116 assertions ok');

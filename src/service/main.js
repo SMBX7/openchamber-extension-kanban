@@ -58,7 +58,10 @@ const ensureInstructions = (directory) => {
   });
 };
 
-const closePrompt = () => 'Las tarjetas en HECHO están terminadas. Cierra esta sesión.';
+// The extension never stops a session: the person archives it when they are
+// done. Both the single link and the batch end with a summary in place.
+const closePrompt = () =>
+  'Las tarjetas en HECHO están terminadas. Revisa lo que quedó hecho y da un breve resumen. Deja el resumen en esta sesión y no la cierres.';
 
 const sendClosePrompt = async (cardId, link) => {
   if (!serviceHost) return false;
@@ -91,7 +94,11 @@ const maybeCloseBatch = async (sessionId) => {
   if (!batchAllDone(listLinks(), snapshot, sessionId)) return false;
   try {
     await serviceHost.sessions.send(sessionId, batchClosePrompt());
-    pendingCloses.set(sessionId, { cardId: entry[0], phase: 'wait-close', title: entry[1].title });
+    pendingCloses.set(sessionId, {
+      cardId: entry[0],
+      phase: 'wait-close',
+      title: entry[1].title,
+    });
     return true;
   } catch {
     pendingCloses.delete(sessionId);
@@ -157,8 +164,8 @@ const handleSessionEvent = async (event) => {
   const sessionId = event?.session?.id;
   if (!sessionId) return;
   const batch = linksForSession(sessionId).some(([, link]) => link?.batch === true);
-  // A manual batch never closes on its own: the person reviews the cards and
-  // asks for the summary and the close.
+  // A manual batch never wraps up on its own: the person reviews the cards and
+  // asks for the summary from the DONE column.
   const manualBatch = linksForSession(sessionId).some(([, link]) => link?.manual === true);
   // A delegated task finishes when its own session goes idle: move only the
   // cards linked to that session to HECHO. A manual move never reaches here.
@@ -189,22 +196,14 @@ const handleSessionEvent = async (event) => {
       return;
     }
     if (pending.phase === 'wait-close') {
-      try {
-        if (serviceHost) await serviceHost.sessions.stop(sessionId);
-      } catch {
-        // The session may already be gone; the task is closed either way.
-      }
+      // The summary lands in the session and it stays open for the person to
+      // archive; the card links are released so the board stops showing them.
       pendingCloses.delete(sessionId);
       removeLinksForSession(sessionId);
     }
     return;
   }
   if (event.type === 'turn-failed' && pending.phase === 'wait-close') {
-    try {
-      if (serviceHost) await serviceHost.sessions.stop(sessionId);
-    } catch {
-      // Same as above.
-    }
     pendingCloses.delete(sessionId);
     removeLinksForSession(sessionId);
   }
@@ -1201,15 +1200,17 @@ const routes = {
     const doneList = snapshot.lists.find((list) => list.id === snapshot.doneListId);
     if (!doneList) return { count: 0 };
     let count = 0;
-    // Several cards can point at the same OpenChamber session; close it once.
+    let pending = 0;
+    // Several cards can point at the same OpenChamber session; ask it once.
     const seen = new Set();
     for (const card of doneList.cards) {
       const link = getLink(card.id);
       if (!link || seen.has(link.sessionId)) continue;
       seen.add(link.sessionId);
       if (await triggerClose(card.id)) count += 1;
+      else pending += 1;
     }
-    return { count };
+    return { count, pending };
   },
 
   'POST /card/complete': async (body) => {

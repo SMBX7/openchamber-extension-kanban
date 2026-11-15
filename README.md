@@ -176,22 +176,23 @@ Choose the mode in **Settings → Delegation** (Delegación) or from the Work St
 - **Manual**: moving a card to IN PROGRESS only moves it; open the session with the `+`
   in the Work Status. Both modes work in batches with subagents. The agent works the card
   and leaves it in IN PROGRESS with a note that it is ready: you review it, move it to
-  DONE and close the session. Referencing a card in the chat to work on it — with `@` or
+  DONE and ask for the summary when the batch is done. Referencing a card in the chat to work on it — with `@` or
   by name — moves it to IN PROGRESS if it is still in IDEAS.
 - **Automatic**: the prompt asks before adding each card to the batch, so nothing joins
-  silently. The agent reviews each subagent, moves the card to DONE itself, summarises and
-  closes when the batch ends.
+  silently. The agent reviews each subagent, moves the card to DONE itself and summarises
+  when the batch ends; the session stays open for you to archive.
 
 When an agent takes a card, the extension links it to that session: the card moves to IN
 PROGRESS when linked. A batch stays open while any of its cards is outside DONE. In
-automatic mode, when the last card arrives the session reviews the set, writes the summary
-and closes; in manual it waits for you to close it from the DONE column. In both modes:
+automatic mode, when the last card arrives the session reviews the set and writes the
+summary; in manual it waits for you to ask from the DONE column. In both modes the session
+stays open:
 
 - Moving to **DONE** finishes the card: it stops pointing at its session, so the session
   dot never survives the move and the session stays open for you to archive. Inside a
   batch the cards keep their links until the whole batch is done.
-- **Close sessions** (Cerrar sesión/es) in the DONE column closes the sessions still
-  linked (a finished batch) once each and removes their links.
+- **Summarise sessions** (Resumir sesiones) in the DONE column asks each linked session
+  for its summary once and releases its links; the session stays open for you to archive.
 - Moving back to **IDEAS** releases the card. In a batch only that card leaves; the
   session keeps working the rest.
 

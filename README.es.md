@@ -178,23 +178,24 @@ Elige el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status
 - **Manual**: mover una tarjeta a EN PROGRESO solo la mueve; abre la sesión con el `+` del
   Work Status. Los dos modos van por lotes con subagentes. El agente trabaja la tarjeta y
   la deja en EN PROGRESO avisando de que está lista: tú la revisas, la pasas a HECHO y
-  cierras la sesión. Referenciar una tarjeta en el chat para trabajar en ella —con `@` o
+  pides el resumen cuando el lote esté listo. Referenciar una tarjeta en el chat para
+  trabajar en ella —con `@` o
   por su nombre— la pasa a EN PROGRESO si aún está en IDEAS.
 - **Automática**: el aviso pregunta antes de sumar cada tarjeta al lote, así que ninguna
-  entra sin avisar. El agente revisa cada subagente, mueve la tarjeta a HECHO, resume y
-  cierra al terminar el lote.
+  entra sin avisar. El agente revisa cada subagente, mueve la tarjeta a HECHO y resume al
+  terminar el lote; la sesión sigue abierta para que la archives.
 
 Cuando un agente toma una tarjeta, la extensión la vincula a esa sesión: pasa a EN
 PROGRESO al vincularse. Un lote sigue abierto mientras le quede alguna tarjeta fuera de
-HECHO. En automático, cuando llega la última, la sesión revisa el conjunto, escribe el
-resumen y se cierra; en manual espera a que la cierres tú desde la columna HECHO. En los
-dos modos:
+HECHO. En automático, cuando llega la última, la sesión revisa el conjunto y escribe el resumen;
+en manual espera a que lo pidas desde la columna HECHO. En los dos, la sesión sigue abierta
+para que la archives:
 
 - Pasar a **HECHO** termina la tarjeta: deja de apuntar a su sesión, así que el punto de
   sesión no sobrevive al movimiento y la sesión queda abierta para que la archives.
   Dentro de un lote, las tarjetas mantienen sus vínculos hasta que el lote termina.
-- **Cerrar sesión/es** en la columna HECHO cierra las sesiones que siguen vinculadas (un
-  lote terminado) una vez cada una y borra sus vínculos.
+- **Resumir sesiones** en la columna HECHO pide el resumen de cada sesión vinculada una
+  vez y suelta sus vínculos; la sesión sigue abierta para que la archives.
 - Volver a **IDEAS** suelta la tarjeta. En un lote solo sale esa tarjeta: la sesión sigue
   con las demás.
 

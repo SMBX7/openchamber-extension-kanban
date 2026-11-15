@@ -1852,7 +1852,7 @@ var batchCardPrompt = (card, board, project, { manual = false } = {}) => [
   cardBlock(card),
   batchRules(manual)
 ].filter(Boolean).join("\n\n");
-var batchClosePrompt = () => "Todas las tarjetas del lote est\xE1n en HECHO. Revisa el conjunto, confirma que todo qued\xF3 bien implementado y da un resumen de lo que hizo cada subagente. Despu\xE9s cierra esta sesi\xF3n.";
+var batchClosePrompt = () => "Todas las tarjetas del lote est\xE1n en HECHO. Revisa el conjunto, confirma que todo qued\xF3 bien implementado y da un resumen de lo que hizo cada subagente. Deja el resumen en esta sesi\xF3n y no la cierres.";
 var batchCards = (links, snapshot, sessionId) => {
   const doneId = String(snapshot?.doneListId || "");
   const byId = /* @__PURE__ */ new Map();
@@ -1998,7 +1998,7 @@ var ensureInstructions = (directory) => {
     instructionDirs.delete(directory);
   });
 };
-var closePrompt = () => "Las tarjetas en HECHO est\xE1n terminadas. Cierra esta sesi\xF3n.";
+var closePrompt = () => "Las tarjetas en HECHO est\xE1n terminadas. Revisa lo que qued\xF3 hecho y da un breve resumen. Deja el resumen en esta sesi\xF3n y no la cierres.";
 var sendClosePrompt = async (cardId, link) => {
   if (!serviceHost) return false;
   try {
@@ -2027,7 +2027,11 @@ var maybeCloseBatch = async (sessionId) => {
   if (!batchAllDone(listLinks(), snapshot, sessionId)) return false;
   try {
     await serviceHost.sessions.send(sessionId, batchClosePrompt());
-    pendingCloses.set(sessionId, { cardId: entry[0], phase: "wait-close", title: entry[1].title });
+    pendingCloses.set(sessionId, {
+      cardId: entry[0],
+      phase: "wait-close",
+      title: entry[1].title
+    });
     return true;
   } catch {
     pendingCloses.delete(sessionId);
@@ -2106,20 +2110,12 @@ var handleSessionEvent = async (event) => {
       return;
     }
     if (pending.phase === "wait-close") {
-      try {
-        if (serviceHost) await serviceHost.sessions.stop(sessionId);
-      } catch {
-      }
       pendingCloses.delete(sessionId);
       removeLinksForSession(sessionId);
     }
     return;
   }
   if (event.type === "turn-failed" && pending.phase === "wait-close") {
-    try {
-      if (serviceHost) await serviceHost.sessions.stop(sessionId);
-    } catch {
-    }
     pendingCloses.delete(sessionId);
     removeLinksForSession(sessionId);
   }
@@ -3007,14 +3003,16 @@ var routes = {
     const doneList = snapshot.lists.find((list) => list.id === snapshot.doneListId);
     if (!doneList) return { count: 0 };
     let count = 0;
+    let pending = 0;
     const seen = /* @__PURE__ */ new Set();
     for (const card of doneList.cards) {
       const link = getLink(card.id);
       if (!link || seen.has(link.sessionId)) continue;
       seen.add(link.sessionId);
       if (await triggerClose(card.id)) count += 1;
+      else pending += 1;
     }
-    return { count };
+    return { count, pending };
   },
   "POST /card/complete": async (body) => {
     requireConnected();

@@ -1872,6 +1872,7 @@ ${GUEST_UI_LOOK_CSS}`;
     edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/>',
     trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>',
     compress: '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
+    summary: '<path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
     expand: '<path d="m13 7 5 5-5 5"/><path d="m6 7 5 5-5 5"/>',
     chevron: '<path d="m6 9 6 6 6-6"/>',
     sort: '<path d="M7 4v16"/><path d="m4 17 3 3 3-3"/><path d="M13 6h7M13 11h5M13 16h3"/>',
@@ -2977,7 +2978,7 @@ ${card.description}`.toLowerCase();
         autoSession: Boolean(enabled)
       });
       state.snapshot.project = answer.project || mapping;
-      toast("success", enabled ? "Delegaci\xF3n autom\xE1tica: pregunta antes de sumar cada tarjeta al lote y el agente cierra al terminar." : "Delegaci\xF3n manual: abres y cierras t\xFA; el agente deja las tarjetas para revisar.");
+      toast("success", enabled ? "Delegaci\xF3n autom\xE1tica: pregunta antes de sumar cada tarjeta al lote y resume al terminar." : "Delegaci\xF3n manual: abres t\xFA y pides el resumen cuando revisas; el agente deja las tarjetas para revisar.");
     } catch (error) {
       toast("error", error.message);
     }
@@ -3121,7 +3122,7 @@ ${card.description}`.toLowerCase();
     conexion.append(sourceBox);
     const delegacion = el2("section", "settings-section");
     delegacion.append(el2("div", "settings-heading", "Delegaci\xF3n"));
-    delegacion.append(el2("p", "settings-note", "Las dos usan una sesi\xF3n por lote con subagentes. En manual t\xFA abres y cierras; en autom\xE1tico te pregunta antes de sumar cada tarjeta y el agente cierra al terminar."));
+    delegacion.append(el2("p", "settings-note", "Las dos usan una sesi\xF3n por lote con subagentes, y la sesi\xF3n no se cierra sola: queda para que la archives. En manual t\xFA abres y pides el resumen; en autom\xE1tico te pregunta antes de sumar cada tarjeta y resume al terminar."));
     const modes = el2("div", "settings-modes");
     const modeCard = (label, description, active2, enabled) => {
       const button2 = el2("button", "mode-card");
@@ -3131,8 +3132,8 @@ ${card.description}`.toLowerCase();
       button2.append(el2("span", "mode-card-title", label), el2("span", "mode-card-text", description));
       return button2;
     };
-    const manualCard = modeCard("Manual", "T\xFA abres la sesi\xF3n del lote con el + del Work Status; el agente trabaja y te avisa, pero no mueve la tarjeta a HECHO. T\xFA revisas y cierras.", mapping?.autoSession !== true, Boolean(mapping));
-    const autoCard = modeCard("Autom\xE1tica", "El aviso pregunta antes de sumar cada tarjeta al lote. El agente revisa, mueve a HECHO, resume y cierra.", mapping?.autoSession === true, Boolean(mapping));
+    const manualCard = modeCard("Manual", "T\xFA abres la sesi\xF3n del lote con el + del Work Status; el agente trabaja y te avisa, pero no mueve la tarjeta a HECHO. T\xFA revisas y pides el resumen.", mapping?.autoSession !== true, Boolean(mapping));
+    const autoCard = modeCard("Autom\xE1tica", "El aviso pregunta antes de sumar cada tarjeta al lote. El agente revisa, mueve a HECHO y resume al terminar, sin cerrar la sesi\xF3n.", mapping?.autoSession === true, Boolean(mapping));
     manualCard.addEventListener("click", () => {
       if (mapping?.autoSession === true) void changeAutoMode(false);
     });
@@ -3217,10 +3218,10 @@ ${card.description}`.toLowerCase();
     };
     sesionesBox.append(
       fact("IDEAS", "el + de la columna crea una tarjeta. El l\xE1piz abre la tarjeta para editar t\xEDtulo, detalles, checklist y sesi\xF3n, y para borrarla. El tic la pasa a EN PROGRESO."),
-      fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el + del Work Status y el agente deja la tarjeta para que la revises; en autom\xE1tico te pregunta antes de sumar cada tarjeta y el agente la cierra al terminar."),
-      fact("HECHO", "la tarjeta queda terminada. Las sesiones se cierran cuando pulses el bot\xF3n de la columna HECHO.")
+      fact("EN PROGRESO", "es la tarjeta actual. En manual abres la sesi\xF3n con el + del Work Status y el agente deja la tarjeta para que la revises; en autom\xE1tico te pregunta antes de sumar cada tarjeta y el agente la mueve a HECHO al terminar."),
+      fact("HECHO", "la tarjeta queda terminada. El bot\xF3n de la columna HECHO pide el resumen de cada sesi\xF3n y suelta las tarjetas; la sesi\xF3n sigue abierta para que la archives.")
     );
-    sesionesBox.append(el2("p", "settings-note", "Al cerrar se borra el v\xEDnculo: si vuelves a mover la tarjeta, se suma al lote que siga abierto o abre uno nuevo. La sesi\xF3n detenida sigue en la lista para que la archives."));
+    sesionesBox.append(el2("p", "settings-note", "Al resumir se borra el v\xEDnculo: si vuelves a mover la tarjeta, se suma al lote que siga abierto o abre uno nuevo. La sesi\xF3n sigue abierta para que la archives cuando quieras."));
     sesiones.append(sesionesBox);
     const avanzado = el2("section", "settings-section");
     avanzado.append(el2("div", "settings-heading", "Avanzado"));
@@ -3500,10 +3501,18 @@ ${card.description}`.toLowerCase();
     try {
       const answer = await api("POST", "/sessions/close-done");
       const count = Number(answer?.count) || 0;
-      if (count) {
-        toast("success", `Cerrando ${count} sesi\xF3n${count === 1 ? "" : "es"} de HECHO.`);
+      const pending = Number(answer?.pending) || 0;
+      if (count && pending) {
+        toast(
+          "success",
+          `Resumen pedido a ${count} sesi\xF3n${count === 1 ? "" : "es"}; ${pending} lote${pending === 1 ? "" : "s"} sigue${pending === 1 ? "" : "n"} con tarjetas fuera de HECHO.`
+        );
+      } else if (count) {
+        toast("success", `Resumen pedido a ${count} sesi\xF3n${count === 1 ? "" : "es"}; siguen abiertas.`);
+      } else if (pending) {
+        toast("info", "Los lotes con tarjetas fuera de HECHO se resumen cuando est\xE9n todas.");
       } else {
-        toast("info", "No hay sesiones que cerrar en HECHO.");
+        toast("info", "No hay sesiones que resumir en HECHO.");
       }
     } catch (error) {
       toast("error", error.message);
@@ -3816,11 +3825,11 @@ ${card.description}`.toLowerCase();
         if (linked) {
           closeDone = el2("button", "ghost-btn done-close");
           closeDone.type = "button";
-          closeDone.title = "Cerrar las sesiones de las tarjetas en HECHO";
+          closeDone.title = "Pedir el resumen de las sesiones de HECHO y soltar las tarjetas; la sesi\xF3n sigue abierta";
           closeDone.setAttribute("aria-label", closeDone.title);
           closeDone.append(
-            makeIcon("close"),
-            el2("span", "", linked === 1 ? "Cerrar sesi\xF3n" : `Cerrar ${linked} sesiones`)
+            makeIcon("summary"),
+            el2("span", "", linked === 1 ? "Resumir sesi\xF3n" : `Resumir ${linked} sesiones`)
           );
           closeDone.addEventListener("click", () => void closeDoneSessions(closeDone));
         }

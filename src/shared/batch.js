@@ -1,7 +1,8 @@
 // A batch is one session that works several cards: the main agent delegates
-// each card to a subagent, reviews what comes back, moves the card to HECHO and
-// reports a summary. The extension only decides which session is reused and
-// which cards belong to it; the delegation itself is the agent's job.
+// each card to a subagent and reviews what comes back. In automatic mode it
+// also moves the card to HECHO and summarises; in manual it leaves the card in
+// EN PROGRESO and the person closes. The extension only decides which session
+// is reused and which cards belong to it; the delegation is the agent's job.
 
 const cardBlock = (card) => {
   const checklist = (card?.taskLists || [])
@@ -52,7 +53,7 @@ export const batchCardPrompt = (card, board, project, { manual = false } = {}) =
   .join('\n\n');
 
 export const batchClosePrompt = () =>
-  'Todas las tarjetas del lote están en HECHO. Revisa el conjunto, confirma que todo quedó bien implementado y da un resumen de lo que hizo cada subagente. Después cierra esta sesión.';
+  'Todas las tarjetas del lote están en HECHO. Revisa el conjunto, confirma que todo quedó bien implementado y da un resumen de lo que hizo cada subagente. Deja el resumen en esta sesión y no la cierres.';
 
 // Cards that belong to one batch session, with the ones still outside HECHO.
 // The column comes from the list that holds the card, so the rule holds for

@@ -21,6 +21,7 @@ const ICONS = {
   edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/>',
   trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>',
   compress: '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
+  summary: '<path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
   expand: '<path d="m13 7 5 5-5 5"/><path d="m6 7 5 5-5 5"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
   sort: '<path d="M7 4v16"/><path d="m4 17 3 3 3-3"/><path d="M13 6h7M13 11h5M13 16h3"/>',
@@ -1284,7 +1285,7 @@ const changeAutoMode = async (enabled) => {
       autoSession: Boolean(enabled),
     });
     state.snapshot.project = answer.project || mapping;
-    toast('success', enabled ? 'Delegación automática: pregunta antes de sumar cada tarjeta al lote y el agente cierra al terminar.' : 'Delegación manual: abres y cierras tú; el agente deja las tarjetas para revisar.');
+    toast('success', enabled ? 'Delegación automática: pregunta antes de sumar cada tarjeta al lote y resume al terminar.' : 'Delegación manual: abres tú y pides el resumen cuando revisas; el agente deja las tarjetas para revisar.');
   } catch (error) {
     toast('error', error.message);
   }
@@ -1442,7 +1443,7 @@ const openSettings = () => {
   /* Delegación */
   const delegacion = el('section', 'settings-section');
   delegacion.append(el('div', 'settings-heading', 'Delegación'));
-  delegacion.append(el('p', 'settings-note', 'Las dos usan una sesión por lote con subagentes. En manual tú abres y cierras; en automático te pregunta antes de sumar cada tarjeta y el agente cierra al terminar.'));
+  delegacion.append(el('p', 'settings-note', 'Las dos usan una sesión por lote con subagentes, y la sesión no se cierra sola: queda para que la archives. En manual tú abres y pides el resumen; en automático te pregunta antes de sumar cada tarjeta y resume al terminar.'));
   const modes = el('div', 'settings-modes');
   const modeCard = (label, description, active, enabled) => {
     const button = el('button', 'mode-card');
@@ -1452,8 +1453,8 @@ const openSettings = () => {
     button.append(el('span', 'mode-card-title', label), el('span', 'mode-card-text', description));
     return button;
   };
-  const manualCard = modeCard('Manual', 'Tú abres la sesión del lote con el + del Work Status; el agente trabaja y te avisa, pero no mueve la tarjeta a HECHO. Tú revisas y cierras.', mapping?.autoSession !== true, Boolean(mapping));
-  const autoCard = modeCard('Automática', 'El aviso pregunta antes de sumar cada tarjeta al lote. El agente revisa, mueve a HECHO, resume y cierra.', mapping?.autoSession === true, Boolean(mapping));
+  const manualCard = modeCard('Manual', 'Tú abres la sesión del lote con el + del Work Status; el agente trabaja y te avisa, pero no mueve la tarjeta a HECHO. Tú revisas y pides el resumen.', mapping?.autoSession !== true, Boolean(mapping));
+  const autoCard = modeCard('Automática', 'El aviso pregunta antes de sumar cada tarjeta al lote. El agente revisa, mueve a HECHO y resume al terminar, sin cerrar la sesión.', mapping?.autoSession === true, Boolean(mapping));
   manualCard.addEventListener('click', () => { if (mapping?.autoSession === true) void changeAutoMode(false); });
   autoCard.addEventListener('click', () => { if (mapping?.autoSession !== true) void changeAutoMode(true); });
   modes.append(manualCard, autoCard);
@@ -1548,10 +1549,10 @@ const openSettings = () => {
   };
   sesionesBox.append(
     fact('IDEAS', 'el + de la columna crea una tarjeta. El lápiz abre la tarjeta para editar título, detalles, checklist y sesión, y para borrarla. El tic la pasa a EN PROGRESO.'),
-    fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el + del Work Status y el agente deja la tarjeta para que la revises; en automático te pregunta antes de sumar cada tarjeta y el agente la cierra al terminar.'),
-    fact('HECHO', 'la tarjeta queda terminada. Las sesiones se cierran cuando pulses el botón de la columna HECHO.'),
+    fact('EN PROGRESO', 'es la tarjeta actual. En manual abres la sesión con el + del Work Status y el agente deja la tarjeta para que la revises; en automático te pregunta antes de sumar cada tarjeta y el agente la mueve a HECHO al terminar.'),
+    fact('HECHO', 'la tarjeta queda terminada. El botón de la columna HECHO pide el resumen de cada sesión y suelta las tarjetas; la sesión sigue abierta para que la archives.'),
   );
-  sesionesBox.append(el('p', 'settings-note', 'Al cerrar se borra el vínculo: si vuelves a mover la tarjeta, se suma al lote que siga abierto o abre uno nuevo. La sesión detenida sigue en la lista para que la archives.'));
+  sesionesBox.append(el('p', 'settings-note', 'Al resumir se borra el vínculo: si vuelves a mover la tarjeta, se suma al lote que siga abierto o abre uno nuevo. La sesión sigue abierta para que la archives cuando quieras.'));
   sesiones.append(sesionesBox);
 
   /* Avanzado */
@@ -1875,10 +1876,18 @@ const closeDoneSessions = async (button) => {
   try {
     const answer = await api('POST', '/sessions/close-done');
     const count = Number(answer?.count) || 0;
-    if (count) {
-      toast('success', `Cerrando ${count} sesión${count === 1 ? '' : 'es'} de HECHO.`);
+    const pending = Number(answer?.pending) || 0;
+    if (count && pending) {
+      toast(
+        'success',
+        `Resumen pedido a ${count} sesión${count === 1 ? '' : 'es'}; ${pending} lote${pending === 1 ? '' : 's'} sigue${pending === 1 ? '' : 'n'} con tarjetas fuera de HECHO.`,
+      );
+    } else if (count) {
+      toast('success', `Resumen pedido a ${count} sesión${count === 1 ? '' : 'es'}; siguen abiertas.`);
+    } else if (pending) {
+      toast('info', 'Los lotes con tarjetas fuera de HECHO se resumen cuando estén todas.');
     } else {
-      toast('info', 'No hay sesiones que cerrar en HECHO.');
+      toast('info', 'No hay sesiones que resumir en HECHO.');
     }
   } catch (error) {
     toast('error', error.message);
@@ -2239,11 +2248,11 @@ const renderBoard = () => {
       if (linked) {
         closeDone = el('button', 'ghost-btn done-close');
         closeDone.type = 'button';
-        closeDone.title = 'Cerrar las sesiones de las tarjetas en HECHO';
+        closeDone.title = 'Pedir el resumen de las sesiones de HECHO y soltar las tarjetas; la sesión sigue abierta';
         closeDone.setAttribute('aria-label', closeDone.title);
         closeDone.append(
-          makeIcon('close'),
-          el('span', '', linked === 1 ? 'Cerrar sesión' : `Cerrar ${linked} sesiones`),
+          makeIcon('summary'),
+          el('span', '', linked === 1 ? 'Resumir sesión' : `Resumir ${linked} sesiones`),
         );
         closeDone.addEventListener('click', () => void closeDoneSessions(closeDone));
       }
