@@ -9,22 +9,13 @@ working on, and an agent that can read and move cards.
 Point it at Planka, or keep everything on this machine. The interface is in Spanish;
 each control below gives its English name and, in brackets, the label on screen.
 
-![The board](docs/panel.png)
+<img src="docs/panel.png" width="620" alt="The board: three columns with cards">
 
 ## Contents
 
-- [What you get](#what-you-get)
-- [Install](#install)
-- [Where it lives](#where-it-lives)
-- [Updating](#updating)
-- [Connecting to Planka](#connecting-to-planka)
-- [Local board](#local-board)
-- [The panel](#the-panel)
-- [Work Status](#work-status)
-- [Sessions: manual and automatic](#sessions-manual-and-automatic)
-- [Styles](#styles)
-- [Common problems](#common-problems)
-- [License](#license)
+- [What you get](#what-you-get) · [Install](#install) · [Where it lives](#where-it-lives) · [Updating](#updating)
+- [Connecting to Planka](#connecting-to-planka) · [Local board](#local-board) · [The panel](#the-panel) · [Work Status](#work-status)
+- [Sessions: manual and automatic](#sessions-manual-and-automatic) · [Styles](#styles) · [Common problems](#common-problems) · [License](#license)
 
 ## What you get
 
@@ -120,14 +111,14 @@ stored on this machine.
 
 The file is written by the extension where OpenChamber runs, not by the browser.
 
-![Connection and appearance](docs/settings.png)
+<img src="docs/settings.png" width="460" alt="Connection: Planka or the local board">
 
 ## The panel
 
 It opens from the **Kanban** icon on the right sidebar. This is also where you connect
 Planka and change the settings.
 
-![The panel header](docs/panel-header.png)
+<img src="docs/panel-header.png" width="320" alt="The panel header with the board and the binding pill">
 
 The header holds the board and, next to it, the **pill that binds it to the project**:
 it reads «Vincular» until you press it and then shows the project's name with a tick.
@@ -156,7 +147,7 @@ When the session already names its project, the project selector no longer appea
 
 The Work Status section beside the chat; it lets you work without opening the panel.
 
-![Work Status](docs/status.png)
+<img src="docs/status.png" width="420" alt="The Work Status section">
 
 - Every card in IN PROGRESS in amber, with its buttons: choose its session, open it, or
   create one with `+`; send the card back to ideas with the arrow, or complete it with
@@ -227,7 +218,7 @@ project inherits the pinned board.
 
 Change them in **Settings → Appearance** (Apariencia).
 
-![The three styles](docs/styles.png)
+<img src="docs/styles.png" width="700" alt="The three card styles">
 
 - **Neumorphism** (Neumorfismo): soft relief, blurred shadows.
 - **Brutalism** (Brutalismo): hard borders, square corners, solid shadows.

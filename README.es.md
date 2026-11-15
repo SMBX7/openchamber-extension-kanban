@@ -8,22 +8,13 @@ haciendo y un agente que puede leer y mover tarjetas.
 
 Conéctalo a tu Planka o guárdalo todo en este equipo. La interfaz está en español.
 
-![El tablero](docs/panel.png)
+<img src="docs/panel.png" width="620" alt="El tablero: tres columnas con tarjetas">
 
 ## Índice
 
-- [Qué te llevas](#qué-te-llevas)
-- [Instalar](#instalar)
-- [Dónde está](#dónde-está)
-- [Actualizar](#actualizar)
-- [Conectar con Planka](#conectar-con-planka)
-- [Tablero local](#tablero-local)
-- [El panel](#el-panel)
-- [Work Status](#work-status)
-- [Sesiones: manual y automático](#sesiones-manual-y-automático)
-- [Estilos](#estilos)
-- [Problemas frecuentes](#problemas-frecuentes)
-- [Licencia](#licencia)
+- [Qué te llevas](#qué-te-llevas) · [Instalar](#instalar) · [Dónde está](#dónde-está) · [Actualizar](#actualizar)
+- [Conectar con Planka](#conectar-con-planka) · [Tablero local](#tablero-local) · [El panel](#el-panel) · [Work Status](#work-status)
+- [Sesiones: manual y automático](#sesiones-manual-y-automático) · [Estilos](#estilos) · [Problemas frecuentes](#problemas-frecuentes) · [Licencia](#licencia)
 
 ## Qué te llevas
 
@@ -120,14 +111,14 @@ equipo.
 
 El archivo lo escribe la extensión donde corre OpenChamber, no el navegador.
 
-![Conexión y apariencia](docs/settings.png)
+<img src="docs/settings.png" width="460" alt="Conexión: Planka o el tablero local">
 
 ## El panel
 
 Se abre con el icono de **Kanban** de la barra lateral derecha. Aquí también se conecta
 con Planka y se cambian los ajustes.
 
-![La cabecera del panel](docs/panel-header.png)
+<img src="docs/panel-header.png" width="320" alt="La cabecera del panel con el tablero y la pastilla de vincular">
 
 La cabecera lleva el tablero y, a su lado, la **pastilla que lo vincula al proyecto**:
 pone «Vincular» hasta que la pulsas y después muestra el nombre del proyecto con un tic.
@@ -158,7 +149,7 @@ Cuando la sesión ya dice a qué proyecto pertenece, el selector de proyecto no 
 La sección de Work Status del chat; sirve para trabajar sin abrir el panel de la barra
 lateral derecha.
 
-![Work Status](docs/status.png)
+<img src="docs/status.png" width="420" alt="La sección Work Status">
 
 - Todas las tarjetas de EN PROGRESO en ámbar, con sus botones: elegir su sesión,
   abrirla o crear una con `+`; devolver la tarjeta a ideas con la flecha o completarla
@@ -230,7 +221,7 @@ worktree o una subcarpeta del proyecto hereda el tablero fijado.
 
 Se cambian en **Ajustes → Apariencia**.
 
-![Los tres estilos](docs/styles.png)
+<img src="docs/styles.png" width="700" alt="Los tres estilos de tarjeta">
 
 - **Neumorfismo**: relieve suave, sombras difusas.
 - **Brutalismo**: bordes duros, esquinas rectas, sombras sólidas.
