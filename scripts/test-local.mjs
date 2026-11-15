@@ -469,7 +469,7 @@ await build({
   format: 'cjs',
   logLevel: 'silent',
 });
-const { mentionId, parseMentionId, mentionItems, mentionText } = require(mentionsBundle);
+const { mentionId, parseMentionId, mentionItems, mentionText, promoteCardList } = require(mentionsBundle);
 
 const plankaMention = mentionId({ source: 'planka', boardId: 'board-1', cardId: 'card-a' });
 assert.deepEqual(parseMentionId(plankaMention), { source: 'planka', boardId: 'board-1', cardId: 'card-a' });
@@ -589,4 +589,16 @@ assert.deepEqual(
 );
 
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 105 assertions ok');
+const promoteBoard = {
+  doneListId: 'done',
+  lists: [
+    { id: 'ideas', name: 'IDEAS', cards: [] },
+    { id: 'work', name: 'EN PROGRESO', cards: [] },
+    { id: 'done', name: 'HECHO', cards: [] },
+  ],
+};
+assert.equal(promoteCardList(promoteBoard, 'ideas'), 'work', 'a backlog card moves to work');
+assert.equal(promoteCardList(promoteBoard, 'work'), '', 'a card already in progress stays');
+assert.equal(promoteCardList(promoteBoard, 'done'), '', 'a finished card never moves');
+
+console.log('local mode: 108 assertions ok');

@@ -21,7 +21,7 @@ import {
   batchStartPrompt,
   reusableBatchSession,
 } from '../shared/batch.js';
-import { mentionItems, mentionText, parseMentionId } from '../shared/mentions.js';
+import { mentionItems, mentionText, parseMentionId, promoteCardList } from '../shared/mentions.js';
 
 const PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
 const TOKEN = process.env.OPENCHAMBER_SERVICE_TOKEN || '';
@@ -43,6 +43,20 @@ try {
 } catch {
   serviceHost = null;
 }
+
+// What agents read in every session of a project with Kanban. It keeps the
+// manual mode honest: the card moves when the person asks for the work, not
+// when they only ask about it.
+const AGENT_INSTRUCTIONS =
+  'When the user asks you to work on a Kanban card, referenced with @ or by name, and that card is still in IDEAS, move it to EN PROGRESO with kanban_move_card before you start. Do this only when they ask you to work on the card, not when they only ask about it or want to read it.';
+const instructionDirs = new Set();
+const ensureInstructions = (directory) => {
+  if (!serviceHost || !directory || instructionDirs.has(directory)) return;
+  instructionDirs.add(directory);
+  Promise.resolve(serviceHost.setInstructions(directory, AGENT_INSTRUCTIONS)).catch(() => {
+    instructionDirs.delete(directory);
+  });
+};
 
 const closePrompt = () => 'Las tarjetas en HECHO están terminadas. Cierra esta sesión.';
 
@@ -945,6 +959,7 @@ const routes = {
   // the picked row comes back alone, so its id carries the board.
   'POST /mentions/search': async (body) => {
     const directory = String(body?.directory || '');
+    ensureInstructions(directory);
     const context = mentionContext(directory);
     if (!context) return { items: [] };
     try {
@@ -976,8 +991,21 @@ const routes = {
     );
     const card = (list?.cards || []).find((entry) => String(entry.id) === String(parsed.cardId));
     if (!card) throw new PlankaError('Esa tarjeta ya no está disponible.', { kind: 'not-found', status: 404 });
+    // Picking a card in the composer is asking to work on it: a card still in
+    // the backlog moves to the work column before the message goes out.
+    const workListId = promoteCardList(board, list?.id);
+    let resolvedList = list;
+    if (workListId) {
+      try {
+        await clientForMention.moveCard(card.id, workListId, undefined, boardId);
+        if (parsed.source !== 'local') invalidate();
+        resolvedList = (board.lists || []).find((entry) => String(entry.id) === workListId) || list;
+      } catch {
+        // The chip is still valid if the move fails; the card keeps its column.
+      }
+    }
     const boardName = board?.board?.name || board?.name || boardId;
-    return { text: mentionText(card, list?.name || '', boardName) };
+    return { text: mentionText(card, resolvedList?.name || '', boardName) };
   },
 
   'GET /card': async (_body, url) => {
@@ -1357,6 +1385,7 @@ const server = http.createServer((req, res) => {
   }
 
   const run = async () => {
+    ensureInstructions(directory);
     if (path === '/status') {
       if (method === 'POST') {
         const body = await readBody(req);

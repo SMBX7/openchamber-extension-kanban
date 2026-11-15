@@ -1955,6 +1955,13 @@ var mentionItems = (board, query, origin) => {
   }
   return items;
 };
+var promoteCardList = (board, cardListId) => {
+  const work = workListFor(board);
+  if (!work || !cardListId) return "";
+  if (String(cardListId) === String(work.id)) return "";
+  if (String(cardListId) === String(board?.doneListId || "")) return "";
+  return String(work.id);
+};
 var mentionText = (card, listName, boardName) => {
   const checklist = (card?.taskLists || []).flatMap((taskList) => taskList.tasks.map((task) => `- ${task.name}`)).slice(0, 12);
   return [
@@ -1980,6 +1987,15 @@ try {
 } catch {
   serviceHost = null;
 }
+var AGENT_INSTRUCTIONS = "When the user asks you to work on a Kanban card, referenced with @ or by name, and that card is still in IDEAS, move it to EN PROGRESO with kanban_move_card before you start. Do this only when they ask you to work on the card, not when they only ask about it or want to read it.";
+var instructionDirs = /* @__PURE__ */ new Set();
+var ensureInstructions = (directory) => {
+  if (!serviceHost || !directory || instructionDirs.has(directory)) return;
+  instructionDirs.add(directory);
+  Promise.resolve(serviceHost.setInstructions(directory, AGENT_INSTRUCTIONS)).catch(() => {
+    instructionDirs.delete(directory);
+  });
+};
 var closePrompt = () => "Las tarjetas en HECHO est\xE1n terminadas. Cierra esta sesi\xF3n.";
 var sendClosePrompt = async (cardId, link) => {
   if (!serviceHost) return false;
@@ -2773,6 +2789,7 @@ var routes = {
   // the picked row comes back alone, so its id carries the board.
   "POST /mentions/search": async (body) => {
     const directory = String(body?.directory || "");
+    ensureInstructions(directory);
     const context = mentionContext(directory);
     if (!context) return { items: [] };
     try {
@@ -2800,8 +2817,18 @@ var routes = {
     );
     const card = (list?.cards || []).find((entry) => String(entry.id) === String(parsed.cardId));
     if (!card) throw new PlankaError("Esa tarjeta ya no est\xE1 disponible.", { kind: "not-found", status: 404 });
+    const workListId = promoteCardList(board, list?.id);
+    let resolvedList = list;
+    if (workListId) {
+      try {
+        await clientForMention.moveCard(card.id, workListId, void 0, boardId);
+        if (parsed.source !== "local") invalidate();
+        resolvedList = (board.lists || []).find((entry) => String(entry.id) === workListId) || list;
+      } catch {
+      }
+    }
     const boardName = board?.board?.name || board?.name || boardId;
-    return { text: mentionText(card, list?.name || "", boardName) };
+    return { text: mentionText(card, resolvedList?.name || "", boardName) };
   },
   "GET /card": async (_body, url) => {
     requireConnected();
@@ -3150,6 +3177,7 @@ var server = import_node_http.default.createServer((req, res) => {
     return;
   }
   const run = async () => {
+    ensureInstructions(directory);
     if (path === "/status") {
       if (method === "POST") {
         const body2 = await readBody(req);

@@ -150,16 +150,17 @@ The Work Status section beside the chat; it lets you work without opening the pa
 
 Type `@` in the composer and pick **Tarjetas** (Cards): IN PROGRESS comes first and IDEAS
 after, each row labelled with its column. The list stays short — type to search by title
-or details, and an exact title comes first. The chip hands the agent the title, the id,
-the column and the details, so it can work the card without opening the panel. Cards in
-DONE stay out.
+or details, and an exact title comes first. Picking a card that is still in IDEAS moves it
+to IN PROGRESS. The chip hands the agent the title, the id, the column and the details, so
+it can work the card without opening the panel. Cards in DONE stay out.
 
 ## Sessions: manual and automatic
 
 Choose the mode in **Settings → Delegation** (Delegación) or from the Work Status pill.
 
 - **Manual**: moving a card to IN PROGRESS only moves it; open the session with the
-  card's `+`. Each card gets its own session.
+  card's `+`. Each card gets its own session. When you reference a card in the chat to
+  work on it — with `@` or by name — it moves to IN PROGRESS if it is still in IDEAS.
 - **Automatic**: automatic delegation works in batches. The first card you launch opens
   the session; every card launched after it joins the same session. The main agent hands
   each card to a subagent, reviews the result and moves the card to DONE itself. The

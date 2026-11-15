@@ -42,6 +42,7 @@
       "mentions": {
         "label": "Tarjetas"
       },
+      "instructions": true,
       "capabilities": [
         "sessions"
       ]

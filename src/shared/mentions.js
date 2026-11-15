@@ -90,6 +90,16 @@ export const mentionItems = (board, query, origin) => {
   return items;
 };
 
+// A card picked from the @ menu is about to be worked: when it is still in
+// the backlog, the work column is where it belongs.
+export const promoteCardList = (board, cardListId) => {
+  const work = workListFor(board);
+  if (!work || !cardListId) return '';
+  if (String(cardListId) === String(work.id)) return '';
+  if (String(cardListId) === String(board?.doneListId || '')) return '';
+  return String(work.id);
+};
+
 // What the picked chip gives the agent: enough to find the card and work it
 // without opening the panel.
 export const mentionText = (card, listName, boardName) => {

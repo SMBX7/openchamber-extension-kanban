@@ -152,15 +152,18 @@ lateral derecha.
 
 Escribe `@` en el composer y elige **Tarjetas**: primero sale EN PROGRESO y después IDEAS,
 con la columna en cada fila. La lista es corta: escribe para buscar por título o detalles,
-y un título exacto sale primero. El chip le pasa al agente el título, el id, la columna y
-los detalles, así puede trabajar la tarjeta sin abrir el panel. Las de HECHO quedan fuera.
+y un título exacto sale primero. Al elegir una tarjeta que siga en IDEAS, pasa a EN
+PROGRESO. El chip le pasa al agente el título, el id, la columna y los detalles, así puede
+trabajar la tarjeta sin abrir el panel. Las de HECHO quedan fuera.
 
 ## Sesiones: manual y automático
 
 Elige el modo en **Ajustes → Delegación** o desde la etiqueta del Work Status.
 
 - **Manual**: mover una tarjeta a EN PROGRESO solo la mueve; abre la sesión con el `+` de
-  la tarjeta. Cada tarjeta tiene su propia sesión.
+  la tarjeta. Cada tarjeta tiene su propia sesión. Cuando referencias una tarjeta en el
+  chat para trabajar en ella —con `@` o por su nombre— pasa a EN PROGRESO si aún está en
+  IDEAS.
 - **Automática**: la delegación automática va por lotes. La primera tarjeta que lanzas
   abre la sesión; las siguientes se suman a esa misma sesión. El agente principal le pasa
   cada tarjeta a un subagente, revisa el resultado y mueve la tarjeta a HECHO él mismo. El
