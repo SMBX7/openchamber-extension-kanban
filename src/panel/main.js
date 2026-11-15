@@ -1137,35 +1137,56 @@ const boardControl = (boardSelect) => {
   const wrap = el('div', 'board-control');
   wrap.append(boardSelect.wrap);
 
-  const pin = el('button', 'icon-btn board-pin');
+  const projectOf = () => projectForDirectory(state.projects, state.directory);
+  const pin = el('button', 'board-pin');
   pin.type = 'button';
-  pin.append(makeIcon('pin'));
+  const pinIcon = el('span', 'board-pin-icon');
+  const pinText = el('span', 'board-pin-text');
+  pin.append(pinIcon, pinText);
+  const paintIcon = (name) => {
+    if (pinIcon.dataset.icon === name) return;
+    pinIcon.dataset.icon = name;
+    pinIcon.innerHTML = `<span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg></span>`;
+  };
   const paint = () => {
     const next = pinState({
       pinned: state.pinnedBoard,
       boardId: state.snapshot?.board?.id || '',
-      hasProject: Boolean(state.directory),
+      project: projectOf()?.name || '',
     });
+    pin.hidden = next.hidden;
     pin.classList.toggle('is-pinned', next.pinned);
     pin.setAttribute('aria-pressed', next.pinned ? 'true' : 'false');
     pin.disabled = next.disabled;
     pin.title = next.label;
     pin.setAttribute('aria-label', next.label);
+    paintIcon(next.pinned ? 'check' : 'pin');
+    if (pinText.textContent !== next.text) pinText.textContent = next.text;
   };
   pin.addEventListener('click', async () => {
     const boardId = state.snapshot?.board?.id || '';
-    if (!boardId) return;
+    const project = projectOf();
+    if (!boardId || !project) return;
     const pinned = state.pinnedBoard === boardId;
     pin.disabled = true;
     try {
-      const answer = await api(pinned ? 'DELETE' : 'POST', '/project-board', pinned ? {} : { boardId });
-      state.pinnedBoard = answer?.pinned || '';
-      toast(
-        'success',
-        pinned
-          ? 'Tablero del agente quitado para este proyecto.'
-          : 'Este tablero queda fijado para el agente en este proyecto.',
-      );
+      if (pinned) {
+        await api('DELETE', '/project-board', {});
+        state.pinnedBoard = '';
+        toast('success', 'Tablero desvinculado del proyecto.');
+      } else {
+        await api('POST', '/mapping', {
+          boardId,
+          projectId: project.id,
+          directory: project.directory,
+          name: project.name,
+          autoSession: state.snapshot?.project?.autoSession === true,
+        });
+        const answer = await api('POST', '/project-board', { boardId });
+        state.pinnedBoard = answer?.pinned || boardId;
+        toast('success', `Tablero vinculado a ${project.name}.`);
+      }
+      await refresh(true);
     } catch (error) {
       toast('error', error.message);
     }
@@ -1563,7 +1584,7 @@ const openSettings = () => {
     el(
       'p',
       'settings-note',
-      'El tablero del agente se fija con el pin de la cabecera, junto al selector de tablero. Si no fijas ninguno y el proyecto tiene varios, el agente no toca tarjetas.',
+      'El tablero se vincula al proyecto con la pastilla de la cabecera, junto al selector de tablero. Si no vinculas ninguno y el proyecto tiene varios, el agente no toca tarjetas.',
     ),
   );
 

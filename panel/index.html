@@ -704,10 +704,23 @@
       .board-control > .menu-select { flex: 1 1 auto; }
       .board-control .board-add { flex: none; }
       .board-control .board-pin { flex: none; }
+      .board-pin {
+        display: inline-flex; align-items: center; gap: 4px; flex: none;
+        height: 26px; max-width: 118px; padding: 0 9px;
+        border: 1px solid var(--oc-border); border-radius: 999px;
+        background: transparent; color: var(--oc-muted);
+        font-size: 10.5px; line-height: 1; white-space: nowrap;
+        transition: color .12s ease, background-color .12s ease, border-color .12s ease;
+      }
+      .board-pin:hover { color: var(--oc-fg); background: var(--oc-hover); }
+      .board-pin .icon { width: 12px; height: 12px; }
+      .board-pin-text { overflow: hidden; text-overflow: ellipsis; }
       .board-pin.is-pinned {
         color: var(--mint-text, var(--oc-success));
-        background: color-mix(in srgb, var(--mint) 16%, transparent);
+        border-color: color-mix(in srgb, var(--mint) 55%, var(--oc-border));
+        background: color-mix(in srgb, var(--mint) 14%, transparent);
       }
+      .board-pin.is-pinned:hover { background: color-mix(in srgb, var(--mint) 22%, transparent); }
       .board-pin:disabled { opacity: .45; cursor: not-allowed; }
       .create-sheet .settings-actions { margin-top: 2px; }
       .column {

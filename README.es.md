@@ -212,9 +212,9 @@ el tablero sigue como lo dejaste.
 
 El panel y el agente son dos procesos distintos. El panel sigue la conexión que ves aquí;
 las herramientas del agente deciden su tablero según el proyecto en el que se abrió la
-sesión. Fíjalo una vez por proyecto con el **botón de pin de la cabecera**, junto al
-selector de tablero: se rellena cuando ese tablero es el que usa el agente para el
-proyecto de la sesión, y al volver a pulsarlo se suelta. Mientras un proyecto tenga varios
+sesión. Vincúlalo una vez por proyecto con la **pastilla de al lado del selector de
+tablero**: pone «Vincular» hasta que la pulsas, luego muestra el nombre del proyecto, y al
+volver a pulsarla se suelta. Mientras un proyecto tenga varios
 tableros y ninguno esté fijado, el agente se niega a tocar tarjetas en vez de adivinar. Un
 worktree o una subcarpeta del proyecto hereda el tablero fijado.
 

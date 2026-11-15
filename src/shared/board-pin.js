@@ -1,16 +1,26 @@
-// The pin in the header decides what pressing it does: it fills when this board
-// is the one the agent uses for the session's project, and it is disabled when
-// there is no project to pin the board to. Kept here so the copy and the state
-// are tested without a browser.
-export const pinState = ({ pinned, boardId, hasProject }) => {
+// The pill next to the board selector says what pressing it does: it binds this
+// board to the session's project, and pressing it again releases it. Without a
+// project there is nothing to bind, so it hides.
+export const pinState = ({ pinned, boardId, project }) => {
   const id = String(boardId || '');
+  const name = String(project || '');
   const isPinned = Boolean(pinned) && Boolean(id) && String(pinned) === id;
-  const label = !hasProject
-    ? 'Abre Kanban desde una sesión con proyecto para fijar su tablero'
-    : isPinned
-      ? 'El agente usa este tablero en este proyecto. Pulsa para quitarlo'
-      : pinned
-        ? 'El agente usa otro tablero en este proyecto. Pulsa para usar este'
-        : 'Fijar este tablero para el agente en este proyecto';
-  return { pinned: isPinned, disabled: !hasProject || !id, label };
+  if (!name) {
+    return {
+      pinned: isPinned,
+      disabled: true,
+      hidden: true,
+      text: '',
+      label: 'Abre Kanban desde una sesión con proyecto para vincular el tablero',
+    };
+  }
+  return {
+    pinned: isPinned,
+    disabled: !id,
+    hidden: false,
+    text: isPinned ? name : 'Vincular',
+    label: isPinned
+      ? `Vinculado a ${name}. Pulsa para desvincular el tablero`
+      : `Vincular este tablero a ${name}`,
+  };
 };

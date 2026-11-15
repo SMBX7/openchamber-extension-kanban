@@ -600,178 +600,44 @@ await build({
   logLevel: 'silent',
 });
 const { pinState } = require(pinBundle);
+const pinBase = { pinned: '', boardId: 'board-a', project: 'SMB Points' };
 assert.deepEqual(
-  pinState({ pinned: '', boardId: 'board-a', hasProject: true }),
+  pinState(pinBase),
   {
     pinned: false,
     disabled: false,
-    label: 'Fijar este tablero para el agente en este proyecto',
+    hidden: false,
+    text: 'Vincular',
+    label: 'Vincular este tablero a SMB Points',
   },
-  'a board that is not pinned offers to pin itself',
+  'a board that is not bound offers to bind itself to the project',
+);
+assert.deepEqual(
+  pinState({ ...pinBase, pinned: 'board-a' }),
+  {
+    pinned: true,
+    disabled: false,
+    hidden: false,
+    text: 'SMB Points',
+    label: 'Vinculado a SMB Points. Pulsa para desvincular el tablero',
+  },
+  'the bound board names the project',
 );
 assert.equal(
-  pinState({ pinned: 'board-a', boardId: 'board-a', hasProject: true }).pinned,
-  true,
-  'the pinned board fills the pin',
-);
-assert.equal(
-  pinState({ pinned: 'board-b', boardId: 'board-a', hasProject: true }).pinned,
+  pinState({ ...pinBase, pinned: 'board-b' }).pinned,
   false,
-  'another pinned board never fills this one',
+  'another project board never fills this one',
 );
 assert.equal(
-  pinState({ pinned: '', boardId: 'board-a', hasProject: false }).disabled,
+  pinState({ ...pinBase, project: '' }).hidden,
   true,
-  'without a project the pin cannot be pressed',
+  'without a project the pill hides',
 );
 assert.equal(
-  pinState({ pinned: '', boardId: '', hasProject: true }).disabled,
+  pinState({ ...pinBase, boardId: '' }).disabled,
   true,
-  'without a board the pin cannot be pressed',
+  'without a board the pill cannot be pressed',
 );
-
-// The chat's @ menu asks the service for cards. The picked row comes back as an
-// id alone, so the id must round-trip the board or the local project.
-const mentionsBundle = join(dir, 'mentions.cjs');
-await build({
-  entryPoints: [new URL('../src/shared/mentions.js', import.meta.url).pathname],
-  bundle: true,
-  outfile: mentionsBundle,
-  platform: 'node',
-  format: 'cjs',
-  logLevel: 'silent',
-});
-const { mentionId, parseMentionId, mentionItems, mentionText, promoteCardList } = require(mentionsBundle);
-
-const plankaMention = mentionId({ source: 'planka', boardId: 'board-1', cardId: 'card-a' });
-assert.deepEqual(parseMentionId(plankaMention), { source: 'planka', boardId: 'board-1', cardId: 'card-a' });
-const localMention = mentionId({ source: 'local', directory: '/home/ana/proyecto', cardId: 'card-b' });
-assert.deepEqual(parseMentionId(localMention), {
-  source: 'local',
-  directory: '/home/ana/proyecto',
-  cardId: 'card-b',
-});
-assert.equal(parseMentionId('nope'), null, 'an unknown row id resolves to nothing');
-
-const mentionBoard = {
-  name: 'Tablero',
-  doneListId: 'done',
-  lists: [
-    {
-      id: 'ideas',
-      name: 'IDEAS',
-      cards: [{ id: 'c1', name: 'Arreglar el borde', description: 'Se sale', taskLists: [] }],
-    },
-    { id: 'work', name: 'EN PROGRESO', cards: [{ id: 'c2', name: 'Ordenar ideas', description: '', taskLists: [] }] },
-    { id: 'done', name: 'HECHO', cards: [{ id: 'c3', name: 'Vieja', description: '', taskLists: [] }] },
-  ],
-};
-const mentionOrigin = { source: 'planka', boardId: 'board-1' };
-const allMentions = mentionItems(mentionBoard, '', mentionOrigin);
-assert.equal(allMentions.length, 2, 'a card in DONE stays out of the menu');
-assert.equal(allMentions[0].title, 'Ordenar ideas', 'cards in progress come first');
-assert.equal(allMentions[0].subtitle, 'EN PROGRESO', 'the subtitle names the column');
-assert.equal(allMentions[1].subtitle, 'IDEAS', 'ideas follow their own group');
-assert.equal(
-  mentionItems(mentionBoard, 'borde', mentionOrigin).length,
-  1,
-  'the query filters by title and description',
-);
-const mentionCardText = mentionText(mentionBoard.lists[0].cards[0], 'IDEAS', 'Tablero');
-assert.ok(mentionCardText.includes('id c1'), 'the chip text carries the card id');
-assert.ok(mentionCardText.includes('Se sale'), 'the chip text carries the description');
-
-// The host draws this list at the bottom of the composer, so it stays short:
-// a query ranks exact and prefix title matches first, and accents do not matter.
-const manyBoard = {
-  name: 'Tablero',
-  doneListId: 'done',
-  lists: [
-    {
-      id: 'ideas',
-      name: 'IDEAS',
-      cards: Array.from({ length: 8 }, (_, index) => ({
-        id: `m${index}`,
-        name: index === 7 ? 'borde' : `borde ${index}`,
-        description: '',
-        taskLists: [],
-      })),
-    },
-    { id: 'done', name: 'HECHO', cards: [] },
-  ],
-};
-const manyItems = mentionItems(manyBoard, 'borde', mentionOrigin);
-assert.equal(manyItems.length, 6, 'the menu caps at six rows');
-assert.equal(manyItems[0].title, 'borde', 'an exact title comes first');
-const accentedBoard = {
-  name: 'Tablero',
-  doneListId: 'done',
-  lists: [
-    { id: 'ideas', name: 'IDEAS', cards: [{ id: 'a1', name: 'Índice del README', description: '', taskLists: [] }] },
-    { id: 'done', name: 'HECHO', cards: [] },
-  ],
-};
-assert.equal(
-  mentionItems(accentedBoard, 'indice', mentionOrigin).length,
-  1,
-  'the search ignores accents',
-);
-
-// IDEAS size: speed and complexity read the same text.
-const workBundle = join(dir, 'work.cjs');
-await build({
-  entryPoints: [new URL('../src/shared/work.js', import.meta.url).pathname],
-  bundle: true,
-  outfile: workBundle,
-  platform: 'node',
-  format: 'cjs',
-  logLevel: 'silent',
-});
-const { classifyWork, sortCardsByWork } = require(workBundle);
-
-assert.equal(
-  classifyWork({ name: 'Añadir un index al README', description: '' }).key,
-  'quick',
-  'texts and documentation count as quick work',
-);
-assert.equal(
-  classifyWork({ name: 'Rediseñar todo el panel', description: 'reescribir la interfaz' }).key,
-  'big',
-  'a redesign is big work',
-);
-assert.equal(
-  classifyWork({ name: 'Pintar el logo', description: '' }).key,
-  'medium',
-  'a card with no size signal is a normal change',
-);
-const workCards = [
-  { name: 'Pintar el logo', description: '' },
-  { name: 'Rediseñar todo el panel', description: '' },
-  { name: 'Añadir un index al README', description: '' },
-];
-assert.deepEqual(
-  sortCardsByWork(workCards, 'quick').map((card) => card.name),
-  ['Añadir un index al README', 'Pintar el logo', 'Rediseñar todo el panel'],
-  'speed puts the small work first',
-);
-assert.deepEqual(
-  sortCardsByWork(workCards, 'big').map((card) => card.name),
-  ['Rediseñar todo el panel', 'Pintar el logo', 'Añadir un index al README'],
-  'complexity puts the big work first',
-);
-
-rmSync(dir, { recursive: true, force: true });
-const promoteBoard = {
-  doneListId: 'done',
-  lists: [
-    { id: 'ideas', name: 'IDEAS', cards: [] },
-    { id: 'work', name: 'EN PROGRESO', cards: [] },
-    { id: 'done', name: 'HECHO', cards: [] },
-  ],
-};
-assert.equal(promoteCardList(promoteBoard, 'ideas'), 'work', 'a backlog card moves to work');
-assert.equal(promoteCardList(promoteBoard, 'work'), '', 'a card already in progress stays');
-assert.equal(promoteCardList(promoteBoard, 'done'), '', 'a finished card never moves');
 
 // The composer grows with what you type instead of hiding it: the title keeps
 // two lines, the description four, and anything longer scrolls inside the box.

@@ -207,9 +207,9 @@ board it has instead of guessing. With no project the board stays as you left it
 
 The panel and the agent are two separate processes. The panel follows the connection you
 see here; the agent's tools decide their board from the project the session was opened
-in. Pin it once per project with the **pin button in the header**, next to the board
-selector: it fills when this board is the one the agent uses for the session's project,
-and pressing it again releases it. While a project has several boards and none is pinned,
+in. Bind it once per project with the **pill next to the board selector**: it reads
+"Vincular" until you press it, then shows the project's name, and pressing it again
+releases the board. While a project has several boards and none is pinned,
 the agent refuses to touch cards instead of guessing. A worktree or a subfolder of the
 project inherits the pinned board.
 
