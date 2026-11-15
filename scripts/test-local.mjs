@@ -509,86 +509,18 @@ const mentionCardText = mentionText(mentionBoard.lists[0].cards[0], 'IDEAS', 'Ta
 assert.ok(mentionCardText.includes('id c1'), 'the chip text carries the card id');
 assert.ok(mentionCardText.includes('Se sale'), 'the chip text carries the description');
 
-// IDEAS priority: a bug wins on its own; the rest scores its words.
-const priorityBundle = join(dir, 'priority.cjs');
+// IDEAS size: speed and complexity read the same text.
+const workBundle = join(dir, 'work.cjs');
 await build({
-  entryPoints: [new URL('../src/shared/priority.js', import.meta.url).pathname],
+  entryPoints: [new URL('../src/shared/work.js', import.meta.url).pathname],
   bundle: true,
-  outfile: priorityBundle,
+  outfile: workBundle,
   platform: 'node',
   format: 'cjs',
   logLevel: 'silent',
 });
-const { classifyPriority, sortCardsByPriority, prioritySummary, classifyWork, sortCardsByWork } =
-  require(priorityBundle);
+const { classifyWork, sortCardsByWork } = require(workBundle);
 
-assert.equal(
-  classifyPriority({ name: 'El panel no funciona', description: 'El panel lateral y el botón del panel fallan' }).key,
-  'broken',
-  'a broken thing wins over any amount of UX wording',
-);
-assert.equal(
-  classifyPriority({ name: 'Ordenar el panel de ideas', description: 'no guarda' }).key,
-  'broken',
-  'a break in the description still wins',
-);
-assert.equal(
-  classifyPriority({ name: 'Mismo comportamiento en local y Planka', description: '' }).key,
-  'broken',
-  'a local/Planka difference is a broken thing, not its own level',
-);
-assert.equal(
-  classifyPriority({ name: 'Mejorar el panel lateral', description: 'La columna y el botón de ordenar' }).key,
-  'improve',
-  'interface wording and wishes land in improve',
-);
-assert.equal(
-  classifyPriority({ name: 'Refactor del código de tests', description: 'limpiar duplicados' }).key,
-  'detail',
-  'code and tests land in detail',
-);
-assert.equal(
-  classifyPriority({ name: 'Añadir un index al README', description: '' }).key,
-  'detail',
-  'documentation wording lands in detail',
-);
-assert.equal(
-  classifyPriority({ name: 'Pintar el logo', description: '' }).unclassified,
-  true,
-  'a card with no signal stays unclassified',
-);
-
-const sortedPriority = sortCardsByPriority([
-  { name: 'Pintar el logo', description: '' },
-  { name: 'Mejorar el panel', description: 'botón' },
-  { name: 'No funciona el guardado', description: '' },
-  { name: 'Mismo comportamiento en local y Planka', description: '' },
-]);
-assert.deepEqual(
-  sortedPriority.map((card) => card.name),
-  ['No funciona el guardado', 'Mismo comportamiento en local y Planka', 'Mejorar el panel', 'Pintar el logo'],
-  'flow, parity, UX and unclassified, in that order',
-);
-assert.deepEqual(
-  sortCardsByPriority([
-    { name: 'Primera idea', description: '' },
-    { name: 'Segunda idea', description: '' },
-  ]).map((card) => card.name),
-  ['Primera idea', 'Segunda idea'],
-  'cards without signals keep their order',
-);
-
-const priorityTotals = prioritySummary([
-  { name: 'No funciona', description: '' },
-  { name: 'Local y Planka', description: '' },
-  { name: 'Pintar el logo', description: '' },
-]);
-assert.equal(priorityTotals.counts.broken, 2);
-assert.equal(priorityTotals.counts.improve, 0);
-assert.equal(priorityTotals.unclassified, 1);
-assert.equal(priorityTotals.total, 3);
-
-// Speed and complexity read the same text: small work against big work.
 assert.equal(
   classifyWork({ name: 'Añadir un index al README', description: '' }).key,
   'quick',
@@ -621,4 +553,4 @@ assert.deepEqual(
 );
 
 rmSync(dir, { recursive: true, force: true });
-console.log('local mode: 115 assertions ok');
+console.log('local mode: 102 assertions ok');

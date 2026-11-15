@@ -1826,80 +1826,21 @@ ${GUEST_SCROLLBAR_CSS}
 ${UI_SIZE_CSS}
 ${GUEST_UI_LOOK_CSS}`;
 
-  // src/shared/priority.js
-  var PRIORITY_LEVELS = [
-    {
-      key: "broken",
-      label: "No funciona",
-      hint: "Errores, algo roto o que no deja seguir",
-      // A broken thing wins on its own, however many interface words the card
-      // carries.
-      weight: 3,
-      pattern: /\b(rompe|rompen|roto|rota|fallo|fallos|falla|fallas|error|errores|bug|bugs|crash|congela|congelado|bloquea|bloqueado|bloqueada|imposible|se pierde|se pasa|se mueve|se queda|se cierra|salta|vuelve a|en vez de|deberia|no deja|no me deja|no funciona|no guarda|no carga|no abre|no se puede|no puedo|no responde|no aparece|no se ve|desaparece)\b/g,
-      // A local/Planka difference is broken too, but it ranks below an explicit
-      // failure: it only promotes the card to this level.
-      extra: /\b(planka|local|paridad|paralelo|sincroniz\w*|servidor|remoto|dos modos|modo local|mismo comportamiento|tambien en|igual en|los dos|ambos)\b/g
-    },
-    {
-      key: "improve",
-      label: "Mejorar",
-      hint: "Cambios de interfaz, mejoras y cosas nuevas",
-      weight: 1.5,
-      pattern: /\b(ux|usabilidad|interfaz|experiencia|diseno|visual|pantalla|panel|lateral|ventana|boton|botones|clic|clics|arrastr\w*|mover|ordenar|filtrado|filtro|complicad\w*|lio|lioso|confus\w*|entiendo|entiende|accesib\w*|movil|responsive|columna|columnas|quiero|anadir|agregar|mejorar|mejora|cambiar|cambio|nuevo|nueva|opcion|opciones|dame)\b/g
-    },
-    {
-      key: "detail",
-      label: "Detalle",
-      hint: "Limpieza, textos y documentaci\xF3n",
-      weight: 1,
-      pattern: /\b(refactor\w*|arquitectura|arquitect\w*|codigo|limpia\w*|limpiar|duplicad\w*|rendimiento|lento|test|tests|pruebas|documentacion|readme|docs|index|indice|guia|estructura|nombres|pulir|pulido|deuda|mantener|json|persist\w*|almacen\w*|migrac\w*|guard\w*)\b/g
-    }
-  ];
-  var PRIORITY_UNCLASSIFIED = PRIORITY_LEVELS.length;
-  var normalizeText = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  var hits = (text, pattern) => (text.match(pattern) || []).length;
-  var classifyPriority = (card) => {
-    const title = normalizeText(card?.name);
-    const body = normalizeText(card?.description);
-    const scores = PRIORITY_LEVELS.map((criterion2) => {
-      const base = criterion2.weight * (2 * hits(title, criterion2.pattern) + hits(body, criterion2.pattern));
-      if (!criterion2.extra) return base;
-      const extra = 2 * hits(title, criterion2.extra) + hits(body, criterion2.extra);
-      return base > 0 ? base + extra : extra > 0 ? 1 : 0;
-    });
-    let level = 0;
-    if (scores[0] === 0) {
-      level = PRIORITY_UNCLASSIFIED;
-      for (let index = 1; index < scores.length; index += 1) {
-        if (scores[index] > 0 && (level === PRIORITY_UNCLASSIFIED || scores[index] > scores[level])) {
-          level = index;
-        }
-      }
-    }
-    const criterion = PRIORITY_LEVELS[level];
-    return {
-      level,
-      key: criterion?.key || "",
-      label: criterion?.label || "",
-      score: scores[level] || 0,
-      unclassified: level === PRIORITY_UNCLASSIFIED
-    };
-  };
-  var sortCardsByPriority = (cards) => (Array.isArray(cards) ? cards : []).map((card, index) => ({ card, index, priority: classifyPriority(card) })).sort(
-    (a, b) => a.priority.level - b.priority.level || b.priority.score - a.priority.score || a.index - b.index
-  ).map((entry) => entry.card);
-  var WORK_QUICK = /\b(readme|docs|documentacion|texto|textos|titulo|titulos|nombre|nombres|etiqueta|etiquetas|color|colores|icono|iconos|indice|index|typo|renombrar|alinear|margen|espacio|pequen\w*|simple|rapido|rapida|minimo|quitar|ocultar|mostrar)\b/g;
-  var WORK_BIG = /\b(redisen\w*|reescrib\w*|reescritura|refactor\w*|arquitectura|migrac\w*|integrac\w*|inteligencia artificial|nuevo modo|desde cero|todo el panel|toda la interfaz|panel completo|flujo completo|sistema|complejo|compleja|rehacer|interfaz|panel|pantalla|columna|columnas|ventana|lateral)\b/g;
+  // src/shared/work.js
+  var QUICK = /\b(readme|docs|documentacion|texto|textos|titulo|titulos|nombre|nombres|etiqueta|etiquetas|color|colores|icono|iconos|indice|index|typo|renombrar|alinear|margen|espacio|pequen\w*|simple|rapido|rapida|minimo|quitar|ocultar|mostrar)\b/g;
+  var BIG = /\b(redisen\w*|reescrib\w*|reescritura|refactor\w*|arquitectura|migrac\w*|integrac\w*|inteligencia artificial|nuevo modo|desde cero|todo el panel|toda la interfaz|panel completo|flujo completo|sistema|complejo|compleja|rehacer|interfaz|panel|pantalla|columna|columnas|ventana|lateral)\b/g;
   var WORK_LEVELS = [
     { key: "quick", label: "R\xE1pido" },
     { key: "medium", label: "Medio" },
     { key: "big", label: "Complejo" }
   ];
+  var normalizeText = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  var hits = (text, pattern) => (text.match(pattern) || []).length;
   var classifyWork = (card) => {
     const title = normalizeText(card?.name);
     const body = normalizeText(card?.description);
-    const quick = 2 * hits(title, WORK_QUICK) + hits(body, WORK_QUICK);
-    const big = 2 * hits(title, WORK_BIG) + hits(body, WORK_BIG);
+    const quick = 2 * hits(title, QUICK) + hits(body, QUICK);
+    const big = 2 * hits(title, BIG) + hits(body, BIG);
     const level = big > quick ? 2 : quick > big ? 0 : 1;
     const criterion = WORK_LEVELS[level];
     return { level, key: criterion.key, label: criterion.label, quick, big };
@@ -1966,7 +1907,7 @@ ${GUEST_UI_LOOK_CSS}`;
     dragging: false,
     sorting: false,
     sortPop: null,
-    sortMode: "priority",
+    sortMode: "quick",
     composerListId: "",
     saving: 0,
     fetching: false,
@@ -3593,11 +3534,6 @@ ${card.description}`.toLowerCase();
   };
   var SORT_MODES = [
     {
-      key: "priority",
-      label: "Prioridad",
-      note: "Primero lo que no funciona, despu\xE9s lo que quieres mejorar y al final los detalles."
-    },
-    {
       key: "quick",
       label: "R\xE1pido",
       note: "Primero lo que se hace en un rato: textos, detalles y cambios peque\xF1os."
@@ -3615,7 +3551,7 @@ ${card.description}`.toLowerCase();
       closeSortPopover();
       return;
     }
-    const sorted = mode === "quick" ? sortCardsByWork(list.cards, "quick") : mode === "big" ? sortCardsByWork(list.cards, "big") : sortCardsByPriority(list.cards);
+    const sorted = sortCardsByWork(list.cards, mode === "big" ? "big" : "quick");
     const targetIds = sorted.map((card) => card.id);
     const currentIds = list.cards.map((card) => card.id);
     if (targetIds.join("|") === currentIds.join("|")) {
@@ -3661,9 +3597,9 @@ ${card.description}`.toLowerCase();
     closeSortPopover();
     const node = el2("div", "sort-pop");
     node.setAttribute("role", "dialog");
-    node.setAttribute("aria-label", "Ordenar IDEAS por prioridad");
+    node.setAttribute("aria-label", "Ordenar IDEAS");
     const head = el2("div", "sort-pop-head");
-    head.append(el2("span", "sort-pop-title", "Ordenar por prioridad"));
+    head.append(el2("span", "sort-pop-title", "Ordenar IDEAS"));
     const close = el2("button", "sort-pop-close");
     close.type = "button";
     close.title = "Cerrar";
@@ -3717,8 +3653,8 @@ ${card.description}`.toLowerCase();
   var buildSortControl = (list) => {
     const button2 = el2("button", "col-sort");
     button2.type = "button";
-    button2.title = "Ordenar IDEAS por prioridad";
-    button2.setAttribute("aria-label", "Ordenar IDEAS por prioridad");
+    button2.title = "Ordenar IDEAS por velocidad o complejidad";
+    button2.setAttribute("aria-label", "Ordenar IDEAS por velocidad o complejidad");
     button2.setAttribute("aria-haspopup", "dialog");
     button2.setAttribute("aria-expanded", "false");
     button2.append(makeIcon("sort"), el2("span", "col-sort-label", "Ordenar"));

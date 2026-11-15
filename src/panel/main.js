@@ -1,6 +1,6 @@
 import { connectHost } from '@openchamber/sdk';
 import { applyHostReady } from '@openchamber/sdk/ui';
-import { sortCardsByPriority, sortCardsByWork } from '../shared/priority.js';
+import { sortCardsByWork } from '../shared/work.js';
 
 const host = connectHost();
 const root = document.querySelector('#root');
@@ -57,7 +57,7 @@ const state = {
   dragging: false,
   sorting: false,
   sortPop: null,
-  sortMode: 'priority',
+  sortMode: 'quick',
   composerListId: '',
   saving: 0,
   fetching: false,
@@ -1913,14 +1913,9 @@ const closeSortPopover = () => {
   state.sortPop = null;
 };
 
-// Three ways to read the backlog. The labels are the only thing a person has
-// to understand; the note explains the chosen one in a line.
+// Two ways to read the backlog. The labels are the only thing a person has to
+// understand; the note explains the chosen one in a line.
 const SORT_MODES = [
-  {
-    key: 'priority',
-    label: 'Prioridad',
-    note: 'Primero lo que no funciona, después lo que quieres mejorar y al final los detalles.',
-  },
   {
     key: 'quick',
     label: 'Rápido',
@@ -1940,12 +1935,7 @@ const sortIdeas = async (listId, mode, action, status) => {
     closeSortPopover();
     return;
   }
-  const sorted =
-    mode === 'quick'
-      ? sortCardsByWork(list.cards, 'quick')
-      : mode === 'big'
-        ? sortCardsByWork(list.cards, 'big')
-        : sortCardsByPriority(list.cards);
+  const sorted = sortCardsByWork(list.cards, mode === 'big' ? 'big' : 'quick');
   const targetIds = sorted.map((card) => card.id);
   const currentIds = list.cards.map((card) => card.id);
   if (targetIds.join('|') === currentIds.join('|')) {
@@ -2002,10 +1992,10 @@ const openSortPopover = (anchor, listId) => {
   closeSortPopover();
   const node = el('div', 'sort-pop');
   node.setAttribute('role', 'dialog');
-  node.setAttribute('aria-label', 'Ordenar IDEAS por prioridad');
+  node.setAttribute('aria-label', 'Ordenar IDEAS');
 
   const head = el('div', 'sort-pop-head');
-  head.append(el('span', 'sort-pop-title', 'Ordenar por prioridad'));
+  head.append(el('span', 'sort-pop-title', 'Ordenar IDEAS'));
   const close = el('button', 'sort-pop-close');
   close.type = 'button';
   close.title = 'Cerrar';
@@ -2066,8 +2056,8 @@ const openSortPopover = (anchor, listId) => {
 const buildSortControl = (list) => {
   const button = el('button', 'col-sort');
   button.type = 'button';
-  button.title = 'Ordenar IDEAS por prioridad';
-  button.setAttribute('aria-label', 'Ordenar IDEAS por prioridad');
+  button.title = 'Ordenar IDEAS por velocidad o complejidad';
+  button.setAttribute('aria-label', 'Ordenar IDEAS por velocidad o complejidad');
   button.setAttribute('aria-haspopup', 'dialog');
   button.setAttribute('aria-expanded', 'false');
   button.append(makeIcon('sort'), el('span', 'col-sort-label', 'Ordenar'));

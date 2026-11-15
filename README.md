@@ -125,9 +125,8 @@ Planka and change the settings.
 - **Move**: drag a card inside a column or to another one. Dragging to DONE completes it.
   A card with its own session moves there when that session finishes its turn; in a batch,
   the main agent moves it after reviewing its subagent. Manual moves are never touched.
-- **Sort IDEAS**: **Sort** (Ordenar) orders by **Priority** (broken, improve,
-  detail), **Speed** (small work first) or **Complexity** (redesigns and interface
-  changes first).
+- **Sort IDEAS**: **Sort** (Ordenar) orders by **Speed** (small work first) or
+  **Complexity** (redesigns and interface changes first).
 - **Search** with the magnifier.
 - **Stopped** (Paradas) filters cards in IN PROGRESS **without an active session**.
 
