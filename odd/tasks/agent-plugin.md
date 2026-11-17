@@ -108,3 +108,13 @@ Suites: local 159, update safety 40, agent plugin 69, planka routes 13;
 L5 Not covered by a live test: a real Planka server. The Planka path is
 exercised through the same `PlankaClient` the panel uses, with the HTTP layer
 mocked, plus the "no pinned board" refusal.
+
+L6 (found while answering a question, 2026-11-17): the heartbeat read the
+version from `package.json` at runtime, so an update that replaced the manifest
+while OpenCode still held the old module would report the *new* version from
+*old* code — the exact false "connected" the panel exists to prevent. The build
+now bakes the version into the plugin (`__KANBAN_VERSION__`), the heartbeat
+carries `version` (running code) and `installed` (manifest on disk), and the
+service only says connected when they match. Test: a manifest rewritten to
+9.9.9 keeps the heartbeat on the built version and reports 9.9.9 as installed.
+Version 1.10.1.

@@ -1771,9 +1771,17 @@ var agentVersion = () => {
     return "";
   }
 };
+var agentCodeVersion = () => {
+  try {
+    return "1.10.1" ? "1.10.1" : agentVersion();
+  } catch {
+    return agentVersion();
+  }
+};
 var writeAgentHeartbeat = (info = {}) => {
   const value = {
-    version: agentVersion(),
+    version: agentCodeVersion(),
+    installed: agentVersion(),
     at: (/* @__PURE__ */ new Date()).toISOString(),
     location: String(info.location || ""),
     event: String(info.event || "setup")

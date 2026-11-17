@@ -53,8 +53,11 @@ try {
 const agentStatus = () => {
   const version = agentVersion();
   const plugin = readAgentHeartbeat();
+  // Compare the version of the code that answered with the one installed now.
+  // Equal means the agent is on this build; anything else means it is still
+  // running the module OpenCode loaded earlier.
   let state = 'missing';
-  if (plugin) state = plugin.version && plugin.version !== version ? 'outdated' : 'connected';
+  if (plugin) state = plugin.version && plugin.version === version ? 'connected' : 'outdated';
   return {
     version,
     state,

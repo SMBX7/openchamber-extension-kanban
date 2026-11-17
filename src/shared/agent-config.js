@@ -205,9 +205,25 @@ export const heartbeatPath = () => HEARTBEAT;
  *
  * @param {{ location?: string, event?: string }} info
  */
+/**
+ * The version of the code that is *running*. The build bakes it into the
+ * plugin bundle, because a manifest on disk can be replaced by an update while
+ * this process still holds the old module: reading `package.json` here would
+ * report the new version from old code, which is exactly the lie the panel is
+ * meant to catch.
+ */
+export const agentCodeVersion = () => {
+  try {
+    return typeof __KANBAN_VERSION__ === 'string' && __KANBAN_VERSION__ ? __KANBAN_VERSION__ : agentVersion();
+  } catch {
+    return agentVersion();
+  }
+};
+
 export const writeAgentHeartbeat = (info = {}) => {
   const value = {
-    version: agentVersion(),
+    version: agentCodeVersion(),
+    installed: agentVersion(),
     at: new Date().toISOString(),
     location: String(info.location || ''),
     event: String(info.event || 'setup'),

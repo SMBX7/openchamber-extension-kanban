@@ -1,4 +1,10 @@
 import { build, context } from 'esbuild';
+import { readFileSync } from 'node:fs';
+
+// The plugin reports the version of the code that is running, not the manifest
+// on disk: an update can replace the manifest while OpenCode still holds the
+// old module, and the panel must say "still the previous one" in that case.
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const common = {
   bundle: true,
@@ -35,6 +41,7 @@ const targets = [
     format: 'esm',
     platform: 'node',
     target: ['node20'],
+    define: { __KANBAN_VERSION__: JSON.stringify(version) },
     // OpenCode imports the folder with a bare import(): the module has to be
     // ESM, and the shared sources still resolve the package from __dirname.
     banner: {

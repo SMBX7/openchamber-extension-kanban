@@ -2273,7 +2273,7 @@ var agentStatus = () => {
   const version = agentVersion();
   const plugin = readAgentHeartbeat();
   let state = "missing";
-  if (plugin) state = plugin.version && plugin.version !== version ? "outdated" : "connected";
+  if (plugin) state = plugin.version && plugin.version === version ? "connected" : "outdated";
   return {
     version,
     state,

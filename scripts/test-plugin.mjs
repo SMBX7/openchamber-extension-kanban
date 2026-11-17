@@ -46,6 +46,7 @@ await build({
   platform: 'node',
   target: ['node20'],
   logLevel: 'silent',
+  define: { __KANBAN_VERSION__: JSON.stringify(JSON.parse(realManifest).version) },
   banner: {
     js: "import { fileURLToPath as __f } from 'node:url';\nimport { dirname as __d } from 'node:path';\nconst __dirname = __d(__f(import.meta.url));",
   },
@@ -108,7 +109,9 @@ for (const [name, tool] of Object.entries(tools)) {
 // The heartbeat is the panel's proof that the agent loaded this version.
 const heartbeat = JSON.parse(readFileSync(join(process.env.KANBAN_DATA_DIR, 'agent.json'), 'utf8'));
 assert.equal(heartbeat.version, JSON.parse(realManifest).version);
+assert.equal(heartbeat.installed, JSON.parse(realManifest).version);
 assert.equal(heartbeat.event, 'setup');
+
 
 // --- Local board, through the plugin, end to end.
 writeFileSync(join(process.env.KANBAN_DATA_DIR, 'config.json'), '{"source":"local"}\n');
@@ -147,6 +150,15 @@ assert.equal(completed.completed, true);
 const removed = JSON.parse((await call('kanban_delete_card', { card: 'Probado por el plugin' })).content);
 assert.equal(removed.deleted, true);
 assert.equal(JSON.parse((await call('kanban_board')).content).counts.total, 0);
+
+// The version in the heartbeat is the code's, not the manifest's: an update can
+// replace package.json while OpenCode still holds the module it loaded.
+writeFileSync(join(dir, 'package.json'), JSON.stringify({ version: '9.9.9' }));
+await tools.kanban_board.execute({}, { sessionID: 'ses_version' });
+const afterUpdate = JSON.parse(readFileSync(join(process.env.KANBAN_DATA_DIR, 'agent.json'), 'utf8'));
+assert.equal(afterUpdate.version, JSON.parse(realManifest).version, 'the heartbeat reports the running code');
+assert.equal(afterUpdate.installed, '9.9.9', 'and the manifest that is on disk now');
+writeFileSync(join(dir, 'package.json'), realManifest);
 
 // A board that is missing while a copy sits beside it is refused, not filled.
 const lost = join(dir, 'proyecto-perdido');
