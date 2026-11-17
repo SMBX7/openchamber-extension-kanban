@@ -1290,10 +1290,13 @@ const buildPage = () => {
   banner.hidden = true;
   banner.setAttribute('role', 'status');
 
+  const notice = el('div', 'recovery-notice');
+  notice.hidden = true;
+
   const board = el('div', 'board');
-  app.append(topbar, banner, board);
+  app.append(topbar, banner, notice, board);
   root.replaceChildren(app);
-  state.refs = { board, banner, boardSelect, projectSelect, projectField, projectChip, stoppedChip, settingsButton, searchInput, labelFilters, openButton };
+  state.refs = { board, banner, notice, boardSelect, projectSelect, projectField, projectChip, stoppedChip, settingsButton, searchInput, labelFilters, openButton };
   setBanner(state.bannerText);
 };
 
@@ -1362,10 +1365,13 @@ const buildPanel = () => {
   banner.hidden = true;
   banner.setAttribute('role', 'status');
 
+  const notice = el('div', 'recovery-notice');
+  notice.hidden = true;
+
   const board = el('div', 'board panel-board');
-  app.append(topbar, selectorRow, delegationRow, banner, board);
+  app.append(topbar, selectorRow, delegationRow, banner, notice, board);
   root.replaceChildren(app);
-  state.refs = { board, banner, boardSelect, projectSelect, projectField, projectChip, stoppedChip, settingsButton, openButton };
+  state.refs = { board, banner, notice, boardSelect, projectSelect, projectField, projectChip, stoppedChip, settingsButton, openButton };
   setBanner(state.bannerText);
 };
 
@@ -1642,8 +1648,51 @@ const openSettings = () => {
     toolChips.append(el('span', 'tool-chip', name));
   }
   avanzadoBox.append(toolChips);
+  const agentLine = el('p', 'settings-note', 'Comprobando el agente…');
+  avanzadoBox.append(agentLine);
   avanzadoBox.append(el('p', 'settings-note', 'El MCP solo actúa cuando el agente llama a una herramienta. En Planka lo ves desde cualquier dispositivo; el tablero local vive solo en este equipo. Tras actualizar la extensión, reinicia OpenCode.'));
   avanzado.append(avanzadoBox);
+
+  // Whether the agent is talking to this version is a fact about two files
+  // outside the panel, so it is asked, not guessed. The service repairs a stale
+  // entry on its first read; this only reports what it found.
+  void (async () => {
+    try {
+      const { agent } = await api('GET', '/agent');
+      const state = agent?.state || 'unreadable';
+      const warnings = new Set(['stale', 'absent', 'ambiguous', 'unreadable', 'fixed']);
+      agentLine.classList.toggle('warning', warnings.has(state));
+      if (state === 'ok') {
+        agentLine.textContent = `Agente conectado: usa la copia instalada (${agent.installed}).`;
+        return;
+      }
+      if (state === 'fixed') {
+        agentLine.textContent = 'El agente apuntaba a otra ruta y ya apunta a esta versión. Reinicia OpenCode para que la cargue.';
+        return;
+      }
+      if (state === 'stale') {
+        const from = agent?.entries?.find((entry) => entry.state === 'stale')?.from || '';
+        agentLine.textContent = from
+          ? `El agente sigue apuntando a ${from}, que no es esta instalación. Reinicia OpenCode después de corregir la entrada.`
+          : 'El agente apunta a una ruta que no es esta instalación.';
+        return;
+      }
+      if (state === 'absent') {
+        agentLine.textContent = 'El agente no tiene las herramientas de Kanban: no hay ninguna entrada MCP registrada. Añade esta entrada a ~/.config/opencode/opencode.jsonc y reinicia OpenCode:';
+        const snippet = el('pre', 'settings-snippet', `"kanban": { "type": "local", "command": ["node", "${agent?.installed || ''}"] }`);
+        avanzadoBox.append(snippet);
+        return;
+      }
+      if (state === 'ambiguous') {
+        agentLine.textContent = 'No se ha tocado la configuración del agente: la ruta antigua aparece en más de un sitio. Corrige la entrada kanban a mano.';
+        return;
+      }
+      agentLine.textContent = 'No se pudo leer la configuración de OpenCode. El agente puede seguir apuntando a otra versión.';
+    } catch (error) {
+      agentLine.classList.add('warning');
+      agentLine.textContent = error?.message || 'No se pudo comprobar el agente.';
+    }
+  })();
 
   scroll.append(conexion, estilo, delegacion, sesiones, avanzado);
 
@@ -1731,6 +1780,7 @@ const renderAll = () => {
   syncStoppedChip();
   paintPin();
   if (state.surface === 'page') renderFilters();
+  renderRecovery();
   renderBoard();
 };
 
@@ -2228,8 +2278,55 @@ document.addEventListener(
 
 window.addEventListener('resize', () => closeSortPopover());
 
-const renderBoard = () => {
-  const board = state.refs?.board;
+const formatSavedAt = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
+
+// An empty board and a board an update took away look the same on screen. When
+// the file is gone and a copy is beside it, say so and offer the copy back:
+// a project must never read as "never had cards" when it did.
+const renderRecovery = () => {
+  const notice = state.refs?.notice;
+  if (!notice) return;
+  const recovery = state.snapshot?.recovery;
+  if (recovery?.state !== 'missing') {
+    notice.hidden = true;
+    notice.replaceChildren();
+    return;
+  }
+  const restore = el('button', 'btn-mint recovery-action');
+  restore.type = 'button';
+  restore.textContent = 'Restaurar la copia';
+  restore.addEventListener('click', async () => {
+    restore.disabled = true;
+    try {
+      const answer = await api('POST', '/local/restore', {});
+      state.snapshot.recovery = answer.recovery;
+      await refresh(false);
+      toast('success', 'Tablero restaurado.');
+    } catch (error) {
+      toast('error', error.message);
+      restore.disabled = false;
+    }
+  });
+  const when = formatSavedAt(recovery.savedAt);
+  notice.hidden = false;
+  notice.replaceChildren(
+    el(
+      'div',
+      'recovery-text',
+      when
+        ? `El tablero de este proyecto no está en disco. Hay una copia del ${when}: la actualización pudo moverla y no se ha borrado nada.`
+        : 'El tablero de este proyecto no está en disco, pero hay una copia de seguridad.',
+    ),
+    restore,
+  );
+};
+
+const renderBoard = () => {  const board = state.refs?.board;
   if (!board) return;
   const snapshot = state.snapshot;
   const scrollState = new Map();

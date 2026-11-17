@@ -210,6 +210,14 @@ const writeStore = (store, target) => {
   } catch {
     // The rename already applied the mode on the platforms we support.
   }
+  // The last good copy stays beside the board. An update that deletes the
+  // package folder cannot reach this one, and a board that goes missing can be
+  // put back instead of silently starting empty.
+  try {
+    copyFileSync(target, `${target}.prev`);
+  } catch {
+    // The board is saved either way; the next write tries the copy again.
+  }
 };
 
 // Until this version the board was one file for every project. The first
@@ -244,6 +252,41 @@ const readStore = (projectKey = '') => {
   } catch {
     return emptyStore();
   }
+};
+
+// An empty board and a lost board look the same from the data, and they are not
+// the same thing: the first is a project nobody wrote to, the second is a board
+// an update took away. `state` tells them apart and, when the board is gone and
+// a previous copy is here, the panel offers that copy back instead of drawing a
+// fresh empty board.
+export const boardRecovery = (projectKey = '') => {
+  const file = localBoardPath(projectKey);
+  const previous = `${file}.prev`;
+  const present = existsSync(file);
+  if (present) return { state: 'ok', savedAt: '' };
+  if (!existsSync(previous)) return { state: 'new', savedAt: '' };
+  let savedAt = '';
+  try {
+    savedAt = new Date(statSync(previous).mtimeMs).toISOString();
+  } catch {
+    // The copy is there even if its date is not readable.
+  }
+  return { state: 'missing', savedAt };
+};
+
+// Put the previous copy back, only when the board file is absent: a board that
+// exists is never replaced by an older copy behind the user's back.
+export const restoreBoard = (projectKey = '') => {
+  const file = localBoardPath(projectKey);
+  const previous = `${file}.prev`;
+  if (existsSync(file) || !existsSync(previous)) return boardRecovery(projectKey);
+  try {
+    copyFileSync(previous, file);
+    chmodSync(file, 0o600);
+  } catch {
+    // The panel reports the state it finds, so a failed copy asks again.
+  }
+  return boardRecovery(projectKey);
 };
 
 const withLock = async (projectKey, work) => {

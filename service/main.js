@@ -23,10 +23,10 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 
 // src/service/main.js
 var import_node_http = __toESM(require("node:http"));
-var import_node_fs6 = require("node:fs");
+var import_node_fs7 = require("node:fs");
 var import_node_async_hooks = require("node:async_hooks");
-var import_node_os2 = require("node:os");
-var import_node_path6 = require("node:path");
+var import_node_os3 = require("node:os");
+var import_node_path7 = require("node:path");
 
 // node_modules/@openchamber/sdk/dist/scrollbar-style.js
 var GUEST_SCROLLING_ATTRIBUTE = "data-oc-scrolling";
@@ -668,9 +668,232 @@ var setAppearance = (input = {}) => {
   return next;
 };
 
-// src/shared/local.js
+// src/shared/agent-config.js
 var import_node_fs5 = require("node:fs");
+var import_node_os2 = require("node:os");
 var import_node_path5 = require("node:path");
+var AGENT_SERVER_NAME = "kanban";
+var BACKUP_SUFFIX = ".kanban-backup";
+var MCP_MAIN = /[\\/]mcp[\\/]main\.js$/;
+var installedAgentPath = () => (0, import_node_path5.join)(ROOT, "mcp", "main.js");
+var normalPath = (value) => {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  try {
+    return (0, import_node_fs5.realpathSync)(text);
+  } catch {
+    return (0, import_node_path5.resolve)(text).replace(/[\\/]+$/, "");
+  }
+};
+var agentConfigFiles = (env = process.env, home = (0, import_node_os2.homedir)()) => {
+  const explicit = env.OPENCODE_CONFIG;
+  if (explicit) return (0, import_node_fs5.existsSync)(explicit) ? [explicit] : [];
+  const configHome = env.XDG_CONFIG_HOME || (0, import_node_path5.join)(home, ".config");
+  const files = [
+    (0, import_node_path5.join)(configHome, "opencode", "opencode.jsonc"),
+    (0, import_node_path5.join)(configHome, "opencode", "opencode.json")
+  ];
+  const seen = /* @__PURE__ */ new Set();
+  return files.filter((file) => {
+    if (!file) return false;
+    const key = (0, import_node_path5.resolve)(file);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return (0, import_node_fs5.existsSync)(file);
+  });
+};
+var parseJsonc = (text) => {
+  let i = 0;
+  const fail = () => {
+    throw new Error("jsonc");
+  };
+  const skip = () => {
+    for (; ; ) {
+      const c = text[i];
+      if (c === " " || c === "	" || c === "\n" || c === "\r") {
+        i += 1;
+        continue;
+      }
+      if (c === "/" && text[i + 1] === "/") {
+        i += 2;
+        while (i < text.length && text[i] !== "\n") i += 1;
+        continue;
+      }
+      if (c === "/" && text[i + 1] === "*") {
+        i += 2;
+        while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i += 1;
+        i += 2;
+        continue;
+      }
+      return;
+    }
+  };
+  const readString = () => {
+    const start = i;
+    i += 1;
+    while (i < text.length) {
+      const c = text[i];
+      if (c === "\\") {
+        i += 2;
+        continue;
+      }
+      if (c === '"') {
+        i += 1;
+        return JSON.parse(text.slice(start, i));
+      }
+      i += 1;
+    }
+    return fail();
+  };
+  const readValue = () => {
+    skip();
+    const c = text[i];
+    if (c === "{") {
+      i += 1;
+      const out = {};
+      for (; ; ) {
+        skip();
+        if (text[i] === "}") {
+          i += 1;
+          return out;
+        }
+        if (text[i] !== '"') return fail();
+        const key = readString();
+        skip();
+        if (text[i] !== ":") return fail();
+        i += 1;
+        out[key] = readValue();
+        skip();
+        if (text[i] === ",") {
+          i += 1;
+          continue;
+        }
+        if (text[i] === "}") {
+          i += 1;
+          return out;
+        }
+        return fail();
+      }
+    }
+    if (c === "[") {
+      i += 1;
+      const out = [];
+      for (; ; ) {
+        skip();
+        if (text[i] === "]") {
+          i += 1;
+          return out;
+        }
+        out.push(readValue());
+        skip();
+        if (text[i] === ",") {
+          i += 1;
+          continue;
+        }
+        if (text[i] === "]") {
+          i += 1;
+          return out;
+        }
+        return fail();
+      }
+    }
+    if (c === '"') return readString();
+    const start = i;
+    while (i < text.length && !",}] 	\n\r".includes(text[i])) i += 1;
+    const raw = text.slice(start, i);
+    if (!raw) return fail();
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    if (raw === "null") return null;
+    const number = Number(raw);
+    if (!Number.isFinite(number)) return fail();
+    return number;
+  };
+  const value = readValue();
+  skip();
+  if (i < text.length) fail();
+  return value;
+};
+var kanbanServers = (doc) => {
+  const out = [];
+  for (const container of [doc?.mcp, doc?.mcp?.servers]) {
+    if (!container || typeof container !== "object") continue;
+    const server2 = container[AGENT_SERVER_NAME];
+    if (server2 && typeof server2 === "object") out.push(server2);
+  }
+  return out;
+};
+var stalePathOf = (server2, installed) => {
+  const command = Array.isArray(server2?.command) ? server2.command : [server2?.command];
+  for (const item of command) {
+    if (typeof item !== "string" || !MCP_MAIN.test(item)) continue;
+    if (normalPath(item) === normalPath(installed)) return "";
+    return item;
+  }
+  return "";
+};
+var replaceOnce = (file, oldPath, newPath) => {
+  const text = (0, import_node_fs5.readFileSync)(file, "utf8");
+  const token = JSON.stringify(oldPath);
+  const parts = text.split(token);
+  if (parts.length !== 2) return { changed: false, reason: "ambiguous" };
+  const backup = `${file}${BACKUP_SUFFIX}`;
+  if (!(0, import_node_fs5.existsSync)(backup)) (0, import_node_fs5.copyFileSync)(file, backup);
+  const next = parts.join(JSON.stringify(newPath));
+  const temp = `${file}.${process.pid}.agent.tmp`;
+  (0, import_node_fs5.writeFileSync)(temp, next, { mode: (0, import_node_fs5.statSync)(file).mode });
+  (0, import_node_fs5.renameSync)(temp, file);
+  return { changed: true, backup };
+};
+var healAgentEntry = ({ env = process.env, home = (0, import_node_os2.homedir)(), files } = {}) => {
+  const installed = installedAgentPath();
+  const installedReady = (0, import_node_fs5.existsSync)(installed);
+  const paths = files || agentConfigFiles(env, home);
+  const entries = [];
+  let state = "absent";
+  for (const file of paths) {
+    let text;
+    try {
+      text = (0, import_node_fs5.readFileSync)(file, "utf8");
+    } catch {
+      continue;
+    }
+    let doc;
+    try {
+      doc = parseJsonc(text);
+    } catch {
+      entries.push({ file, state: "unreadable" });
+      if (state === "absent" || state === "ok") state = "unreadable";
+      continue;
+    }
+    const servers = kanbanServers(doc);
+    if (!servers.length) continue;
+    const stale = servers.map((server2) => stalePathOf(server2, installed)).find(Boolean);
+    if (!stale) {
+      if (state === "absent") state = "ok";
+      entries.push({ file, state: "ok", path: installed });
+      continue;
+    }
+    if (!installedReady) {
+      if (state !== "fixed") state = "stale";
+      entries.push({ file, state: "stale", from: stale, to: installed });
+      continue;
+    }
+    const result = replaceOnce(file, stale, installed);
+    if (!result.changed) {
+      if (state !== "fixed") state = "ambiguous";
+      entries.push({ file, state: "ambiguous", from: stale, to: installed });
+      continue;
+    }
+    state = "fixed";
+    entries.push({ file, state: "fixed", from: stale, to: installed, backup: result.backup });
+  }
+  return { state, installed, files: paths, entries };
+};
+
+// src/shared/local.js
+var import_node_fs6 = require("node:fs");
+var import_node_path6 = require("node:path");
 var import_node_crypto = require("node:crypto");
 
 // src/shared/defaults.js
@@ -1266,7 +1489,7 @@ var DEFAULT_LABELS = [
   { name: "Importante", color: "hsl(38 78% 58%)" },
   { name: "Idea", color: "hsl(210 70% 62%)" }
 ];
-var basePath = () => process.env.KANBAN_LOCAL_PATH || (0, import_node_path5.join)(DATA_DIR, "board.local.json");
+var basePath = () => process.env.KANBAN_LOCAL_PATH || (0, import_node_path6.join)(DATA_DIR, "board.local.json");
 var legacyBoardFile = /^board\.local(\..+)?\.json$/;
 var adoptedBoards = false;
 var adoptLegacyBoards = () => {
@@ -1275,18 +1498,18 @@ var adoptLegacyBoards = () => {
   if (ROOT === DATA_DIR) return;
   let names;
   try {
-    names = (0, import_node_fs5.readdirSync)(ROOT);
+    names = (0, import_node_fs6.readdirSync)(ROOT);
   } catch {
     return;
   }
   for (const name of names) {
     if (!legacyBoardFile.test(name)) continue;
-    const target = (0, import_node_path5.join)(DATA_DIR, name);
-    if ((0, import_node_fs5.existsSync)(target)) continue;
+    const target = (0, import_node_path6.join)(DATA_DIR, name);
+    if ((0, import_node_fs6.existsSync)(target)) continue;
     try {
-      (0, import_node_fs5.mkdirSync)(DATA_DIR, { recursive: true, mode: 448 });
-      (0, import_node_fs5.copyFileSync)((0, import_node_path5.join)(ROOT, name), target);
-      (0, import_node_fs5.chmodSync)(target, 384);
+      (0, import_node_fs6.mkdirSync)(DATA_DIR, { recursive: true, mode: 448 });
+      (0, import_node_fs6.copyFileSync)((0, import_node_path6.join)(ROOT, name), target);
+      (0, import_node_fs6.chmodSync)(target, 384);
     } catch {
     }
   }
@@ -1303,11 +1526,11 @@ var localBoardPath = (projectKey = "") => {
   const slug = projectSlug(projectKey);
   if (!slug) return basePath();
   const base = basePath();
-  const stem = (0, import_node_path5.basename)(base).toLowerCase().endsWith(".json") ? base.slice(0, -".json".length) : base;
-  return (0, import_node_path5.join)((0, import_node_path5.dirname)(base), `${(0, import_node_path5.basename)(stem)}.${slug}.json`);
+  const stem = (0, import_node_path6.basename)(base).toLowerCase().endsWith(".json") ? base.slice(0, -".json".length) : base;
+  return (0, import_node_path6.join)((0, import_node_path6.dirname)(base), `${(0, import_node_path6.basename)(stem)}.${slug}.json`);
 };
 var lockPath = (projectKey) => `${localBoardPath(projectKey)}.lock`;
-var sleep = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
+var sleep = (ms) => new Promise((resolve3) => setTimeout(resolve3, ms));
 var byPosition2 = (a, b) => {
   const left = Number.isFinite(a?.position) ? a.position : Number.POSITIVE_INFINITY;
   const right = Number.isFinite(b?.position) ? b.position : Number.POSITIVE_INFINITY;
@@ -1389,13 +1612,17 @@ var normaliseStore = (value) => {
   };
 };
 var writeStore = (store, target) => {
-  (0, import_node_fs5.mkdirSync)((0, import_node_path5.dirname)(target), { recursive: true, mode: 448 });
+  (0, import_node_fs6.mkdirSync)((0, import_node_path6.dirname)(target), { recursive: true, mode: 448 });
   const temp = `${target}.${process.pid}.tmp`;
-  (0, import_node_fs5.writeFileSync)(temp, `${JSON.stringify(store, null, 2)}
+  (0, import_node_fs6.writeFileSync)(temp, `${JSON.stringify(store, null, 2)}
 `, { mode: 384 });
-  (0, import_node_fs5.renameSync)(temp, target);
+  (0, import_node_fs6.renameSync)(temp, target);
   try {
-    (0, import_node_fs5.chmodSync)(target, 384);
+    (0, import_node_fs6.chmodSync)(target, 384);
+  } catch {
+  }
+  try {
+    (0, import_node_fs6.copyFileSync)(target, `${target}.prev`);
   } catch {
   }
 };
@@ -1403,16 +1630,16 @@ var migrateLegacyBoard = (projectKey) => {
   if (!projectSlug(projectKey)) return;
   const legacy = basePath();
   const target = localBoardPath(projectKey);
-  if ((0, import_node_fs5.existsSync)(target) || !(0, import_node_fs5.existsSync)(legacy)) return;
+  if ((0, import_node_fs6.existsSync)(target) || !(0, import_node_fs6.existsSync)(legacy)) return;
   let parsed;
   try {
-    parsed = JSON.parse((0, import_node_fs5.readFileSync)(legacy, "utf8"));
+    parsed = JSON.parse((0, import_node_fs6.readFileSync)(legacy, "utf8"));
   } catch {
     return;
   }
   writeStore(normaliseStore(parsed), target);
   try {
-    (0, import_node_fs5.renameSync)(legacy, `${legacy}.migrated`);
+    (0, import_node_fs6.renameSync)(legacy, `${legacy}.migrated`);
   } catch {
   }
 };
@@ -1420,24 +1647,48 @@ var readStore = (projectKey = "") => {
   adoptLegacyBoards();
   migrateLegacyBoard(projectKey);
   try {
-    return normaliseStore(JSON.parse((0, import_node_fs5.readFileSync)(localBoardPath(projectKey), "utf8")));
+    return normaliseStore(JSON.parse((0, import_node_fs6.readFileSync)(localBoardPath(projectKey), "utf8")));
   } catch {
     return emptyStore();
   }
 };
+var boardRecovery = (projectKey = "") => {
+  const file = localBoardPath(projectKey);
+  const previous = `${file}.prev`;
+  const present = (0, import_node_fs6.existsSync)(file);
+  if (present) return { state: "ok", savedAt: "" };
+  if (!(0, import_node_fs6.existsSync)(previous)) return { state: "new", savedAt: "" };
+  let savedAt = "";
+  try {
+    savedAt = new Date((0, import_node_fs6.statSync)(previous).mtimeMs).toISOString();
+  } catch {
+  }
+  return { state: "missing", savedAt };
+};
+var restoreBoard = (projectKey = "") => {
+  const file = localBoardPath(projectKey);
+  const previous = `${file}.prev`;
+  if ((0, import_node_fs6.existsSync)(file) || !(0, import_node_fs6.existsSync)(previous)) return boardRecovery(projectKey);
+  try {
+    (0, import_node_fs6.copyFileSync)(previous, file);
+    (0, import_node_fs6.chmodSync)(file, 384);
+  } catch {
+  }
+  return boardRecovery(projectKey);
+};
 var withLock2 = async (projectKey, work) => {
   const lock = lockPath(projectKey);
-  (0, import_node_fs5.mkdirSync)((0, import_node_path5.dirname)(lock), { recursive: true, mode: 448 });
+  (0, import_node_fs6.mkdirSync)((0, import_node_path6.dirname)(lock), { recursive: true, mode: 448 });
   const deadline = Date.now() + 2500;
   let handle = null;
   while (handle === null) {
     try {
-      handle = (0, import_node_fs5.openSync)(lock, "wx");
+      handle = (0, import_node_fs6.openSync)(lock, "wx");
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
       try {
-        if (Date.now() - (0, import_node_fs5.statSync)(lock).mtimeMs > 5e3) {
-          (0, import_node_fs5.unlinkSync)(lock);
+        if (Date.now() - (0, import_node_fs6.statSync)(lock).mtimeMs > 5e3) {
+          (0, import_node_fs6.unlinkSync)(lock);
           continue;
         }
       } catch {
@@ -1453,11 +1704,11 @@ var withLock2 = async (projectKey, work) => {
     return await work();
   } finally {
     try {
-      (0, import_node_fs5.closeSync)(handle);
+      (0, import_node_fs6.closeSync)(handle);
     } catch {
     }
     try {
-      (0, import_node_fs5.unlinkSync)(lock);
+      (0, import_node_fs6.unlinkSync)(lock);
     } catch {
     }
   }
@@ -2032,6 +2283,24 @@ try {
 } catch {
   serviceHost = null;
 }
+var agentState = null;
+var agentStatus = () => {
+  if (agentState) return agentState;
+  try {
+    const healed = healAgentEntry();
+    agentState = { ...healed, restart: healed.state === "fixed" };
+  } catch (error) {
+    agentState = {
+      state: "unreadable",
+      installed: "",
+      files: [],
+      entries: [],
+      restart: false,
+      message: error instanceof Error ? error.message : "No se pudo leer la configuraci\xF3n del agente."
+    };
+  }
+  return agentState;
+};
 var AGENT_INSTRUCTIONS = [
   "When the user asks you to work on a Kanban card, referenced with @ or by name, and that card is still in IDEAS, move it to EN PROGRESO with kanban_move_card before you start. Do this only when they ask you to work on the card, not when they only ask about it or want to read it.",
   // The panel cannot always tell which chat session it is in, so the card would
@@ -2238,7 +2507,10 @@ var getSnapshot = async ({ boardId = "", fresh = false } = {}) => {
 var snapshotView = (snapshot) => ({
   ...snapshot,
   project: getBoardProject(snapshot.board.id),
-  workListId: workListFor(snapshot)?.id || ""
+  workListId: workListFor(snapshot)?.id || "",
+  // A local board that is not on disk while a previous copy is here is not a
+  // new project: the panel says so and offers the copy back.
+  ...readConfig().source === "local" ? { recovery: boardRecovery(currentProject()) } : {}
 });
 var sessionPrompt = (card, board, project) => {
   const checklist = (card?.taskLists || []).flatMap((taskList) => taskList.tasks.map((task) => `- ${task.name}`)).slice(0, 12);
@@ -2537,7 +2809,7 @@ var statusView = async () => {
     };
   }
 };
-var readBody = (req) => new Promise((resolve2, reject) => {
+var readBody = (req) => new Promise((resolve3, reject) => {
   let raw = "";
   let size = 0;
   req.on("data", (chunk) => {
@@ -2551,11 +2823,11 @@ var readBody = (req) => new Promise((resolve2, reject) => {
   });
   req.on("end", () => {
     if (!raw) {
-      resolve2({});
+      resolve3({});
       return;
     }
     try {
-      resolve2(JSON.parse(raw));
+      resolve3(JSON.parse(raw));
     } catch {
       reject(new PlankaError("El cuerpo de la petici\xF3n no es JSON v\xE1lido.", { kind: "validation", status: 400 }));
     }
@@ -2678,16 +2950,24 @@ var routes = {
     invalidate();
     return { source };
   },
+  "POST /local/restore": async () => {
+    if (readConfig().source !== "local") {
+      throw new PlankaError("La copia solo existe en el tablero local.", { kind: "validation" });
+    }
+    const recovery = restoreBoard(currentProject());
+    invalidate();
+    return { recovery };
+  },
   "POST /local/export": async (body) => {
     if (readConfig().source !== "local") {
       throw new PlankaError("La copia solo existe en el tablero local.", { kind: "validation" });
     }
     const format = body?.format === "md" || body?.format === "csv" ? body.format : "json";
-    const downloads = (0, import_node_path6.join)((0, import_node_os2.homedir)(), "Downloads");
-    const dir = (0, import_node_fs6.existsSync)(downloads) ? downloads : ROOT;
-    const file = (0, import_node_path6.join)(dir, `kanban-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.${format}`);
-    (0, import_node_fs6.writeFileSync)(file, exportBoard(format, currentProject()), { mode: 384 });
-    return { path: file.replace((0, import_node_os2.homedir)(), "~"), name: (0, import_node_path6.basename)(file), format };
+    const downloads = (0, import_node_path7.join)((0, import_node_os3.homedir)(), "Downloads");
+    const dir = (0, import_node_fs7.existsSync)(downloads) ? downloads : ROOT;
+    const file = (0, import_node_path7.join)(dir, `kanban-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.${format}`);
+    (0, import_node_fs7.writeFileSync)(file, exportBoard(format, currentProject()), { mode: 384 });
+    return { path: file.replace((0, import_node_os3.homedir)(), "~"), name: (0, import_node_path7.basename)(file), format };
   },
   "POST /local/import": async (body) => {
     if (readConfig().source !== "local") {
@@ -2698,6 +2978,7 @@ var routes = {
     return { ok: true };
   },
   "GET /appearance": async () => ({ appearance: readAppearance() }),
+  "GET /agent": async () => ({ agent: agentStatus() }),
   "POST /appearance": async (body) => ({ appearance: setAppearance(body || {}) }),
   "GET /work": async () => {
     const config = readConfig();
@@ -3289,6 +3570,7 @@ var server = import_node_http.default.createServer((req, res) => {
   });
 });
 server.listen(PORT, "127.0.0.1");
+agentStatus();
 var shutdown = () => {
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 1500).unref();

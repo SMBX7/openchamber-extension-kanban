@@ -2,7 +2,7 @@
 // config as the service (~/.kanban/config.json); cards are addressed by id or
 // by part of a title.
 import { readConfig } from '../shared/config.js';
-import { LOCAL_BOARD_ID, LocalClient } from '../shared/local.js';
+import { LOCAL_BOARD_ID, LocalClient, boardRecovery } from '../shared/local.js';
 import { workListFor } from '../shared/defaults.js';
 import { resolveProjectBoard } from '../shared/board-projects.js';
 import { clearClosePending, getLink, removeLink, setLink } from '../shared/links.js';
@@ -39,7 +39,16 @@ const context = async () => {
   if (config.source === 'local') {
     // The host starts this server in the session's project directory, which is
     // the key the service also uses for the per-project local board.
-    return { client: new LocalClient({ ...config, projectKey: process.cwd() }), boardId: LOCAL_BOARD_ID };
+    const projectKey = process.cwd();
+    // A board file that is gone while a copy sits beside it is a board an update
+    // took away, not a new project. Refusing here keeps the agent from writing
+    // cards into a fresh empty board that would then hide the copy.
+    if (boardRecovery(projectKey).state === 'missing') {
+      throw new Error(
+        'El tablero local de este proyecto no está en disco, pero hay una copia guardada. Abre el panel de Kanban en esta sesión y pulsa «Restaurar la copia»; no voy a trabajar sobre un tablero vacío.',
+      );
+    }
+    return { client: new LocalClient({ ...config, projectKey }), boardId: LOCAL_BOARD_ID };
   }
   if (!config.token) {
     throw new Error('Kanban is not connected to Planka yet. Sign in from the Kanban panel in OpenChamber.');

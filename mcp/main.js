@@ -822,6 +822,10 @@ var writeStore = (store, target) => {
     (0, import_node_fs2.chmodSync)(target, 384);
   } catch {
   }
+  try {
+    (0, import_node_fs2.copyFileSync)(target, `${target}.prev`);
+  } catch {
+  }
 };
 var migrateLegacyBoard = (projectKey) => {
   if (!projectSlug(projectKey)) return;
@@ -848,6 +852,19 @@ var readStore = (projectKey = "") => {
   } catch {
     return emptyStore();
   }
+};
+var boardRecovery = (projectKey = "") => {
+  const file = localBoardPath(projectKey);
+  const previous = `${file}.prev`;
+  const present = (0, import_node_fs2.existsSync)(file);
+  if (present) return { state: "ok", savedAt: "" };
+  if (!(0, import_node_fs2.existsSync)(previous)) return { state: "new", savedAt: "" };
+  let savedAt = "";
+  try {
+    savedAt = new Date((0, import_node_fs2.statSync)(previous).mtimeMs).toISOString();
+  } catch {
+  }
+  return { state: "missing", savedAt };
 };
 var withLock = async (projectKey, work) => {
   const lock = lockPath(projectKey);
@@ -1408,7 +1425,13 @@ var failResult = (message) => ({
 var context = async () => {
   const config = readConfig();
   if (config.source === "local") {
-    return { client: new LocalClient({ ...config, projectKey: process.cwd() }), boardId: LOCAL_BOARD_ID };
+    const projectKey = process.cwd();
+    if (boardRecovery(projectKey).state === "missing") {
+      throw new Error(
+        "El tablero local de este proyecto no est\xE1 en disco, pero hay una copia guardada. Abre el panel de Kanban en esta sesi\xF3n y pulsa \xABRestaurar la copia\xBB; no voy a trabajar sobre un tablero vac\xEDo."
+      );
+    }
+    return { client: new LocalClient({ ...config, projectKey }), boardId: LOCAL_BOARD_ID };
   }
   if (!config.token) {
     throw new Error("Kanban is not connected to Planka yet. Sign in from the Kanban panel in OpenChamber.");

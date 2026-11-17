@@ -11,7 +11,8 @@ import { ROOT, clearConfig, isConnected, readConfig, saveConfig } from '../share
 import { clearClosePending, getLink, linksForSession, listLinks, removeLink, removeLinksForSession, setLink } from '../shared/links.js';
 import { getBoardProject, pinForDirectory, resolveProjectBoard, setBoardProject, setProjectBoard } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
-import { LOCAL_BOARD_ID, LocalClient, exportBoard, importBoard } from '../shared/local.js';
+import { healAgentEntry } from '../shared/agent-config.js';
+import { LOCAL_BOARD_ID, LocalClient, boardRecovery, exportBoard, importBoard, restoreBoard } from '../shared/local.js';
 import { PlankaClient, PlankaError, flattenCards, searchCards } from '../shared/planka.js';
 import { ensureDefaultLists, workListFor } from '../shared/defaults.js';
 import {
@@ -43,6 +44,29 @@ try {
 } catch {
   serviceHost = null;
 }
+
+// The agent's server is an MCP entry in OpenCode's config, outside this
+// package. An update replaces the folder the entry names, so the entry is
+// repaired once per run, without asking: it is the difference between an agent
+// running this version and one running whatever it opened first.
+let agentState = null;
+const agentStatus = () => {
+  if (agentState) return agentState;
+  try {
+    const healed = healAgentEntry();
+    agentState = { ...healed, restart: healed.state === 'fixed' };
+  } catch (error) {
+    agentState = {
+      state: 'unreadable',
+      installed: '',
+      files: [],
+      entries: [],
+      restart: false,
+      message: error instanceof Error ? error.message : 'No se pudo leer la configuración del agente.',
+    };
+  }
+  return agentState;
+};
 
 // What agents read in every session of a project with Kanban. It keeps the
 // manual mode honest: the card moves when the person asks for the work, not
@@ -298,6 +322,9 @@ const snapshotView = (snapshot) => ({
   ...snapshot,
   project: getBoardProject(snapshot.board.id),
   workListId: workListFor(snapshot)?.id || '',
+  // A local board that is not on disk while a previous copy is here is not a
+  // new project: the panel says so and offers the copy back.
+  ...(readConfig().source === 'local' ? { recovery: boardRecovery(currentProject()) } : {}),
 });
 
 const sessionPrompt = (card, board, project) => {
@@ -788,6 +815,15 @@ const routes = {
     return { source };
   },
 
+  'POST /local/restore': async () => {
+    if (readConfig().source !== 'local') {
+      throw new PlankaError('La copia solo existe en el tablero local.', { kind: 'validation' });
+    }
+    const recovery = restoreBoard(currentProject());
+    invalidate();
+    return { recovery };
+  },
+
   'POST /local/export': async (body) => {
     if (readConfig().source !== 'local') {
       throw new PlankaError('La copia solo existe en el tablero local.', { kind: 'validation' });
@@ -812,6 +848,7 @@ const routes = {
   },
 
   'GET /appearance': async () => ({ appearance: readAppearance() }),
+  'GET /agent': async () => ({ agent: agentStatus() }),
 
   'POST /appearance': async (body) => ({ appearance: setAppearance(body || {}) }),
 
@@ -1466,6 +1503,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1');
+agentStatus();
 
 const shutdown = () => {
   server.close(() => process.exit(0));

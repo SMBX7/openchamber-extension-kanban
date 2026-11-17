@@ -81,10 +81,21 @@ sigue `main`; añade `#v1.2.0` o `#stable` para fijar una etiqueta o una rama. P
 una versión es subir el `version` de `package.json` y hacer push.
 
 La conexión con Planka y los tableros locales se guardan en `~/.kanban`, fuera de la
-carpeta que reemplaza la actualización, así que no tienes que volver a entrar ni a
-configurarla. Si vienes de una versión anterior a la 1.9.1, esa última actualización te
-pedirá conectar Planka una vez: hasta entonces la configuración vivía dentro de la
-carpeta que se borra.
+carpeta que reemplaza la actualización, así que una actualización no te saca de la sesión
+ni se lleva un tablero. Además, cada tablero guarda su última copia buena al lado: si un
+archivo desaparece, el panel lo dice y ofrece esa copia en vez de enseñar un tablero
+vacío.
+
+El agente es la parte que vive fuera de la extensión. OpenCode arranca sus herramientas
+de Kanban desde una ruta escrita en su propio archivo de configuración, y un OpenCode en
+marcha sigue con la versión con la que arrancó. Al abrir el panel tras una actualización,
+si esa ruta apunta a una copia vieja, el panel la corrige, lo dice en **Ajustes →
+Avanzado** y te pide reiniciar OpenCode para que el agente cargue la versión nueva.
+
+Si vienes de una versión anterior a la 1.9.1, esa actualización no puede conservar los
+tableros locales: hasta entonces vivían dentro de la carpeta que la actualización borra, y
+la versión nueva arranca después del borrado. Exporta los tableros que te importen antes
+de dar ese paso. A partir de la 1.9.1, y para la sesión de Planka, no se pierde nada.
 
 ## Conectar con Planka
 
@@ -225,6 +236,12 @@ tablero**: pone «Vincular» hasta que la pulsas, luego muestra el nombre del pr
 volver a pulsarla se suelta. Mientras un proyecto tenga varios
 tableros y ninguno esté fijado, el agente se niega a tocar tarjetas en vez de adivinar. Un
 worktree o una subcarpeta del proyecto hereda el tablero fijado.
+
+**Ajustes → Avanzado** dice qué está ejecutando el agente: conectado a esta instalación,
+corregido tras una actualización y esperando un reinicio, o sin la entrada que le da las
+herramientas. Un tablero local que no está en disco pero tiene una copia al lado se ofrece
+en un aviso encima de las columnas, para que un proyecto nunca parezca vacío cuando solo
+está perdido.
 
 ## Estilos
 

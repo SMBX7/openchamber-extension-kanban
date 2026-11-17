@@ -82,9 +82,20 @@ pin a tag or branch. Publishing a version means bumping `version` in `package.js
 pushing.
 
 The Planka connection and the local boards live in `~/.kanban`, outside the folder the
-update replaces, so you do not have to sign in or configure them again. Coming from a
-version before 1.9.1, that last update asks you to connect Planka once: until then the
-settings lived inside the folder that gets deleted.
+update replaces, so an update does not sign you out or take a board with it. Every board
+also keeps its last good copy beside it: if a board file ever goes missing, the panel
+says so and offers that copy back instead of showing an empty board.
+
+The agent is the part that lives outside the extension. OpenCode starts its Kanban tools
+from a path written into OpenCode's own config, and a running OpenCode keeps the version
+it started with. On the first open after an update the panel repairs that path when it
+points at an older copy, says so in **Settings → Advanced**, and asks you to restart
+OpenCode so the new version is the one the agent loads.
+
+Coming from a version before 1.9.1, that one update cannot keep local boards: until then
+they lived inside the folder the update deletes, and the new version runs after the
+deletion. Export the boards you care about before that update. From 1.9.1 on, and for the
+Planka session, nothing is lost.
 
 ## Connecting to Planka
 
@@ -220,6 +231,12 @@ in. Bind it once per project with the **pill next to the board selector**: it re
 releases the board. While a project has several boards and none is pinned,
 the agent refuses to touch cards instead of guessing. A worktree or a subfolder of the
 project inherits the pinned board.
+
+**Settings → Advanced** reports what the agent is running: connected to this
+installation, repaired after an update and waiting for a restart, or missing the entry
+that gives it the tools. A local board that is not on disk but has a copy beside it is
+offered back in a notice above the columns, so a project never reads as empty when it is
+only missing.
 
 ## Styles
 
