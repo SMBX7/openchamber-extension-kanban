@@ -1,11 +1,15 @@
+import { fileURLToPath as __kanbanFileURLToPath } from 'node:url';
+import { dirname as __kanbanDirname } from 'node:path';
+const __dirname = __kanbanDirname(__kanbanFileURLToPath(import.meta.url));
+
 // src/shared/config.js
-var import_node_fs = require("node:fs");
-var import_node_os = require("node:os");
-var import_node_path = require("node:path");
-var ROOT = (0, import_node_path.resolve)(__dirname, "..");
-var DATA_DIR = process.env.KANBAN_DATA_DIR || (0, import_node_path.join)((0, import_node_os.homedir)(), ".kanban");
-var CONFIG_PATH = process.env.KANBAN_CONFIG_PATH || (0, import_node_path.join)(DATA_DIR, "config.json");
-var LEGACY_CONFIG_PATH = (0, import_node_path.join)(ROOT, "config.json");
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+var ROOT = resolve(__dirname, "..");
+var DATA_DIR = process.env.KANBAN_DATA_DIR || join(homedir(), ".kanban");
+var CONFIG_PATH = process.env.KANBAN_CONFIG_PATH || join(DATA_DIR, "config.json");
+var LEGACY_CONFIG_PATH = join(ROOT, "config.json");
 var DEFAULT_BASE_URL = "http://127.0.0.1:3040";
 var EMPTY = {
   source: "planka",
@@ -27,14 +31,14 @@ var normalise = (value) => {
   };
 };
 var persist = (value) => {
-  const dir = (0, import_node_path.dirname)(CONFIG_PATH);
-  (0, import_node_fs.mkdirSync)(dir, { recursive: true, mode: 448 });
-  const temp = (0, import_node_path.join)(dir, `.${process.pid}.config.json.tmp`);
-  (0, import_node_fs.writeFileSync)(temp, `${JSON.stringify(value, null, 2)}
+  const dir = dirname(CONFIG_PATH);
+  mkdirSync(dir, { recursive: true, mode: 448 });
+  const temp = join(dir, `.${process.pid}.config.json.tmp`);
+  writeFileSync(temp, `${JSON.stringify(value, null, 2)}
 `, { mode: 384 });
-  (0, import_node_fs.renameSync)(temp, CONFIG_PATH);
+  renameSync(temp, CONFIG_PATH);
   try {
-    (0, import_node_fs.chmodSync)(CONFIG_PATH, 384);
+    chmodSync(CONFIG_PATH, 384);
   } catch {
   }
 };
@@ -42,16 +46,16 @@ var adopted = false;
 var adoptLegacyConfig = () => {
   if (adopted) return;
   adopted = true;
-  if ((0, import_node_fs.existsSync)(CONFIG_PATH) || !(0, import_node_fs.existsSync)(LEGACY_CONFIG_PATH)) return;
+  if (existsSync(CONFIG_PATH) || !existsSync(LEGACY_CONFIG_PATH)) return;
   try {
-    persist(normalise(JSON.parse((0, import_node_fs.readFileSync)(LEGACY_CONFIG_PATH, "utf8"))));
+    persist(normalise(JSON.parse(readFileSync(LEGACY_CONFIG_PATH, "utf8"))));
   } catch {
   }
 };
 var readConfig = () => {
   adoptLegacyConfig();
   try {
-    const parsed = JSON.parse((0, import_node_fs.readFileSync)(CONFIG_PATH, "utf8"));
+    const parsed = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
     return normalise(parsed);
   } catch {
     return { ...EMPTY };
@@ -59,9 +63,22 @@ var readConfig = () => {
 };
 
 // src/shared/local.js
-var import_node_fs2 = require("node:fs");
-var import_node_path2 = require("node:path");
-var import_node_crypto = require("node:crypto");
+import {
+  chmodSync as chmodSync2,
+  closeSync,
+  copyFileSync,
+  existsSync as existsSync2,
+  mkdirSync as mkdirSync2,
+  openSync,
+  readdirSync,
+  readFileSync as readFileSync2,
+  renameSync as renameSync2,
+  statSync,
+  unlinkSync,
+  writeFileSync as writeFileSync2
+} from "node:fs";
+import { basename, dirname as dirname2, join as join2 } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
 
 // src/shared/defaults.js
 var DEFAULT_LIST_NAMES = ["IDEAS", "EN PROGRESO", "HECHO"];
@@ -690,7 +707,7 @@ var DEFAULT_LABELS = [
   { name: "Importante", color: "hsl(38 78% 58%)" },
   { name: "Idea", color: "hsl(210 70% 62%)" }
 ];
-var basePath = () => process.env.KANBAN_LOCAL_PATH || (0, import_node_path2.join)(DATA_DIR, "board.local.json");
+var basePath = () => process.env.KANBAN_LOCAL_PATH || join2(DATA_DIR, "board.local.json");
 var legacyBoardFile = /^board\.local(\..+)?\.json$/;
 var adoptedBoards = false;
 var adoptLegacyBoards = () => {
@@ -699,18 +716,18 @@ var adoptLegacyBoards = () => {
   if (ROOT === DATA_DIR) return;
   let names;
   try {
-    names = (0, import_node_fs2.readdirSync)(ROOT);
+    names = readdirSync(ROOT);
   } catch {
     return;
   }
   for (const name of names) {
     if (!legacyBoardFile.test(name)) continue;
-    const target = (0, import_node_path2.join)(DATA_DIR, name);
-    if ((0, import_node_fs2.existsSync)(target)) continue;
+    const target = join2(DATA_DIR, name);
+    if (existsSync2(target)) continue;
     try {
-      (0, import_node_fs2.mkdirSync)(DATA_DIR, { recursive: true, mode: 448 });
-      (0, import_node_fs2.copyFileSync)((0, import_node_path2.join)(ROOT, name), target);
-      (0, import_node_fs2.chmodSync)(target, 384);
+      mkdirSync2(DATA_DIR, { recursive: true, mode: 448 });
+      copyFileSync(join2(ROOT, name), target);
+      chmodSync2(target, 384);
     } catch {
     }
   }
@@ -720,25 +737,25 @@ var projectSlug = (projectKey) => {
   if (!text) return "";
   const tail = text.split(/[\\/]+/).filter(Boolean).pop() || "proyecto";
   const readable = tail.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^[-.]+|-+$/g, "").slice(0, 40);
-  const hash = (0, import_node_crypto.createHash)("sha1").update(text).digest("hex").slice(0, 8);
+  const hash = createHash("sha1").update(text).digest("hex").slice(0, 8);
   return `${readable || "proyecto"}-${hash}`;
 };
 var localBoardPath = (projectKey = "") => {
   const slug = projectSlug(projectKey);
   if (!slug) return basePath();
   const base = basePath();
-  const stem = (0, import_node_path2.basename)(base).toLowerCase().endsWith(".json") ? base.slice(0, -".json".length) : base;
-  return (0, import_node_path2.join)((0, import_node_path2.dirname)(base), `${(0, import_node_path2.basename)(stem)}.${slug}.json`);
+  const stem = basename(base).toLowerCase().endsWith(".json") ? base.slice(0, -".json".length) : base;
+  return join2(dirname2(base), `${basename(stem)}.${slug}.json`);
 };
 var lockPath = (projectKey) => `${localBoardPath(projectKey)}.lock`;
-var sleep = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
+var sleep = (ms) => new Promise((resolve3) => setTimeout(resolve3, ms));
 var byPosition2 = (a, b) => {
   const left = Number.isFinite(a?.position) ? a.position : Number.POSITIVE_INFINITY;
   const right = Number.isFinite(b?.position) ? b.position : Number.POSITIVE_INFINITY;
   if (left !== right) return left - right;
   return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
 };
-var uid = (prefix) => `${prefix}-${(0, import_node_crypto.randomUUID)()}`;
+var uid = (prefix) => `${prefix}-${randomUUID()}`;
 var toIso = (value) => {
   if (!value) return "";
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -814,7 +831,7 @@ var normaliseStore = (value) => {
 };
 var parses = (file) => {
   try {
-    JSON.parse((0, import_node_fs2.readFileSync)(file, "utf8"));
+    JSON.parse(readFileSync2(file, "utf8"));
     return true;
   } catch {
     return false;
@@ -822,25 +839,25 @@ var parses = (file) => {
 };
 var savedAtOf = (file) => {
   try {
-    return new Date((0, import_node_fs2.statSync)(file).mtimeMs).toISOString();
+    return new Date(statSync(file).mtimeMs).toISOString();
   } catch {
     return "";
   }
 };
 var writeStore = (store, target) => {
-  (0, import_node_fs2.mkdirSync)((0, import_node_path2.dirname)(target), { recursive: true, mode: 448 });
-  const keepPrevious = !(0, import_node_fs2.existsSync)(target) || parses(target);
+  mkdirSync2(dirname2(target), { recursive: true, mode: 448 });
+  const keepPrevious = !existsSync2(target) || parses(target);
   const temp = `${target}.${process.pid}.tmp`;
-  (0, import_node_fs2.writeFileSync)(temp, `${JSON.stringify(store, null, 2)}
+  writeFileSync2(temp, `${JSON.stringify(store, null, 2)}
 `, { mode: 384 });
-  (0, import_node_fs2.renameSync)(temp, target);
+  renameSync2(temp, target);
   try {
-    (0, import_node_fs2.chmodSync)(target, 384);
+    chmodSync2(target, 384);
   } catch {
   }
   if (!keepPrevious) return;
   try {
-    (0, import_node_fs2.copyFileSync)(target, `${target}.prev`);
+    copyFileSync(target, `${target}.prev`);
   } catch {
   }
 };
@@ -848,16 +865,16 @@ var migrateLegacyBoard = (projectKey) => {
   if (!projectSlug(projectKey)) return;
   const legacy = basePath();
   const target = localBoardPath(projectKey);
-  if ((0, import_node_fs2.existsSync)(target) || !(0, import_node_fs2.existsSync)(legacy)) return;
+  if (existsSync2(target) || !existsSync2(legacy)) return;
   let parsed;
   try {
-    parsed = JSON.parse((0, import_node_fs2.readFileSync)(legacy, "utf8"));
+    parsed = JSON.parse(readFileSync2(legacy, "utf8"));
   } catch {
     return;
   }
   writeStore(normaliseStore(parsed), target);
   try {
-    (0, import_node_fs2.renameSync)(legacy, `${legacy}.migrated`);
+    renameSync2(legacy, `${legacy}.migrated`);
   } catch {
   }
 };
@@ -865,7 +882,7 @@ var readStore = (projectKey = "") => {
   adoptLegacyBoards();
   migrateLegacyBoard(projectKey);
   try {
-    return normaliseStore(JSON.parse((0, import_node_fs2.readFileSync)(localBoardPath(projectKey), "utf8")));
+    return normaliseStore(JSON.parse(readFileSync2(localBoardPath(projectKey), "utf8")));
   } catch {
     return emptyStore();
   }
@@ -873,9 +890,9 @@ var readStore = (projectKey = "") => {
 var boardRecovery = (projectKey = "") => {
   const file = localBoardPath(projectKey);
   const previous = `${file}.prev`;
-  const copy = (0, import_node_fs2.existsSync)(previous);
+  const copy = existsSync2(previous);
   const copyReadable = copy && parses(previous);
-  if ((0, import_node_fs2.existsSync)(file)) {
+  if (existsSync2(file)) {
     if (parses(file)) return { state: "ok", savedAt: "", canRestore: false };
     return { state: "corrupt", savedAt: copyReadable ? savedAtOf(previous) : "", canRestore: copyReadable };
   }
@@ -884,17 +901,17 @@ var boardRecovery = (projectKey = "") => {
 };
 var withLock = async (projectKey, work) => {
   const lock = lockPath(projectKey);
-  (0, import_node_fs2.mkdirSync)((0, import_node_path2.dirname)(lock), { recursive: true, mode: 448 });
+  mkdirSync2(dirname2(lock), { recursive: true, mode: 448 });
   const deadline = Date.now() + 2500;
   let handle = null;
   while (handle === null) {
     try {
-      handle = (0, import_node_fs2.openSync)(lock, "wx");
+      handle = openSync(lock, "wx");
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
       try {
-        if (Date.now() - (0, import_node_fs2.statSync)(lock).mtimeMs > 5e3) {
-          (0, import_node_fs2.unlinkSync)(lock);
+        if (Date.now() - statSync(lock).mtimeMs > 5e3) {
+          unlinkSync(lock);
           continue;
         }
       } catch {
@@ -910,11 +927,11 @@ var withLock = async (projectKey, work) => {
     return await work();
   } finally {
     try {
-      (0, import_node_fs2.closeSync)(handle);
+      closeSync(handle);
     } catch {
     }
     try {
-      (0, import_node_fs2.unlinkSync)(lock);
+      unlinkSync(lock);
     } catch {
     }
   }
@@ -1244,11 +1261,11 @@ var LocalClient = class {
 var LOCAL_BOARD_ID = BOARD_ID;
 
 // src/shared/board-projects.js
-var import_node_child_process = require("node:child_process");
-var import_node_fs3 = require("node:fs");
-var import_node_path3 = require("node:path");
+import { execFileSync } from "node:child_process";
+import { chmodSync as chmodSync3, mkdirSync as mkdirSync3, readFileSync as readFileSync3, renameSync as renameSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import { dirname as dirname3, join as join3 } from "node:path";
 var DIR = DATA_DIR;
-var FILE = process.env.KANBAN_BOARD_PROJECTS_PATH || (0, import_node_path3.join)(DIR, "board-projects.json");
+var FILE = process.env.KANBAN_BOARD_PROJECTS_PATH || join3(DIR, "board-projects.json");
 var empty = () => ({ version: 1, boards: {}, projects: {} });
 var normalize = (value) => String(value || "").trim().replace(/\/+$/, "");
 var ancestors = (directory) => {
@@ -1257,7 +1274,7 @@ var ancestors = (directory) => {
   let current = dir;
   while (current) {
     list.push(current);
-    const parent = (0, import_node_path3.dirname)(current);
+    const parent = dirname3(current);
     if (parent === current) break;
     current = normalize(parent);
   }
@@ -1270,7 +1287,7 @@ var repoKey = (directory) => {
   if (repoCache.has(dir)) return repoCache.get(dir);
   let key = dir;
   try {
-    const common = (0, import_node_child_process.execFileSync)(
+    const common = execFileSync(
       "git",
       ["-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir"],
       { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 2e3 }
@@ -1283,7 +1300,7 @@ var repoKey = (directory) => {
 };
 var readBoardProjects = () => {
   try {
-    const parsed = JSON.parse((0, import_node_fs3.readFileSync)(FILE, "utf8"));
+    const parsed = JSON.parse(readFileSync3(FILE, "utf8"));
     if (!parsed || typeof parsed !== "object" || typeof parsed.boards !== "object" || !parsed.boards) return empty();
     if (!parsed.projects || typeof parsed.projects !== "object") parsed.projects = {};
     return parsed;
@@ -1325,14 +1342,14 @@ var resolveProjectBoard = (directory) => {
 };
 
 // src/shared/links.js
-var import_node_fs4 = require("node:fs");
-var import_node_path4 = require("node:path");
+import { chmodSync as chmodSync4, closeSync as closeSync2, mkdirSync as mkdirSync4, openSync as openSync2, readFileSync as readFileSync4, renameSync as renameSync4, statSync as statSync2, unlinkSync as unlinkSync2, writeFileSync as writeFileSync4 } from "node:fs";
+import { join as join4 } from "node:path";
 var DIR2 = DATA_DIR;
-var FILE2 = (0, import_node_path4.join)(DIR2, "links.json");
+var FILE2 = join4(DIR2, "links.json");
 var empty2 = () => ({ version: 1, links: {} });
 var readLinks = () => {
   try {
-    const parsed = JSON.parse((0, import_node_fs4.readFileSync)(FILE2, "utf8"));
+    const parsed = JSON.parse(readFileSync4(FILE2, "utf8"));
     if (!parsed || typeof parsed !== "object" || typeof parsed.links !== "object" || !parsed.links) return empty2();
     return parsed;
   } catch {
@@ -1340,18 +1357,18 @@ var readLinks = () => {
   }
 };
 var withLock2 = (work) => {
-  (0, import_node_fs4.mkdirSync)(DIR2, { recursive: true, mode: 448 });
+  mkdirSync4(DIR2, { recursive: true, mode: 448 });
   const lock = `${FILE2}.lock`;
   const deadline = Date.now() + 2500;
   let handle = null;
   while (handle === null) {
     try {
-      handle = (0, import_node_fs4.openSync)(lock, "wx");
+      handle = openSync2(lock, "wx");
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
       try {
-        if (Date.now() - (0, import_node_fs4.statSync)(lock).mtimeMs > 5e3) {
-          (0, import_node_fs4.unlinkSync)(lock);
+        if (Date.now() - statSync2(lock).mtimeMs > 5e3) {
+          unlinkSync2(lock);
           continue;
         }
       } catch {
@@ -1363,23 +1380,23 @@ var withLock2 = (work) => {
     return work();
   } finally {
     try {
-      (0, import_node_fs4.closeSync)(handle);
+      closeSync2(handle);
     } catch {
     }
     try {
-      (0, import_node_fs4.unlinkSync)(lock);
+      unlinkSync2(lock);
     } catch {
     }
   }
 };
 var writeLinks = (data) => {
-  (0, import_node_fs4.mkdirSync)(DIR2, { recursive: true, mode: 448 });
-  const temp = (0, import_node_path4.join)(DIR2, `.links-${process.pid}.tmp`);
-  (0, import_node_fs4.writeFileSync)(temp, `${JSON.stringify(data, null, 2)}
+  mkdirSync4(DIR2, { recursive: true, mode: 448 });
+  const temp = join4(DIR2, `.links-${process.pid}.tmp`);
+  writeFileSync4(temp, `${JSON.stringify(data, null, 2)}
 `, { mode: 384 });
-  (0, import_node_fs4.renameSync)(temp, FILE2);
+  renameSync4(temp, FILE2);
   try {
-    (0, import_node_fs4.chmodSync)(FILE2, 384);
+    chmodSync4(FILE2, 384);
   } catch {
   }
 };
@@ -1425,23 +1442,18 @@ var removeLink = (cardId) => {
   });
 };
 
-// src/mcp/main.js
-var PROTOCOL_FALLBACK = "2024-11-05";
-process.title = "kanban-mcp";
+// src/shared/agent-tools.js
 var json = (value) => JSON.stringify(value);
-var send = (message) => process.stdout.write(`${json(message)}
-`);
-var textResult = (value) => ({
-  content: [{ type: "text", text: typeof value === "string" ? value : json(value) }]
-});
-var failResult = (message) => ({
-  content: [{ type: "text", text: message }],
-  isError: true
-});
-var context = async () => {
+var textResult = (value) => typeof value === "string" ? value : json(value);
+var context = async (directory) => {
   const config = readConfig();
   if (config.source === "local") {
-    const projectKey = process.cwd();
+    const projectKey = String(directory || "");
+    if (!projectKey) {
+      throw new Error(
+        "No s\xE9 en qu\xE9 proyecto est\xE1s. Abre esta sesi\xF3n dentro de un proyecto de OpenChamber para que pueda leer su tablero."
+      );
+    }
     const recovery = boardRecovery(projectKey);
     if (recovery.state === "missing") {
       throw new Error(
@@ -1459,7 +1471,7 @@ var context = async () => {
     throw new Error("Kanban is not connected to Planka yet. Sign in from the Kanban panel in OpenChamber.");
   }
   const client = new PlankaClient(config);
-  const boardId = resolveProjectBoard(process.cwd());
+  const boardId = resolveProjectBoard(directory);
   if (!boardId) {
     throw new Error(
       "Este proyecto no tiene tablero de Kanban fijado. Abre el panel de Kanban en esta sesi\xF3n, en Ajustes, y fija el tablero del agente; hasta entonces no toco ninguna tarjeta."
@@ -1496,10 +1508,10 @@ ${names}`);
     `No column matches "${reference}". Columns: ${board.lists.map((list) => list.name).join(", ")}.`
   );
 };
-var tools = [
+var AGENT_TOOLS = [
   {
     name: "kanban_board",
-    description: "Read the Planka board: columns in order, cards with labels, due dates and checklist progress.",
+    description: "Read the board: columns in order, cards with labels, due dates and checklist progress.",
     inputSchema: {
       type: "object",
       properties: { board: { type: "string", description: "Optional board id. Defaults to the selected board." } },
@@ -1518,7 +1530,7 @@ var tools = [
   },
   {
     name: "kanban_boards",
-    description: "List the Planka boards this user can edit.",
+    description: "List the boards this user can edit.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false }
   },
   {
@@ -1578,7 +1590,7 @@ var tools = [
   },
   {
     name: "kanban_delete_card",
-    description: "Delete a card from Planka permanently.",
+    description: "Delete a card permanently.",
     inputSchema: {
       type: "object",
       properties: { card: { type: "string", description: "Card id or part of the title." } },
@@ -1594,11 +1606,7 @@ var tools = [
       properties: {
         card: { type: "string", description: "Card id or part of the title." },
         name: { type: "string", description: "Checklist name." },
-        tasks: {
-          type: "array",
-          items: { type: "string" },
-          description: "Optional task names."
-        }
+        tasks: { type: "array", items: { type: "string" }, description: "Optional task names." }
       },
       required: ["card", "name"],
       additionalProperties: false
@@ -1635,8 +1643,8 @@ var tools = [
     }
   }
 ];
-var callTool = async (name, args = {}) => {
-  const { client, boardId } = await context();
+var callAgentTool = async (name, args = {}, where = {}) => {
+  const { client, boardId } = await context(where.directory);
   if (name === "kanban_boards") {
     return textResult(await client.getBoards());
   }
@@ -1719,9 +1727,9 @@ var callTool = async (name, args = {}) => {
   }
   if (name === "kanban_link_session") {
     const { board, card } = await resolveCard(client, boardId, args.card);
-    const sessionId = String(args.sessionId || process.env.OPENCODE_SESSION_ID || "").trim();
+    const sessionId = String(args.sessionId || where.sessionId || "").trim();
     if (!sessionId) {
-      throw new Error("sessionId is required: pass one, or run inside an OpenCode session.");
+      throw new Error("sessionId is required: pass one, or run inside an OpenChamber session.");
     }
     const workList = workListFor(board);
     const moved = Boolean(workList && card.listId !== workList.id && card.listId !== board.doneListId);
@@ -1751,84 +1759,76 @@ var callTool = async (name, args = {}) => {
   }
   throw new Error(`Unknown tool: ${name}`);
 };
-var inFlight = 0;
-var stdinClosed = false;
-var exitWhenDone = () => {
-  if (stdinClosed && inFlight === 0) {
-    setTimeout(() => process.exit(0), 10);
+
+// src/shared/agent-config.js
+import { existsSync as existsSync3, readFileSync as readFileSync5, realpathSync, renameSync as renameSync5, statSync as statSync3, writeFileSync as writeFileSync5 } from "node:fs";
+import { join as join5, resolve as resolve2 } from "node:path";
+var HEARTBEAT = join5(DATA_DIR, "agent.json");
+var agentVersion = () => {
+  try {
+    return String(JSON.parse(readFileSync5(join5(ROOT, "package.json"), "utf8")).version || "");
+  } catch {
+    return "";
   }
 };
-var handleMessage = async (message) => {
-  const { id, method, params } = message || {};
-  if (!method) return;
-  if (method === "initialize") {
-    send({
-      jsonrpc: "2.0",
-      id,
-      result: {
-        protocolVersion: typeof params?.protocolVersion === "string" ? params.protocolVersion : PROTOCOL_FALLBACK,
-        capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "kanban", version: "1.0.0" }
+var writeAgentHeartbeat = (info = {}) => {
+  const value = {
+    version: agentVersion(),
+    at: (/* @__PURE__ */ new Date()).toISOString(),
+    location: String(info.location || ""),
+    event: String(info.event || "setup")
+  };
+  try {
+    const temp = `${HEARTBEAT}.${process.pid}.tmp`;
+    writeFileSync5(temp, `${JSON.stringify(value, null, 2)}
+`, { mode: 384 });
+    renameSync5(temp, HEARTBEAT);
+  } catch {
+  }
+  return value;
+};
+
+// src/plugin/main.js
+var NAMESPACE = "kanban";
+var shortName = (name) => name.startsWith(`${NAMESPACE}_`) ? name.slice(NAMESPACE.length + 1) : name;
+var projectOf = async (ctx, sessionID) => {
+  try {
+    const session = await ctx.session.get({ sessionID });
+    const directory = session?.location?.directory;
+    if (typeof directory === "string" && directory) {
+      const subpath = typeof session?.subpath === "string" ? session.subpath : "";
+      return subpath ? `${directory.replace(/\/+$/, "")}/${subpath.replace(/^\/+/, "")}` : directory;
+    }
+  } catch {
+  }
+  return typeof ctx.location?.directory === "string" ? ctx.location.directory : "";
+};
+var main_default = {
+  id: "kanban",
+  async setup(ctx) {
+    writeAgentHeartbeat({ location: ctx.location?.directory, event: "setup" });
+    await ctx.tool.transform((editor) => {
+      editor.namespace({ name: NAMESPACE, description: "Kanban board of the project this session belongs to" });
+      for (const tool of AGENT_TOOLS) {
+        editor.add({
+          name: shortName(tool.name),
+          description: tool.description,
+          input: tool.inputSchema,
+          options: { namespace: NAMESPACE, codemode: true },
+          execute: async (input, context2) => {
+            const directory = await projectOf(ctx, context2.sessionID);
+            const text = await callAgentTool(tool.name, input || {}, {
+              directory,
+              sessionId: context2.sessionID
+            });
+            writeAgentHeartbeat({ location: directory, event: tool.name });
+            return { content: text };
+          }
+        });
       }
     });
-    return;
-  }
-  if (method === "notifications/initialized" || method === "notifications/cancelled") return;
-  if (method === "ping") {
-    send({ jsonrpc: "2.0", id, result: {} });
-    return;
-  }
-  if (method === "tools/list") {
-    send({ jsonrpc: "2.0", id, result: { tools } });
-    return;
-  }
-  if (method === "tools/call") {
-    const name = params?.name;
-    const args = params?.arguments || {};
-    try {
-      send({ jsonrpc: "2.0", id, result: await callTool(String(name), args) });
-    } catch (error) {
-      const message2 = error instanceof PlankaError ? error.message : error instanceof Error ? error.message : "Tool failed.";
-      send({ jsonrpc: "2.0", id, result: failResult(message2) });
-    }
-    return;
-  }
-  if (id !== void 0) {
-    send({ jsonrpc: "2.0", id, error: { code: -32601, message: `Method not found: ${method}` } });
   }
 };
-var buffer = "";
-process.stdin.setEncoding("utf8");
-process.stdin.on("data", (chunk) => {
-  buffer += chunk;
-  let newline = buffer.indexOf("\n");
-  while (newline >= 0) {
-    const line = buffer.slice(0, newline).trim();
-    buffer = buffer.slice(newline + 1);
-    newline = buffer.indexOf("\n");
-    if (!line) continue;
-    let message;
-    try {
-      message = JSON.parse(line);
-    } catch {
-      send({ jsonrpc: "2.0", error: { code: -32700, message: "Parse error" }, id: null });
-      continue;
-    }
-    inFlight += 1;
-    handleMessage(message).catch(() => {
-    }).finally(() => {
-      inFlight -= 1;
-      exitWhenDone();
-    });
-  }
-});
-var stop = () => {
-  stdinClosed = true;
-  exitWhenDone();
+export {
+  main_default as default
 };
-process.stdin.on("end", stop);
-process.stdin.on("close", stop);
-process.on("SIGTERM", stop);
-process.on("SIGINT", stop);
-process.on("SIGHUP", stop);
-process.on("disconnect", stop);

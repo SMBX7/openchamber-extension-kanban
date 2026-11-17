@@ -86,11 +86,12 @@ ni se lleva un tablero. Además, cada tablero guarda su última copia buena al l
 archivo desaparece o se daña, el panel lo dice y ofrece esa copia en vez de enseñar un tablero
 vacío.
 
-El agente es la parte que vive fuera de la extensión. OpenCode arranca sus herramientas
-de Kanban desde una ruta escrita en su propio archivo de configuración, y un OpenCode en
-marcha sigue con la versión con la que arrancó. Al abrir el panel tras una actualización,
-si esa ruta apunta a una copia vieja, el panel la corrige, lo dice en **Ajustes →
-Avanzado** y te pide reiniciar OpenCode para que el agente cargue la versión nueva.
+Las herramientas del agente son un plugin de OpenCode que viaja dentro de este paquete, y
+OpenChamber pone su carpeta en el archivo de configuración que él gestiona. La ruta es
+siempre la instalada, así que una actualización llega al agente en su siguiente llamada:
+nada que editar y nada que reiniciar. Si alguna vez escribiste a mano una entrada `kanban`
+de MCP, ya no se usa: **Ajustes → Avanzado** te dice en qué archivo está para que la borres
+cuando quieras.
 
 Si vienes de una versión anterior a la 1.9.1, esa actualización no puede conservar los
 tableros locales: hasta entonces vivían dentro de la carpeta que la actualización borra, y
@@ -237,11 +238,10 @@ volver a pulsarla se suelta. Mientras un proyecto tenga varios
 tableros y ninguno esté fijado, el agente se niega a tocar tarjetas en vez de adivinar. Un
 worktree o una subcarpeta del proyecto hereda el tablero fijado.
 
-**Ajustes → Avanzado** dice qué está ejecutando el agente: conectado a esta instalación,
-corregido tras una actualización y esperando un reinicio, o sin la entrada que le da las
-herramientas. Un tablero local que no está en disco pero tiene una copia al lado se ofrece
-en un aviso encima de las columnas, para que un proyecto nunca parezca vacío cuando solo
-está perdido.
+**Ajustes → Avanzado** dice qué está ejecutando el agente: el plugin de esta versión,
+todavía el anterior (reinicia OpenCode una vez) o sin cargar. Un tablero local que no está
+en disco pero tiene una copia al lado se ofrece en un aviso encima de las columnas, para
+que un proyecto nunca parezca vacío cuando solo está perdido.
 
 ## Estilos
 

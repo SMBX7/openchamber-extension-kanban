@@ -11,7 +11,7 @@ import { ROOT, clearConfig, isConnected, readConfig, saveConfig } from '../share
 import { clearClosePending, getLink, linksForSession, listLinks, removeLink, removeLinksForSession, setLink } from '../shared/links.js';
 import { getBoardProject, pinForDirectory, resolveProjectBoard, setBoardProject, setProjectBoard } from '../shared/board-projects.js';
 import { readAppearance, setAppearance } from '../shared/appearance.js';
-import { healAgentEntry } from '../shared/agent-config.js';
+import { agentVersion, legacyAgentEntry, pluginFolder, readAgentHeartbeat } from '../shared/agent-config.js';
 import { LOCAL_BOARD_ID, LocalClient, boardRecovery, exportBoard, importBoard, restoreBoard } from '../shared/local.js';
 import { PlankaClient, PlankaError, flattenCards, searchCards } from '../shared/planka.js';
 import { ensureDefaultLists, workListFor } from '../shared/defaults.js';
@@ -45,27 +45,23 @@ try {
   serviceHost = null;
 }
 
-// The agent's server is an MCP entry in OpenCode's config, outside this
-// package. An update replaces the folder the entry names, so the entry is
-// repaired once per run, without asking: it is the difference between an agent
-// running this version and one running whatever it opened first.
-let agentState = null;
+// The agent loads as an OpenCode plugin from a folder OpenChamber owns, so the
+// only honest question left is whether it loaded *this* build. The plugin writes
+// a heartbeat when it activates and on every tool call; this reports it beside
+// an old hand-written MCP entry, which no longer does anything and is the
+// person's to delete or keep.
 const agentStatus = () => {
-  if (agentState) return agentState;
-  try {
-    const healed = healAgentEntry();
-    agentState = { ...healed, restart: healed.state === 'fixed' };
-  } catch (error) {
-    agentState = {
-      state: 'unreadable',
-      installed: '',
-      files: [],
-      entries: [],
-      restart: false,
-      message: error instanceof Error ? error.message : 'No se pudo leer la configuración del agente.',
-    };
-  }
-  return agentState;
+  const version = agentVersion();
+  const plugin = readAgentHeartbeat();
+  let state = 'missing';
+  if (plugin) state = plugin.version && plugin.version !== version ? 'outdated' : 'connected';
+  return {
+    version,
+    state,
+    plugin,
+    legacy: legacyAgentEntry(),
+    folder: pluginFolder(),
+  };
 };
 
 // What agents read in every session of a project with Kanban. It keeps the
@@ -1503,7 +1499,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1');
-agentStatus();
+
 
 const shutdown = () => {
   server.close(() => process.exit(0));

@@ -3352,38 +3352,28 @@ ${card.description}`.toLowerCase();
     avanzadoBox.append(toolChips);
     const agentLine = el2("p", "settings-note", "Comprobando el agente\u2026");
     avanzadoBox.append(agentLine);
-    avanzadoBox.append(el2("p", "settings-note", "El MCP solo act\xFAa cuando el agente llama a una herramienta. En Planka lo ves desde cualquier dispositivo; el tablero local vive solo en este equipo. Tras actualizar la extensi\xF3n, reinicia OpenCode."));
+    avanzadoBox.append(el2("p", "settings-note", "Las herramientas solo act\xFAan cuando el agente las llama. En Planka lo ves desde cualquier dispositivo; el tablero local vive solo en este equipo."));
     avanzado.append(avanzadoBox);
     void (async () => {
       try {
         const { agent } = await api("GET", "/agent");
-        const state2 = agent?.state || "unreadable";
-        const warnings = /* @__PURE__ */ new Set(["stale", "absent", "ambiguous", "unreadable", "fixed"]);
-        agentLine.classList.toggle("warning", warnings.has(state2));
-        if (state2 === "ok") {
-          agentLine.textContent = `Agente conectado: usa la copia instalada (${agent.installed}).`;
-          return;
+        const state2 = agent?.state || "missing";
+        agentLine.classList.toggle("warning", state2 !== "connected");
+        if (state2 === "connected") {
+          agentLine.textContent = `Agente conectado (plugin ${agent.plugin?.version || agent.version}). Se recarga solo al actualizar la extensi\xF3n.`;
+        } else if (state2 === "outdated") {
+          agentLine.textContent = `El agente sigue en la versi\xF3n ${agent.plugin?.version || "anterior"} y esta extensi\xF3n es la ${agent.version}. Reinicia OpenCode para que cargue la nueva.`;
+        } else {
+          agentLine.textContent = "El agente todav\xEDa no ha cargado el plugin de Kanban. Reinicia OpenCode una vez; a partir de ah\xED cada actualizaci\xF3n se aplica sola.";
         }
-        if (state2 === "fixed") {
-          agentLine.textContent = "El agente apuntaba a otra ruta y ya apunta a esta versi\xF3n. Reinicia OpenCode para que la cargue.";
-          return;
+        if (agent?.legacy?.found) {
+          const legacy = el2(
+            "p",
+            "settings-note",
+            `Tienes una entrada kanban de MCP que ya no se usa, en ${agent.legacy.file}. Puedes borrarla cuando quieras: no hace nada.`
+          );
+          avanzadoBox.append(legacy);
         }
-        if (state2 === "stale") {
-          const from = agent?.entries?.find((entry) => entry.state === "stale")?.from || "";
-          agentLine.textContent = from ? `El agente sigue apuntando a ${from}, que no es esta instalaci\xF3n. Reinicia OpenCode despu\xE9s de corregir la entrada.` : "El agente apunta a una ruta que no es esta instalaci\xF3n.";
-          return;
-        }
-        if (state2 === "absent") {
-          agentLine.textContent = "El agente no tiene las herramientas de Kanban: no hay ninguna entrada MCP registrada. A\xF1ade esta entrada a ~/.config/opencode/opencode.jsonc y reinicia OpenCode:";
-          const snippet = el2("pre", "settings-snippet", `"kanban": { "type": "local", "command": ["node", "${agent?.installed || ""}"] }`);
-          avanzadoBox.append(snippet);
-          return;
-        }
-        if (state2 === "ambiguous") {
-          agentLine.textContent = "No se ha tocado la configuraci\xF3n del agente: la ruta antigua aparece en m\xE1s de un sitio. Corrige la entrada kanban a mano.";
-          return;
-        }
-        agentLine.textContent = "No se pudo leer la configuraci\xF3n de OpenCode. El agente puede seguir apuntando a otra versi\xF3n.";
       } catch (error) {
         agentLine.classList.add("warning");
         agentLine.textContent = error?.message || "No se pudo comprobar el agente.";

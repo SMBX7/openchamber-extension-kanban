@@ -1,37 +1,18 @@
-// Agent <-> OpenCode wiring.
+// How the extension meets OpenCode, and what the panel can say about it.
 //
-// The extension's agent tools are an MCP server that OpenCode starts from a
-// path written into OpenCode's own config. The manifest cannot declare it, so
-// that entry is made by hand and an update can leave it naming the folder it
-// replaced: a dev checkout, the previous install. The agent then runs old code
-// while the panel runs new code.
-//
-// This module puts the installed path back. It is the user's file, it carries
-// comments and other servers, so: only an entry already named `kanban` whose
-// command already names an `mcp/main.js` is touched, only the path string is
-// replaced, the rest of the bytes stay as they were, and the original is copied
-// aside once before the first write.
-import { copyFileSync, existsSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
+// The agent's tools are an OpenCode plugin now: OpenChamber lists the package's
+// plugin folder in the OpenCode config it owns, so there is no path for a
+// person to write and none for an update to leave pointing at an old copy. What
+// is left here is (a) the plugin's heartbeat, which is the only proof that the
+// agent really loaded this version, and (b) a read-only look for an old `kanban`
+// MCP entry, which does nothing now and is the user's to delete or keep.
+import { existsSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { ROOT } from './config.js';
+import { DATA_DIR, ROOT } from './config.js';
 
 export const AGENT_SERVER_NAME = 'kanban';
-const BACKUP_SUFFIX = '.kanban-backup';
-const MCP_MAIN = /[\\/]mcp[\\/]main\.js$/;
-
-// The file the installed package ships. Nothing else is a valid target.
-export const installedAgentPath = () => join(ROOT, 'mcp', 'main.js');
-
-const normalPath = (value) => {
-  const text = String(value || '').trim();
-  if (!text) return '';
-  try {
-    return realpathSync(text);
-  } catch {
-    return resolve(text).replace(/[\\/]+$/, '');
-  }
-};
+const HEARTBEAT = join(DATA_DIR, 'agent.json');
 
 // Where OpenCode reads its config. An explicit OPENCODE_CONFIG is added on top
 // of the default file, it does not replace it, so both are read. Never created
@@ -54,8 +35,7 @@ export const agentConfigFiles = (env = process.env, home = homedir()) => {
 };
 
 // JSONC: JSON plus `//` and `/* */` comments and trailing commas, which is what
-// OpenCode accepts and what people leave in the file. Read only; the write is a
-// string replacement so the original bytes survive.
+// OpenCode accepts and what people leave in the file. Read only.
 export const parseJsonc = (text) => {
   let i = 0;
   const fail = () => {
@@ -180,107 +160,90 @@ const kanbanServers = (doc) => {
   return out;
 };
 
-// The `mcp/main.js` a server's command names, when it is not the installed one.
-const stalePathOf = (server, installed) => {
+const commandPath = (server) => {
   const command = Array.isArray(server?.command) ? server.command : [server?.command];
-  for (const item of command) {
-    if (typeof item !== 'string' || !MCP_MAIN.test(item)) continue;
-    if (normalPath(item) === normalPath(installed)) return '';
-    return item;
-  }
-  return '';
-};
-
-const replacePaths = (file, oldPath, newPath, expected) => {
-  const text = readFileSync(file, 'utf8');
-  const token = JSON.stringify(oldPath);
-  const occurrences = text.split(token).length - 1;
-  // Every occurrence must belong to a `kanban` entry. One more means the same
-  // path also lives in a server that is not ours, and guessing is worse than
-  // leaving the file alone.
-  if (occurrences === 0) return { changed: false, reason: 'absent' };
-  if (occurrences !== expected) return { changed: false, reason: 'ambiguous' };
-  const backup = `${file}${BACKUP_SUFFIX}`;
-  if (!existsSync(backup)) copyFileSync(file, backup);
-  const next = text.split(token).join(JSON.stringify(newPath));
-  const temp = `${file}.${process.pid}.agent.tmp`;
-  writeFileSync(temp, next, { mode: statSync(file).mode });
-  renameSync(temp, file);
-  return { changed: true, backup };
+  return command.find((item) => typeof item === 'string' && /[\\/]mcp[\\/]main\.js$/.test(item)) || '';
 };
 
 /**
- * Put the installed `mcp/main.js` back into any `kanban` entry that names
- * another copy. Never adds an entry, never creates a file, never rewrites a
- * config without a `kanban` entry in it.
+ * An old `kanban` MCP server the person wrote into OpenCode's config by hand.
+ * Nothing here changes the file: the plugin is the agent now, and this is only
+ * so the panel can name it instead of leaving a dead entry unexplained.
  *
- * @returns {{ state: 'absent'|'ok'|'fixed'|'stale'|'ambiguous'|'unreadable',
- *   installed: string, files: string[], entries: Array<object> }}
+ * @returns {{ found: boolean, file: string, path: string } | null}
  */
-export const healAgentEntry = ({ env = process.env, home = homedir(), files } = {}) => {
-  const installed = installedAgentPath();
-  const installedReady = existsSync(installed);
+export const legacyAgentEntry = ({ env = process.env, home = homedir(), files } = {}) => {
   const paths = files || agentConfigFiles(env, home);
-  const entries = [];
-  let state = 'absent';
-
   for (const file of paths) {
-    let text;
-    try {
-      text = readFileSync(file, 'utf8');
-    } catch {
-      continue;
-    }
     let doc;
     try {
-      // A byte-order mark is not a comment: OpenCode tolerates one, and so do we.
-      doc = parseJsonc(text.replace(/^\uFEFF/, ''));
+      doc = parseJsonc(readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
     } catch {
-      entries.push({ file, state: 'unreadable' });
-      if (state === 'absent' || state === 'ok') state = 'unreadable';
       continue;
     }
     const servers = kanbanServers(doc);
     if (!servers.length) continue;
-    const stalePaths = [...new Set(servers.map((server) => stalePathOf(server, installed)).filter(Boolean))];
-    if (!stalePaths.length) {
-      if (state === 'absent') state = 'ok';
-      entries.push({ file, state: 'ok', path: installed });
-      continue;
-    }
-    if (!installedReady) {
-      if (state !== 'fixed') state = 'stale';
-      entries.push({ file, state: 'stale', from: stalePaths[0], to: installed });
-      continue;
-    }
-    let fixed = false;
-    let blocked = '';
-    let backup = '';
-    for (const stale of stalePaths) {
-      // How many `kanban` entries name this path: the only occurrences the
-      // rewrite is allowed to find.
-      const expected = servers.filter((server) => stalePathOf(server, installed) === stale).length;
-      const result = replacePaths(file, stale, installed, expected);
-      if (result.changed) {
-        fixed = true;
-        backup = result.backup || backup;
-        continue;
-      }
-      if (!blocked) blocked = result.reason === 'ambiguous' ? stale : '';
-    }
-    if (fixed) {
-      state = 'fixed';
-      entries.push({ file, state: 'fixed', from: stalePaths[0], to: installed, backup });
-      continue;
-    }
-    if (blocked) {
-      if (state !== 'fixed') state = 'ambiguous';
-      entries.push({ file, state: 'ambiguous', from: blocked, to: installed });
-      continue;
-    }
-    if (state === 'absent') state = 'ok';
-    entries.push({ file, state: 'ok', path: installed });
+    return { found: true, file, path: commandPath(servers[0]) };
   }
+  return null;
+};
 
-  return { state, installed, files: paths, entries };
+export const agentVersion = () => {
+  try {
+    return String(JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version || '');
+  } catch {
+    return '';
+  }
+};
+
+export const heartbeatPath = () => HEARTBEAT;
+
+/**
+ * Written by the plugin when it loads, so the panel can tell "the agent is
+ * running this version" from "the agent never loaded". A tool call refreshes
+ * it too, which keeps the date honest during a long session.
+ *
+ * @param {{ location?: string, event?: string }} info
+ */
+export const writeAgentHeartbeat = (info = {}) => {
+  const value = {
+    version: agentVersion(),
+    at: new Date().toISOString(),
+    location: String(info.location || ''),
+    event: String(info.event || 'setup'),
+  };
+  try {
+    const temp = `${HEARTBEAT}.${process.pid}.tmp`;
+    writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+    renameSync(temp, HEARTBEAT);
+  } catch {
+    // A heartbeat is a courtesy to the panel; a tool call must work without it.
+  }
+  return value;
+};
+
+export const readAgentHeartbeat = () => {
+  try {
+    const value = JSON.parse(readFileSync(HEARTBEAT, 'utf8'));
+    const at = typeof value?.at === 'string' ? value.at : '';
+    return {
+      version: typeof value?.version === 'string' ? value.version : '',
+      at,
+      location: typeof value?.location === 'string' ? value.location : '',
+      event: typeof value?.event === 'string' ? value.event : '',
+      savedAt: existsSync(HEARTBEAT) ? new Date(statSync(HEARTBEAT).mtimeMs).toISOString() : at,
+    };
+  } catch {
+    return null;
+  }
+};
+
+// The plugin folder as OpenChamber resolves it: a real directory inside the
+// package, with an entry file OpenCode finds.
+export const pluginFolder = () => {
+  try {
+    return realpathSync(join(ROOT, 'plugin'));
+  } catch {
+    return '';
+  }
 };

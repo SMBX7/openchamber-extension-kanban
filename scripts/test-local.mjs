@@ -982,42 +982,30 @@ assert.equal(
   'the user file is left byte for byte as it was',
 );
 
-// The MCP server is started by OpenCode, so it never sees the host's service
-// data folder. It must still read the same ~/.kanban as the service.
+// The agent runs inside OpenCode now, so it never sees the host's service data
+// folder either. It must still read the same ~/.kanban as the service, from the
+// project the session belongs to.
 process.env.HOME = keptHome;
 writeFileSync(join(keptHome, '.kanban', 'config.json'), JSON.stringify({ source: 'local' }));
-const mcpProject = join(kept, 'mcp-project');
-mkdirSync(mcpProject, { recursive: true });
-const mcpSlug = `mcp-project-${createHash('sha1').update(mcpProject).digest('hex').slice(0, 8)}`;
+const agentProject = join(kept, 'agent-project');
+mkdirSync(agentProject, { recursive: true });
+const agentSlug = `agent-project-${createHash('sha1').update(agentProject).digest('hex').slice(0, 8)}`;
 writeFileSync(
-  join(keptHome, '.kanban', `board.local.${mcpSlug}.json`),
+  join(keptHome, '.kanban', `board.local.${agentSlug}.json`),
   JSON.stringify({ ...legacyBoardStore, board: { id: 'local', name: 'Tablero del agente' }, cards: [] }),
 );
-const mcpBundle = join(kept, 'mcp.cjs');
+const toolsBundle = join(kept, 'agent-tools.cjs');
 await build({
-  entryPoints: [new URL('../src/mcp/main.js', import.meta.url).pathname],
+  entryPoints: [new URL('../src/shared/agent-tools.js', import.meta.url).pathname],
   bundle: true,
-  outfile: mcpBundle,
+  outfile: toolsBundle,
   platform: 'node',
   format: 'cjs',
   logLevel: 'silent',
 });
-const mcp = spawn(process.execPath, [mcpBundle], {
-  cwd: mcpProject,
-  env: { ...process.env, HOME: keptHome, OPENCHAMBER_SERVICE_DATA_DIR: join(kept, 'host-service-data') },
-  stdio: ['pipe', 'pipe', 'ignore'],
-});
-let mcpOut = '';
-mcp.stdout.on('data', (chunk) => {
-  mcpOut += chunk;
-});
-mcp.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })}\n`);
-mcp.stdin.write(
-  `${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'kanban_board', arguments: {} } })}\n`,
-);
-mcp.stdin.end();
-await new Promise((resolve) => mcp.on('exit', resolve));
-assert.ok(mcpOut.includes('Tablero del agente'), 'the MCP reads the same data folder as the service');
+const { callAgentTool } = require(toolsBundle);
+const agentText = await callAgentTool('kanban_board', {}, { directory: agentProject });
+assert.ok(agentText.includes('Tablero del agente'), 'the agent reads the same data folder as the service');
 assert.equal(existsSync(join(kept, 'host-service-data')), false, 'the host service folder is never used');
 
 if (localPathBefore === undefined) delete process.env.KANBAN_LOCAL_PATH;

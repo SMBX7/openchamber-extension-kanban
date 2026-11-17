@@ -1,45 +1,42 @@
-// MCP stdio server for the Kanban extension. Same Planka client and the same
-// config as the service (~/.kanban/config.json); cards are addressed by id or
-// by part of a title.
-import { readConfig } from '../shared/config.js';
-import { LOCAL_BOARD_ID, LocalClient, boardRecovery } from '../shared/local.js';
-import { workListFor } from '../shared/defaults.js';
-import { resolveProjectBoard } from '../shared/board-projects.js';
-import { clearClosePending, getLink, removeLink, setLink } from '../shared/links.js';
+// The agent's tool surface, independent of how it is delivered.
+//
+// OpenCode reaches these through the extension's plugin (`src/plugin/main.js`),
+// inside OpenCode's own process, so the project comes from the session that
+// calls the tool instead of from a process directory. Same client, same config
+// (~/.kanban/config.json), same board files as the panel and the service.
+import { readConfig } from './config.js';
+import { LOCAL_BOARD_ID, LocalClient, boardRecovery } from './local.js';
+import { workListFor } from './defaults.js';
+import { resolveProjectBoard } from './board-projects.js';
+import { clearClosePending, getLink, removeLink, setLink } from './links.js';
 import {
   PlankaClient,
-  PlankaError,
   boardSummary,
   findCardByReference,
   findListByReference,
   findTaskByReference,
   searchCards,
-} from '../shared/planka.js';
-
-const PROTOCOL_FALLBACK = '2024-11-05';
-
-// Keep the process identifiable in `ps` and make it exit as soon as the MCP
-// transport closes, so a finished session cannot leave a Node process behind.
-process.title = 'kanban-mcp';
+} from './planka.js';
 
 const json = (value) => JSON.stringify(value);
-const send = (message) => process.stdout.write(`${json(message)}\n`);
+const textResult = (value) => (typeof value === 'string' ? value : json(value));
 
-const textResult = (value) => ({
-  content: [{ type: 'text', text: typeof value === 'string' ? value : json(value) }],
-});
-
-const failResult = (message) => ({
-  content: [{ type: 'text', text: message }],
-  isError: true,
-});
-
-const context = async () => {
+/**
+ * The client and board for one tool call.
+ *
+ * @param {string} directory the project the calling session was opened in
+ */
+const context = async (directory) => {
   const config = readConfig();
   if (config.source === 'local') {
-    // The host starts this server in the session's project directory, which is
-    // the key the service also uses for the per-project local board.
-    const projectKey = process.cwd();
+    // The session's project is the key the service uses for the per-project
+    // local board, so the panel and the agent read the same file.
+    const projectKey = String(directory || '');
+    if (!projectKey) {
+      throw new Error(
+        'No sé en qué proyecto estás. Abre esta sesión dentro de un proyecto de OpenChamber para que pueda leer su tablero.',
+      );
+    }
     // A board that is gone or damaged while a copy sits beside it is a board
     // that needs restoring, not a new project. Refusing here keeps the agent
     // from writing cards into a fresh empty board that would then hide the copy.
@@ -61,9 +58,9 @@ const context = async () => {
   }
   const client = new PlankaClient(config);
   // The board follows the session, not a global selection: the project this
-  // server was started in must have a board pinned. A worktree or a subfolder
+  // session belongs to must have a board pinned. A worktree or a subfolder
   // inherits the board of its project.
-  const boardId = resolveProjectBoard(process.cwd());
+  const boardId = resolveProjectBoard(directory);
   if (!boardId) {
     throw new Error(
       'Este proyecto no tiene tablero de Kanban fijado. Abre el panel de Kanban en esta sesión, en Ajustes, y fija el tablero del agente; hasta entonces no toco ninguna tarjeta.',
@@ -104,10 +101,12 @@ const resolveList = async (client, boardId, reference) => {
   );
 };
 
-const tools = [
+// The names are the public contract: the agent's instructions, the mention text
+// and the README all use them, so they do not change when the delivery does.
+export const AGENT_TOOLS = [
   {
     name: 'kanban_board',
-    description: 'Read the Planka board: columns in order, cards with labels, due dates and checklist progress.',
+    description: 'Read the board: columns in order, cards with labels, due dates and checklist progress.',
     inputSchema: {
       type: 'object',
       properties: { board: { type: 'string', description: 'Optional board id. Defaults to the selected board.' } },
@@ -126,7 +125,7 @@ const tools = [
   },
   {
     name: 'kanban_boards',
-    description: 'List the Planka boards this user can edit.',
+    description: 'List the boards this user can edit.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
@@ -186,7 +185,7 @@ const tools = [
   },
   {
     name: 'kanban_delete_card',
-    description: 'Delete a card from Planka permanently.',
+    description: 'Delete a card permanently.',
     inputSchema: {
       type: 'object',
       properties: { card: { type: 'string', description: 'Card id or part of the title.' } },
@@ -202,11 +201,7 @@ const tools = [
       properties: {
         card: { type: 'string', description: 'Card id or part of the title.' },
         name: { type: 'string', description: 'Checklist name.' },
-        tasks: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Optional task names.',
-        },
+        tasks: { type: 'array', items: { type: 'string' }, description: 'Optional task names.' },
       },
       required: ['card', 'name'],
       additionalProperties: false,
@@ -214,15 +209,15 @@ const tools = [
   },
   {
     name: 'kanban_link_session',
-    description: 'Link a card to the OpenChamber session working on it. The card moves to EN PROGRESO now and to HECHO when that session finishes its turn.',
+    description:
+      'Link a card to the OpenChamber session working on it. The card moves to EN PROGRESO now and to HECHO when that session finishes its turn.',
     inputSchema: {
       type: 'object',
       properties: {
         card: { type: 'string', description: 'Card id or part of the title.' },
         sessionId: {
           type: 'string',
-          description:
-            'OpenChamber session id working on that card. Defaults to this agent session.',
+          description: 'OpenChamber session id working on that card. Defaults to this agent session.',
         },
       },
       required: ['card'],
@@ -245,8 +240,15 @@ const tools = [
   },
 ];
 
-const callTool = async (name, args = {}) => {
-  const { client, boardId } = await context();
+/**
+ * Run one tool and answer the text the model reads.
+ *
+ * @param {string} name one of AGENT_TOOLS
+ * @param {Record<string, unknown>} args
+ * @param {{ directory: string, sessionId?: string }} where the calling session
+ */
+export const callAgentTool = async (name, args = {}, where = {}) => {
+  const { client, boardId } = await context(where.directory);
 
   if (name === 'kanban_boards') {
     return textResult(await client.getBoards());
@@ -341,9 +343,9 @@ const callTool = async (name, args = {}) => {
     const { board, card } = await resolveCard(client, boardId, args.card);
     // The agent's own session is the one doing the work, so it is the default:
     // asking the model to repeat its id only added a way to get it wrong.
-    const sessionId = String(args.sessionId || process.env.OPENCODE_SESSION_ID || '').trim();
+    const sessionId = String(args.sessionId || where.sessionId || '').trim();
     if (!sessionId) {
-      throw new Error('sessionId is required: pass one, or run inside an OpenCode session.');
+      throw new Error('sessionId is required: pass one, or run inside an OpenChamber session.');
     }
     // Delegating moves the card to the working column unless it is done. The
     // card follows this agent session from now on, not the orchestrator's.
@@ -377,98 +379,3 @@ const callTool = async (name, args = {}) => {
 
   throw new Error(`Unknown tool: ${name}`);
 };
-
-let inFlight = 0;
-let stdinClosed = false;
-
-const exitWhenDone = () => {
-  if (stdinClosed && inFlight === 0) {
-    setTimeout(() => process.exit(0), 10);
-  }
-};
-
-const handleMessage = async (message) => {
-  const { id, method, params } = message || {};
-
-  if (!method) return;
-
-  if (method === 'initialize') {
-    send({
-      jsonrpc: '2.0',
-      id,
-      result: {
-        protocolVersion: typeof params?.protocolVersion === 'string' ? params.protocolVersion : PROTOCOL_FALLBACK,
-        capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'kanban', version: '1.0.0' },
-      },
-    });
-    return;
-  }
-
-  if (method === 'notifications/initialized' || method === 'notifications/cancelled') return;
-
-  if (method === 'ping') {
-    send({ jsonrpc: '2.0', id, result: {} });
-    return;
-  }
-
-  if (method === 'tools/list') {
-    send({ jsonrpc: '2.0', id, result: { tools } });
-    return;
-  }
-
-  if (method === 'tools/call') {
-    const name = params?.name;
-    const args = params?.arguments || {};
-    try {
-      send({ jsonrpc: '2.0', id, result: await callTool(String(name), args) });
-    } catch (error) {
-      const message = error instanceof PlankaError ? error.message : error instanceof Error ? error.message : 'Tool failed.';
-      send({ jsonrpc: '2.0', id, result: failResult(message) });
-    }
-    return;
-  }
-
-  if (id !== undefined) {
-    send({ jsonrpc: '2.0', id, error: { code: -32601, message: `Method not found: ${method}` } });
-  }
-};
-
-let buffer = '';
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk) => {
-  buffer += chunk;
-  let newline = buffer.indexOf('\n');
-  while (newline >= 0) {
-    const line = buffer.slice(0, newline).trim();
-    buffer = buffer.slice(newline + 1);
-    newline = buffer.indexOf('\n');
-    if (!line) continue;
-    let message;
-    try {
-      message = JSON.parse(line);
-    } catch {
-      send({ jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' }, id: null });
-      continue;
-    }
-    inFlight += 1;
-    handleMessage(message)
-      .catch(() => {})
-      .finally(() => {
-        inFlight -= 1;
-        exitWhenDone();
-      });
-  }
-});
-
-const stop = () => {
-  stdinClosed = true;
-  exitWhenDone();
-};
-
-process.stdin.on('end', stop);
-process.stdin.on('close', stop);
-process.on('SIGTERM', stop);
-process.on('SIGINT', stop);
-process.on('SIGHUP', stop);
-process.on('disconnect', stop);

@@ -1,6 +1,6 @@
 {
   "name": "kanban",
-  "version": "1.9.2",
+  "version": "1.10.0",
   "private": true,
   "license": "MIT",
   "description": "Kanban en OpenChamber sobre Planka: tablero, tarjetas, checklist y agente, con Planka como única fuente de verdad.",
@@ -8,7 +8,7 @@
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs --watch",
     "check": "node scripts/check.mjs",
-    "test": "node scripts/test-local.mjs && node scripts/test-updates.mjs && node scripts/test-planka.mjs"
+    "test": "node scripts/test-local.mjs && node scripts/test-updates.mjs && node scripts/test-plugin.mjs && node scripts/test-planka.mjs"
   },
   "openchamber": {
     "apiVersion": 1,
@@ -43,6 +43,7 @@
         "label": "Tarjetas"
       },
       "instructions": true,
+      "opencodePlugin": "plugin",
       "capabilities": [
         "sessions"
       ]

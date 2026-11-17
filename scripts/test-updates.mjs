@@ -1,13 +1,10 @@
-// Update safety: the agent's MCP path and the boards must survive an update.
-// Both modules are bundled to CJS because the sources are ESM without
-// "type": "module", and the bundle's folder decides the package root they
-// resolve, exactly as it does in the built extension.
+// Update safety: the boards must survive an update, and an old hand-written MCP
+// entry must be visible without being touched.
 import { build } from 'esbuild';
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import assertImpl from 'node:assert/strict';
 
 let assertions = 0;
@@ -28,12 +25,7 @@ const assert = new Proxy(assertImpl, {
 
 const root = mkdtempSync(join(tmpdir(), 'kanban-updates-'));
 const pkg = join(root, 'pkg');
-mkdirSync(join(pkg, 'mcp'), { recursive: true });
 mkdirSync(join(pkg, 'shared'), { recursive: true });
-// The installed server the repair must point at.
-const installed = join(pkg, 'mcp', 'main.js');
-writeFileSync(installed, '// installed build\n');
-
 const bundle = join(pkg, 'shared', 'agent-config.cjs');
 await build({
   entryPoints: [new URL('../src/shared/agent-config.js', import.meta.url).pathname],
@@ -44,11 +36,11 @@ await build({
   logLevel: 'silent',
 });
 const require = createRequire(import.meta.url);
-const { healAgentEntry, parseJsonc, agentConfigFiles } = require(bundle);
+const { legacyAgentEntry, parseJsonc, agentConfigFiles } = require(bundle);
 
 const write = (name, text) => {
   const file = join(root, name);
-  mkdirSync(dirname(file), { recursive: true });
+  mkdirSync(join(file, '..'), { recursive: true });
   writeFileSync(file, text);
   return file;
 };
@@ -58,7 +50,7 @@ const read = (file) => readFileSync(file, 'utf8');
 assert.deepEqual(parseJsonc('{ "a": 1, /* c */ "b": [1, 2,], }'), { a: 1, b: [1, 2] });
 assert.deepEqual(parseJsonc('// x\n{"u":"http://a//b"}'), { u: 'http://a//b' });
 
-// --- A stale entry is rewritten to the installed path, the rest untouched.
+// --- An old hand-written kanban MCP entry is reported, never rewritten.
 const stale = '/home/someone/openchamber-extensions/kanban/mcp/main.js';
 const original = `// OpenCode config, with comments
 {
@@ -74,69 +66,50 @@ const original = `// OpenCode config, with comments
 }
 `;
 const config = write('.config/opencode/opencode.jsonc', original);
-const first = healAgentEntry({ files: [config] });
-assert.equal(first.state, 'fixed');
-assert.equal(first.installed, installed);
-assert.equal(first.restart, undefined);
+const legacy = legacyAgentEntry({ files: [config] });
+assert.equal(legacy.found, true);
+assert.equal(legacy.path, stale);
+assert.equal(read(config), original, 'the file is the user\'s: nothing is rewritten');
 
-const healed = read(config);
-assert.equal(healed, original.replace(JSON.stringify(stale), JSON.stringify(installed)));
-assert.ok(healed.startsWith('// OpenCode config, with comments'));
-assert.ok(healed.includes('// other servers stay as they are'));
-assert.ok(healed.includes('"/opt/other/mcp/main.js"'), 'a foreign server is not touched');
-assert.equal(read(`${config}.kanban-backup`), original, 'the original is kept once');
-
-// --- A second run finds it already right and writes nothing.
-const second = healAgentEntry({ files: [config] });
-assert.equal(second.state, 'ok');
-assert.equal(read(config), healed);
-
-// --- An entry that already names the installed file is left alone.
-const good = write('good/opencode.json', `{"mcp":{"kanban":{"command":["node",${JSON.stringify(installed)}]}}}`);
-const before = read(good);
-assert.equal(healAgentEntry({ files: [good] }).state, 'ok');
-assert.equal(read(good), before);
-assert.ok(!existsSync(`${good}.kanban-backup`), 'no backup for a file that needs no change');
-
-// --- No kanban entry: nothing is added, nothing is created.
-const foreign = write('foreign/opencode.json', '{"mcp":{"jira":{"command":["node","/x/mcp/main.js"]}}}');
-const foreignText = read(foreign);
-assert.equal(healAgentEntry({ files: [foreign] }).state, 'absent');
-assert.equal(read(foreign), foreignText);
-
-// --- A config that is not there is not created.
-const missing = join(root, 'missing', 'opencode.json');
-assert.equal(healAgentEntry({ files: [missing] }).state, 'absent');
-assert.ok(!existsSync(missing));
-
-// --- The same path in two servers: stop instead of guessing which one.
-const doubled = write(
-  'doubled/opencode.json',
-  `{"mcp":{"kanban":{"command":["node","${stale}"]},"old":{"command":["node","${stale}"]}}}`,
+// --- The newer mcp.servers.kanban container is read the same way.
+const serversShape = write(
+  'servers/opencode.json',
+  `{"mcp":{"servers":{"kanban":{"command":["node","${stale}"]}}}}`,
 );
-const doubledText = read(doubled);
-assert.equal(healAgentEntry({ files: [doubled] }).state, 'ambiguous');
-assert.equal(read(doubled), doubledText, 'an ambiguous file is left alone');
+assert.equal(legacyAgentEntry({ files: [serversShape] }).path, stale);
 
-// --- A broken file is reported, not rewritten.
-const broken = write('broken/opencode.json', '{ "mcp": ');
-assert.equal(healAgentEntry({ files: [broken] }).state, 'unreadable');
-assert.equal(read(broken), '{ "mcp": ');
+// --- A kanban entry with no mcp path is still reported, with an empty path.
+const remote = write('remote/opencode.json', '{"mcp":{"kanban":{"type":"remote","url":"http://x"}}}');
+assert.deepEqual(legacyAgentEntry({ files: [remote] }), { found: true, file: remote, path: '' });
+
+// --- Servers that are not ours are ignored, and a file without one is nothing.
+const foreign = write('foreign/opencode.json', '{"mcp":{"jira":{"command":["node","/x/mcp/main.js"]}}}');
+assert.equal(legacyAgentEntry({ files: [foreign] }), null);
+assert.equal(legacyAgentEntry({ files: [join(root, 'missing', 'opencode.json')] }), null);
+assert.equal(legacyAgentEntry({ files: [write('broken/opencode.json', '{ "mcp": ')] }), null);
+
+// --- A byte-order mark is tolerated.
+const bom = write('bom/opencode.json', `\uFEFF{"mcp":{"kanban":{"command":["node","${stale}"]}}}`);
+assert.equal(legacyAgentEntry({ files: [bom] }).path, stale);
 
 // --- Discovery reads the user's OpenCode config, jsonc first.
 const home = join(root, 'home');
 mkdirSync(join(home, '.config', 'opencode'), { recursive: true });
 writeFileSync(join(home, '.config', 'opencode', 'opencode.jsonc'), '{}');
-const found = agentConfigFiles({ XDG_CONFIG_HOME: '' }, home);
-assert.deepEqual(found, [join(home, '.config', 'opencode', 'opencode.jsonc')]);
+writeFileSync(join(home, '.config', 'opencode', 'opencode.json'), '{}');
+assert.deepEqual(agentConfigFiles({ XDG_CONFIG_HOME: '' }, home), [
+  join(home, '.config', 'opencode', 'opencode.jsonc'),
+  join(home, '.config', 'opencode', 'opencode.json'),
+]);
 // OPENCODE_CONFIG is added on top of the default file, not instead of it.
 assert.deepEqual(agentConfigFiles({ OPENCODE_CONFIG: config }, home), [
   config,
   join(home, '.config', 'opencode', 'opencode.jsonc'),
+  join(home, '.config', 'opencode', 'opencode.json'),
 ]);
 const noConfig = join(root, 'probe', 'nocfg', 'opencode.json');
 assert.ok(!agentConfigFiles({ OPENCODE_CONFIG: noConfig }, join(root, 'nada')).includes(noConfig));
-assert.equal(healAgentEntry({ env: { OPENCODE_CONFIG: noConfig }, home: join(root, 'nada') }).state, 'absent');
+assert.equal(legacyAgentEntry({ env: { OPENCODE_CONFIG: noConfig }, home: join(root, 'nada') }), null);
 assert.ok(!existsSync(noConfig), 'a config that is not there is never created');
 
 // --- The board: a lost board is offered back, never replaced by a silent empty one.
@@ -162,103 +135,24 @@ await freshClient.createCard(freshBoard.lists[0].id, 'Sobrevive a la actualizaci
 assert.equal(boardRecovery(project).state, 'ok');
 
 const boardFile = localBoardPath(project);
-const saved = readFileSync(boardFile, 'utf8');
+const saved = read(boardFile);
 assert.ok(existsSync(`${boardFile}.prev`), 'every save leaves a copy beside the board');
 
 rmSync(boardFile);
 const lost = boardRecovery(project);
 assert.equal(lost.state, 'missing');
+assert.equal(lost.canRestore, true);
 assert.ok(lost.savedAt.length > 0, 'the panel can say when the copy was saved');
 
 assert.equal(restoreBoard(project).state, 'ok');
-assert.equal(readFileSync(boardFile, 'utf8'), saved, 'the copy comes back with its cards');
-assert.ok(readFileSync(boardFile, 'utf8').includes('Sobrevive a la actualización'));
+assert.equal(read(boardFile), saved, 'the copy comes back with its cards');
+assert.ok(read(boardFile).includes('Sobrevive a la actualización'));
 
 // A board that exists is never replaced by an older copy behind the user's back.
-const kept = readFileSync(boardFile, 'utf8');
+const kept = read(boardFile);
 writeFileSync(`${boardFile}.prev`, '{"version":1,"lists":[],"cards":[]}\n');
 assert.equal(restoreBoard(project).state, 'ok');
-assert.equal(readFileSync(boardFile, 'utf8'), kept);
-
-// Each project keeps its own file and its own copy.
-const otherProject = join(root, 'proyecto-b');
-assert.equal(boardRecovery(otherProject).state, 'new');
-assert.notEqual(localBoardPath(otherProject), boardFile);
-
-// --- The agent refuses to work on a lost board instead of filling an empty one.
-const ghost = join(root, 'proyecto-perdido');
-mkdirSync(ghost, { recursive: true });
-const ghostClient = new LocalClient({ projectKey: ghost });
-await ghostClient.createCard((await ghostClient.readBoard()).lists[0].id, 'No me pierdas');
-rmSync(localBoardPath(ghost));
-assert.equal(boardRecovery(ghost).state, 'missing');
-
-const configFile = join(root, 'kanban-config.json');
-writeFileSync(configFile, '{"source":"local"}\n');
-const probe = spawnSync(process.execPath, [new URL('../mcp/main.js', import.meta.url).pathname], {
-  cwd: ghost,
-  encoding: 'utf8',
-  env: { ...process.env, KANBAN_LOCAL_PATH: process.env.KANBAN_LOCAL_PATH, KANBAN_CONFIG_PATH: configFile },
-  input: [
-    { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'probe', version: '1' } } },
-    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'kanban_board', arguments: {} } },
-  ]
-    .map((line) => JSON.stringify(line))
-    .join('\n') + '\n',
-});
-assert.match(probe.stdout, /Restaurar la copia/, 'the agent says how to bring the board back');
-assert.match(probe.stdout, /"isError":true/, 'the agent does not answer with an empty board');
-
-// --- More shapes an entry can have, all repaired the same way.
-const asString = write(
-  'probe/string/opencode.json',
-  '{"mcp":{"kanban":{"command":"/old/kanban/mcp/main.js"},"x":{"command":["node","/other/mcp/main.js"]}}}',
-);
-assert.equal(healAgentEntry({ files: [asString] }).state, 'fixed');
-assert.equal(
-  read(asString),
-  `{"mcp":{"kanban":{"command":${JSON.stringify(installed)}},"x":{"command":["node","/other/mcp/main.js"]}}}`,
-);
-
-const disabled = write(
-  'probe/disabled/opencode.json',
-  '{"mcp":{"kanban":{"type":"local","enabled":false,"command":["node","/old/kanban/mcp/main.js"]}}}',
-);
-assert.equal(healAgentEntry({ files: [disabled] }).state, 'fixed');
-assert.ok(read(disabled).includes('"enabled":false'), 'the rest of the entry is kept');
-
-const serversShape = write(
-  'probe/servers/opencode.json',
-  '{"mcp":{"servers":{"kanban":{"command":["node","/old/kanban/mcp/main.js"]}}}}',
-);
-assert.equal(healAgentEntry({ files: [serversShape] }).state, 'fixed');
-assert.ok(read(serversShape).includes(JSON.stringify(installed)));
-
-// Two containers can name the same server: both are repaired.
-const bothContainers = write(
-  'probe/both/opencode.json',
-  '{"mcp":{"kanban":{"command":["node","/first/kanban/mcp/main.js"]},"servers":{"kanban":{"command":["node","/second/kanban/mcp/main.js"]}}}}',
-);
-assert.equal(healAgentEntry({ files: [bothContainers] }).state, 'fixed');
-assert.equal(read(bothContainers).split(JSON.stringify(installed)).length - 1, 2, 'every kanban entry is repaired');
-
-// A path that is a prefix of a sibling file changes only its own entry.
-const shared = '/opt/kanban/mcp/main.js';
-const prefixes = write(
-  'probe/prefix/opencode.json',
-  `{"mcp":{"kanban":{"command":["node","${shared}","--log=${shared}.log"]},"bak":{"command":["node","${shared}.bak"]}},"note":"${shared}.old"}`,
-);
-assert.equal(healAgentEntry({ files: [prefixes] }).state, 'fixed');
-assert.ok(read(prefixes).includes(`"node",${JSON.stringify(installed)}`), "the kanban path itself is repaired");
-assert.ok(read(prefixes).includes(`"--log=${shared}.log"`), "a sibling path is not touched");
-assert.ok(read(prefixes).includes(`"${shared}.bak"`));
-assert.ok(read(prefixes).includes(`"${shared}.old"`));
-
-// A comment inside the command array survives, and a byte-order mark is tolerated.
-const block = `\uFEFF{\n  "mcp": {\n    "kanban": {\n      "command": [\n        "node", /* runner */\n        "${stale}",\n      ],\n    },\n  },\n}\n`;
-const blocked = write('probe/block/opencode.jsonc', block);
-assert.equal(healAgentEntry({ files: [blocked] }).state, 'fixed');
-assert.equal(read(blocked), block.replace(`"${stale}"`, JSON.stringify(installed)));
+assert.equal(read(boardFile), kept);
 
 // --- A damaged board is reported, and its good copy survives the next write.
 const damagedProject = join(root, 'proyecto-danado');
@@ -272,13 +166,13 @@ assert.equal(damaged.canRestore, true);
 assert.ok(damaged.savedAt.length > 0, 'the panel can date the copy');
 
 await damagedClient.createCard((await damagedClient.readBoard()).lists[0].id, 'Otra');
-const keptAfterDamage = readFileSync(`${damagedFile}.prev`, 'utf8');
+const keptAfterDamage = read(`${damagedFile}.prev`);
 assert.ok(keptAfterDamage.includes('La buena'), 'the good copy is not overwritten by a write over a damaged board');
 assert.ok(!keptAfterDamage.includes('Otra'));
 
 writeFileSync(damagedFile, '{"corrupt": ');
 assert.equal(restoreBoard(damagedProject).state, 'ok');
-assert.ok(readFileSync(damagedFile, 'utf8').includes('La buena'));
+assert.ok(read(damagedFile).includes('La buena'));
 
 // --- A broken copy is never copied over the board.
 const brokenCopy = join(root, 'proyecto-copia-rota');
@@ -288,6 +182,11 @@ const brokenState = boardRecovery(brokenCopy);
 assert.equal(brokenState.state, 'corrupt');
 assert.equal(brokenState.canRestore, false, 'a copy that cannot be read offers no button');
 assert.equal(restoreBoard(brokenCopy).state, 'corrupt');
-assert.equal(readFileSync(localBoardPath(brokenCopy), 'utf8'), '{"corrupt": ');
+assert.equal(read(localBoardPath(brokenCopy)), '{"corrupt": ');
+
+// Each project keeps its own file and its own copy.
+const otherProject = join(root, 'proyecto-b');
+assert.equal(boardRecovery(otherProject).state, 'new');
+assert.notEqual(localBoardPath(otherProject), boardFile);
 
 console.log(`update safety: ${assertions} assertions OK`);

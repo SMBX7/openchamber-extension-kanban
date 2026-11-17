@@ -1650,44 +1650,33 @@ const openSettings = () => {
   avanzadoBox.append(toolChips);
   const agentLine = el('p', 'settings-note', 'Comprobando el agente…');
   avanzadoBox.append(agentLine);
-  avanzadoBox.append(el('p', 'settings-note', 'El MCP solo actúa cuando el agente llama a una herramienta. En Planka lo ves desde cualquier dispositivo; el tablero local vive solo en este equipo. Tras actualizar la extensión, reinicia OpenCode.'));
+  avanzadoBox.append(el('p', 'settings-note', 'Las herramientas solo actúan cuando el agente las llama. En Planka lo ves desde cualquier dispositivo; el tablero local vive solo en este equipo.'));
   avanzado.append(avanzadoBox);
 
-  // Whether the agent is talking to this version is a fact about two files
-  // outside the panel, so it is asked, not guessed. The service repairs a stale
-  // entry on its first read; this only reports what it found.
+  // The agent is a plugin OpenCode loads from the installed folder, so the only
+  // honest question is whether it loaded *this* build. The plugin leaves a
+  // heartbeat; an old hand-written MCP entry, if there is one, is named but
+  // never touched.
   void (async () => {
     try {
       const { agent } = await api('GET', '/agent');
-      const state = agent?.state || 'unreadable';
-      const warnings = new Set(['stale', 'absent', 'ambiguous', 'unreadable', 'fixed']);
-      agentLine.classList.toggle('warning', warnings.has(state));
-      if (state === 'ok') {
-        agentLine.textContent = `Agente conectado: usa la copia instalada (${agent.installed}).`;
-        return;
+      const state = agent?.state || 'missing';
+      agentLine.classList.toggle('warning', state !== 'connected');
+      if (state === 'connected') {
+        agentLine.textContent = `Agente conectado (plugin ${agent.plugin?.version || agent.version}). Se recarga solo al actualizar la extensión.`;
+      } else if (state === 'outdated') {
+        agentLine.textContent = `El agente sigue en la versión ${agent.plugin?.version || 'anterior'} y esta extensión es la ${agent.version}. Reinicia OpenCode para que cargue la nueva.`;
+      } else {
+        agentLine.textContent = 'El agente todavía no ha cargado el plugin de Kanban. Reinicia OpenCode una vez; a partir de ahí cada actualización se aplica sola.';
       }
-      if (state === 'fixed') {
-        agentLine.textContent = 'El agente apuntaba a otra ruta y ya apunta a esta versión. Reinicia OpenCode para que la cargue.';
-        return;
+      if (agent?.legacy?.found) {
+        const legacy = el(
+          'p',
+          'settings-note',
+          `Tienes una entrada kanban de MCP que ya no se usa, en ${agent.legacy.file}. Puedes borrarla cuando quieras: no hace nada.`,
+        );
+        avanzadoBox.append(legacy);
       }
-      if (state === 'stale') {
-        const from = agent?.entries?.find((entry) => entry.state === 'stale')?.from || '';
-        agentLine.textContent = from
-          ? `El agente sigue apuntando a ${from}, que no es esta instalación. Reinicia OpenCode después de corregir la entrada.`
-          : 'El agente apunta a una ruta que no es esta instalación.';
-        return;
-      }
-      if (state === 'absent') {
-        agentLine.textContent = 'El agente no tiene las herramientas de Kanban: no hay ninguna entrada MCP registrada. Añade esta entrada a ~/.config/opencode/opencode.jsonc y reinicia OpenCode:';
-        const snippet = el('pre', 'settings-snippet', `"kanban": { "type": "local", "command": ["node", "${agent?.installed || ''}"] }`);
-        avanzadoBox.append(snippet);
-        return;
-      }
-      if (state === 'ambiguous') {
-        agentLine.textContent = 'No se ha tocado la configuración del agente: la ruta antigua aparece en más de un sitio. Corrige la entrada kanban a mano.';
-        return;
-      }
-      agentLine.textContent = 'No se pudo leer la configuración de OpenCode. El agente puede seguir apuntando a otra versión.';
     } catch (error) {
       agentLine.classList.add('warning');
       agentLine.textContent = error?.message || 'No se pudo comprobar el agente.';

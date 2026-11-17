@@ -673,18 +673,7 @@ var import_node_fs5 = require("node:fs");
 var import_node_os2 = require("node:os");
 var import_node_path5 = require("node:path");
 var AGENT_SERVER_NAME = "kanban";
-var BACKUP_SUFFIX = ".kanban-backup";
-var MCP_MAIN = /[\\/]mcp[\\/]main\.js$/;
-var installedAgentPath = () => (0, import_node_path5.join)(ROOT, "mcp", "main.js");
-var normalPath = (value) => {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  try {
-    return (0, import_node_fs5.realpathSync)(text);
-  } catch {
-    return (0, import_node_path5.resolve)(text).replace(/[\\/]+$/, "");
-  }
-};
+var HEARTBEAT = (0, import_node_path5.join)(DATA_DIR, "agent.json");
 var agentConfigFiles = (env = process.env, home = (0, import_node_os2.homedir)()) => {
   const configHome = env.XDG_CONFIG_HOME || (0, import_node_path5.join)(home, ".config");
   const files = [
@@ -822,90 +811,53 @@ var kanbanServers = (doc) => {
   }
   return out;
 };
-var stalePathOf = (server2, installed) => {
+var commandPath = (server2) => {
   const command = Array.isArray(server2?.command) ? server2.command : [server2?.command];
-  for (const item of command) {
-    if (typeof item !== "string" || !MCP_MAIN.test(item)) continue;
-    if (normalPath(item) === normalPath(installed)) return "";
-    return item;
-  }
-  return "";
+  return command.find((item) => typeof item === "string" && /[\\/]mcp[\\/]main\.js$/.test(item)) || "";
 };
-var replacePaths = (file, oldPath, newPath, expected) => {
-  const text = (0, import_node_fs5.readFileSync)(file, "utf8");
-  const token = JSON.stringify(oldPath);
-  const occurrences = text.split(token).length - 1;
-  if (occurrences === 0) return { changed: false, reason: "absent" };
-  if (occurrences !== expected) return { changed: false, reason: "ambiguous" };
-  const backup = `${file}${BACKUP_SUFFIX}`;
-  if (!(0, import_node_fs5.existsSync)(backup)) (0, import_node_fs5.copyFileSync)(file, backup);
-  const next = text.split(token).join(JSON.stringify(newPath));
-  const temp = `${file}.${process.pid}.agent.tmp`;
-  (0, import_node_fs5.writeFileSync)(temp, next, { mode: (0, import_node_fs5.statSync)(file).mode });
-  (0, import_node_fs5.renameSync)(temp, file);
-  return { changed: true, backup };
-};
-var healAgentEntry = ({ env = process.env, home = (0, import_node_os2.homedir)(), files } = {}) => {
-  const installed = installedAgentPath();
-  const installedReady = (0, import_node_fs5.existsSync)(installed);
+var legacyAgentEntry = ({ env = process.env, home = (0, import_node_os2.homedir)(), files } = {}) => {
   const paths = files || agentConfigFiles(env, home);
-  const entries = [];
-  let state = "absent";
   for (const file of paths) {
-    let text;
-    try {
-      text = (0, import_node_fs5.readFileSync)(file, "utf8");
-    } catch {
-      continue;
-    }
     let doc;
     try {
-      doc = parseJsonc(text.replace(/^\uFEFF/, ""));
+      doc = parseJsonc((0, import_node_fs5.readFileSync)(file, "utf8").replace(/^\uFEFF/, ""));
     } catch {
-      entries.push({ file, state: "unreadable" });
-      if (state === "absent" || state === "ok") state = "unreadable";
       continue;
     }
     const servers = kanbanServers(doc);
     if (!servers.length) continue;
-    const stalePaths = [...new Set(servers.map((server2) => stalePathOf(server2, installed)).filter(Boolean))];
-    if (!stalePaths.length) {
-      if (state === "absent") state = "ok";
-      entries.push({ file, state: "ok", path: installed });
-      continue;
-    }
-    if (!installedReady) {
-      if (state !== "fixed") state = "stale";
-      entries.push({ file, state: "stale", from: stalePaths[0], to: installed });
-      continue;
-    }
-    let fixed = false;
-    let blocked = "";
-    let backup = "";
-    for (const stale of stalePaths) {
-      const expected = servers.filter((server2) => stalePathOf(server2, installed) === stale).length;
-      const result = replacePaths(file, stale, installed, expected);
-      if (result.changed) {
-        fixed = true;
-        backup = result.backup || backup;
-        continue;
-      }
-      if (!blocked) blocked = result.reason === "ambiguous" ? stale : "";
-    }
-    if (fixed) {
-      state = "fixed";
-      entries.push({ file, state: "fixed", from: stalePaths[0], to: installed, backup });
-      continue;
-    }
-    if (blocked) {
-      if (state !== "fixed") state = "ambiguous";
-      entries.push({ file, state: "ambiguous", from: blocked, to: installed });
-      continue;
-    }
-    if (state === "absent") state = "ok";
-    entries.push({ file, state: "ok", path: installed });
+    return { found: true, file, path: commandPath(servers[0]) };
   }
-  return { state, installed, files: paths, entries };
+  return null;
+};
+var agentVersion = () => {
+  try {
+    return String(JSON.parse((0, import_node_fs5.readFileSync)((0, import_node_path5.join)(ROOT, "package.json"), "utf8")).version || "");
+  } catch {
+    return "";
+  }
+};
+var readAgentHeartbeat = () => {
+  try {
+    const value = JSON.parse((0, import_node_fs5.readFileSync)(HEARTBEAT, "utf8"));
+    const at = typeof value?.at === "string" ? value.at : "";
+    return {
+      version: typeof value?.version === "string" ? value.version : "",
+      at,
+      location: typeof value?.location === "string" ? value.location : "",
+      event: typeof value?.event === "string" ? value.event : "",
+      savedAt: (0, import_node_fs5.existsSync)(HEARTBEAT) ? new Date((0, import_node_fs5.statSync)(HEARTBEAT).mtimeMs).toISOString() : at
+    };
+  } catch {
+    return null;
+  }
+};
+var pluginFolder = () => {
+  try {
+    return (0, import_node_fs5.realpathSync)((0, import_node_path5.join)(ROOT, "plugin"));
+  } catch {
+    return "";
+  }
 };
 
 // src/shared/local.js
@@ -2317,23 +2269,18 @@ try {
 } catch {
   serviceHost = null;
 }
-var agentState = null;
 var agentStatus = () => {
-  if (agentState) return agentState;
-  try {
-    const healed = healAgentEntry();
-    agentState = { ...healed, restart: healed.state === "fixed" };
-  } catch (error) {
-    agentState = {
-      state: "unreadable",
-      installed: "",
-      files: [],
-      entries: [],
-      restart: false,
-      message: error instanceof Error ? error.message : "No se pudo leer la configuraci\xF3n del agente."
-    };
-  }
-  return agentState;
+  const version = agentVersion();
+  const plugin = readAgentHeartbeat();
+  let state = "missing";
+  if (plugin) state = plugin.version && plugin.version !== version ? "outdated" : "connected";
+  return {
+    version,
+    state,
+    plugin,
+    legacy: legacyAgentEntry(),
+    folder: pluginFolder()
+  };
 };
 var AGENT_INSTRUCTIONS = [
   "When the user asks you to work on a Kanban card, referenced with @ or by name, and that card is still in IDEAS, move it to EN PROGRESO with kanban_move_card before you start. Do this only when they ask you to work on the card, not when they only ask about it or want to read it.",
@@ -3604,7 +3551,6 @@ var server = import_node_http.default.createServer((req, res) => {
   });
 });
 server.listen(PORT, "127.0.0.1");
-agentStatus();
 var shutdown = () => {
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 1500).unref();

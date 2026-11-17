@@ -48,8 +48,27 @@ if (serviceEntry) {
   }
 }
 
-for (const entry of ['mcp/main.js']) {
-  if (!(await exists(join(root, entry)))) problems.push(`${entry} is missing.`);
+// The agent is an OpenCode plugin now: the folder has to exist, with an entry
+// OpenCode can find, because the install refuses the package without it.
+const pluginRelative = parsed.manifest.contributes.opencodePlugin;
+if (!pluginRelative) {
+  problems.push('contributes.opencodePlugin is missing; the agent would have no tools.');
+} else {
+  const folder = join(root, pluginRelative);
+  const entries = ['server.ts', 'server.js', 'index.ts', 'index.js', 'index.mjs', 'index.cjs', 'server.mjs'];
+  const found = [];
+  for (const name of entries) {
+    if (await exists(join(folder, name))) found.push(name);
+  }
+  if (!found.length) {
+    problems.push(`${pluginRelative}/ has no entry (index.mjs or server.js). Bundle it with scripts/build.mjs.`);
+  } else {
+    const code = await readFile(join(folder, found[0]), 'utf8');
+    if (!/export\s+default|export\s*\{[^}]*\bas\s+default\b/.test(code)) {
+      problems.push(`${pluginRelative}/${found[0]} has no default export.`);
+    }
+    if (!/id:\s*["']kanban["']/.test(code)) problems.push(`${pluginRelative}/${found[0]} is not the kanban plugin.`);
+  }
 }
 
 if (problems.length) {

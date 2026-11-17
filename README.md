@@ -86,11 +86,11 @@ update replaces, so an update does not sign you out or take a board with it. Eve
 also keeps its last good copy beside it: if a board file ever goes missing or is
 damaged, the panel says so and offers that copy back instead of showing an empty board.
 
-The agent is the part that lives outside the extension. OpenCode starts its Kanban tools
-from a path written into OpenCode's own config, and a running OpenCode keeps the version
-it started with. On the first open after an update the panel repairs that path when it
-points at an older copy, says so in **Settings → Advanced**, and asks you to restart
-OpenCode so the new version is the one the agent loads.
+The agent's tools are an OpenCode plugin that ships inside this package, and OpenChamber
+lists its folder in the OpenCode config it owns. The path is always the installed one, so
+an update reaches the agent on its next tool call: nothing to edit, nothing to restart. If
+you ever wrote a `kanban` MCP entry by hand, it is no longer used: **Settings → Advanced**
+names the file so you can delete it whenever you like.
 
 Coming from a version before 1.9.1, that one update cannot keep local boards: until then
 they lived inside the folder the update deletes, and the new version runs after the
@@ -232,11 +232,10 @@ releases the board. While a project has several boards and none is pinned,
 the agent refuses to touch cards instead of guessing. A worktree or a subfolder of the
 project inherits the pinned board.
 
-**Settings → Advanced** reports what the agent is running: connected to this
-installation, repaired after an update and waiting for a restart, or missing the entry
-that gives it the tools. A local board that is not on disk but has a copy beside it is
-offered back in a notice above the columns, so a project never reads as empty when it is
-only missing.
+**Settings → Advanced** reports what the agent is running: the plugin of this version,
+still the previous one (restart OpenCode once), or not loaded yet. A local board that is
+not on disk but has a copy beside it is offered back in a notice above the columns, so a
+project never reads as empty when it is only missing.
 
 ## Styles
 

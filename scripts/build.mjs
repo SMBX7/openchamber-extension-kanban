@@ -30,11 +30,16 @@ const targets = [
     target: ['node20'],
   },
   {
-    entryPoints: ['src/mcp/main.js'],
-    outfile: 'mcp/main.js',
-    format: 'cjs',
+    entryPoints: ['src/plugin/main.js'],
+    outfile: 'plugin/index.mjs',
+    format: 'esm',
     platform: 'node',
     target: ['node20'],
+    // OpenCode imports the folder with a bare import(): the module has to be
+    // ESM, and the shared sources still resolve the package from __dirname.
+    banner: {
+      js: "import { fileURLToPath as __kanbanFileURLToPath } from 'node:url';\nimport { dirname as __kanbanDirname } from 'node:path';\nconst __dirname = __kanbanDirname(__kanbanFileURLToPath(import.meta.url));",
+    },
   },
 ];
 
