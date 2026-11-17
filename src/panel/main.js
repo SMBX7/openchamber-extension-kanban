@@ -693,8 +693,9 @@ const doLogin = async (values, submit, errorBox, note) => {
       noteButton.onclick = () => host.openUrl(values.baseUrl || 'http://127.0.0.1:3040').catch(() => {});
       note.hidden = false;
     } else if (error.kind === 'service') {
-      // Writing config.json can reload the extension; the fresh frame will
-      // boot connected, so look once more before reporting a failure.
+      // The service may still be starting (or restarting after a write); the
+      // fresh frame will boot connected, so look once more before reporting a
+      // failure.
       await sleep(1000);
       try {
         const config = await api('GET', '/config');

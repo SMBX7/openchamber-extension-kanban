@@ -9,8 +9,11 @@
 import {
   chmodSync,
   closeSync,
+  copyFileSync,
   existsSync,
+  mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   renameSync,
   statSync,
@@ -19,7 +22,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { ROOT } from './config.js';
+import { DATA_DIR, ROOT } from './config.js';
 import { DEFAULT_LIST_NAMES } from './defaults.js';
 import { PlankaError } from './planka.js';
 
@@ -32,9 +35,42 @@ const DEFAULT_LABELS = [
   { name: 'Idea', color: 'hsl(210 70% 62%)' },
 ];
 
-// The base path: the explicit override for tests, or board.local.json next to
-// config.json. It keeps naming the board used when no project is known.
-const basePath = () => process.env.KANBAN_LOCAL_PATH || join(ROOT, 'board.local.json');
+// The base path: the explicit override for tests, or board.local.json inside
+// the extension's data folder (~/.kanban). It keeps naming the board used when
+// no project is known. It must not live beside the package: an update replaces
+// that folder and would take every board with it.
+const basePath = () => process.env.KANBAN_LOCAL_PATH || join(DATA_DIR, 'board.local.json');
+
+// Before the boards moved to ~/.kanban they sat beside the package, where an
+// update deletes them. Copy every board file found there once, leaving the
+// originals alone: the copy is what survives, and two processes starting at the
+// same time cannot take each other's data. An explicit KANBAN_LOCAL_PATH keeps
+// naming the boards (tests and one-off runs) and never reads the package.
+const legacyBoardFile = /^board\.local(\..+)?\.json$/;
+let adoptedBoards = false;
+const adoptLegacyBoards = () => {
+  if (adoptedBoards || process.env.KANBAN_LOCAL_PATH) return;
+  adoptedBoards = true;
+  if (ROOT === DATA_DIR) return;
+  let names;
+  try {
+    names = readdirSync(ROOT);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (!legacyBoardFile.test(name)) continue;
+    const target = join(DATA_DIR, name);
+    if (existsSync(target)) continue;
+    try {
+      mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
+      copyFileSync(join(ROOT, name), target);
+      chmodSync(target, 0o600);
+    } catch {
+      // The board stays where it was and the next run tries again.
+    }
+  }
+};
 
 // A readable, collision-free name for the file of one project. The hash keeps
 // two projects with the same folder name apart.
@@ -165,7 +201,8 @@ const normaliseStore = (value) => {
 };
 
 const writeStore = (store, target) => {
-  const temp = `${target}.tmp`;
+  mkdirSync(dirname(target), { recursive: true, mode: 0o700 });
+  const temp = `${target}.${process.pid}.tmp`;
   writeFileSync(temp, `${JSON.stringify(store, null, 2)}\n`, { mode: 0o600 });
   renameSync(temp, target);
   try {
@@ -200,6 +237,7 @@ const migrateLegacyBoard = (projectKey) => {
 };
 
 const readStore = (projectKey = '') => {
+  adoptLegacyBoards();
   migrateLegacyBoard(projectKey);
   try {
     return normaliseStore(JSON.parse(readFileSync(localBoardPath(projectKey), 'utf8')));
@@ -210,6 +248,7 @@ const readStore = (projectKey = '') => {
 
 const withLock = async (projectKey, work) => {
   const lock = lockPath(projectKey);
+  mkdirSync(dirname(lock), { recursive: true, mode: 0o700 });
   const deadline = Date.now() + 2500;
   let handle = null;
   while (handle === null) {

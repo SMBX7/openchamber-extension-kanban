@@ -2,10 +2,10 @@
 // value means "use the host theme token". Kept outside the package so writes
 // never reload the extension; the service owns the file.
 import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { DATA_DIR } from './config.js';
 
-const DIR = join(homedir(), '.kanban');
+const DIR = DATA_DIR;
 const FILE = join(DIR, 'appearance.json');
 
 const HEX = /^#[0-9a-f]{6}$/i;

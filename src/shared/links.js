@@ -2,10 +2,10 @@
 // the package so writes never reload the extension; the service and the MCP
 // server share the same file.
 import { chmodSync, closeSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { DATA_DIR } from './config.js';
 
-const DIR = join(homedir(), '.kanban');
+const DIR = DATA_DIR;
 const FILE = join(DIR, 'links.json');
 
 const empty = () => ({ version: 1, links: {} });

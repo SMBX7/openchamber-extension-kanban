@@ -1,8 +1,11 @@
 // src/shared/config.js
 var import_node_fs = require("node:fs");
+var import_node_os = require("node:os");
 var import_node_path = require("node:path");
 var ROOT = (0, import_node_path.resolve)(__dirname, "..");
-var CONFIG_PATH = (0, import_node_path.join)(ROOT, "config.json");
+var DATA_DIR = process.env.KANBAN_DATA_DIR || (0, import_node_path.join)((0, import_node_os.homedir)(), ".kanban");
+var CONFIG_PATH = process.env.KANBAN_CONFIG_PATH || (0, import_node_path.join)(DATA_DIR, "config.json");
+var LEGACY_CONFIG_PATH = (0, import_node_path.join)(ROOT, "config.json");
 var DEFAULT_BASE_URL = "http://127.0.0.1:3040";
 var EMPTY = {
   source: "planka",
@@ -23,7 +26,30 @@ var normalise = (value) => {
     boardName: typeof value?.boardName === "string" ? value.boardName : ""
   };
 };
+var persist = (value) => {
+  const dir = (0, import_node_path.dirname)(CONFIG_PATH);
+  (0, import_node_fs.mkdirSync)(dir, { recursive: true, mode: 448 });
+  const temp = (0, import_node_path.join)(dir, `.${process.pid}.config.json.tmp`);
+  (0, import_node_fs.writeFileSync)(temp, `${JSON.stringify(value, null, 2)}
+`, { mode: 384 });
+  (0, import_node_fs.renameSync)(temp, CONFIG_PATH);
+  try {
+    (0, import_node_fs.chmodSync)(CONFIG_PATH, 384);
+  } catch {
+  }
+};
+var adopted = false;
+var adoptLegacyConfig = () => {
+  if (adopted) return;
+  adopted = true;
+  if ((0, import_node_fs.existsSync)(CONFIG_PATH) || !(0, import_node_fs.existsSync)(LEGACY_CONFIG_PATH)) return;
+  try {
+    persist(normalise(JSON.parse((0, import_node_fs.readFileSync)(LEGACY_CONFIG_PATH, "utf8"))));
+  } catch {
+  }
+};
 var readConfig = () => {
+  adoptLegacyConfig();
   try {
     const parsed = JSON.parse((0, import_node_fs.readFileSync)(CONFIG_PATH, "utf8"));
     return normalise(parsed);
@@ -664,7 +690,31 @@ var DEFAULT_LABELS = [
   { name: "Importante", color: "hsl(38 78% 58%)" },
   { name: "Idea", color: "hsl(210 70% 62%)" }
 ];
-var basePath = () => process.env.KANBAN_LOCAL_PATH || (0, import_node_path2.join)(ROOT, "board.local.json");
+var basePath = () => process.env.KANBAN_LOCAL_PATH || (0, import_node_path2.join)(DATA_DIR, "board.local.json");
+var legacyBoardFile = /^board\.local(\..+)?\.json$/;
+var adoptedBoards = false;
+var adoptLegacyBoards = () => {
+  if (adoptedBoards || process.env.KANBAN_LOCAL_PATH) return;
+  adoptedBoards = true;
+  if (ROOT === DATA_DIR) return;
+  let names;
+  try {
+    names = (0, import_node_fs2.readdirSync)(ROOT);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (!legacyBoardFile.test(name)) continue;
+    const target = (0, import_node_path2.join)(DATA_DIR, name);
+    if ((0, import_node_fs2.existsSync)(target)) continue;
+    try {
+      (0, import_node_fs2.mkdirSync)(DATA_DIR, { recursive: true, mode: 448 });
+      (0, import_node_fs2.copyFileSync)((0, import_node_path2.join)(ROOT, name), target);
+      (0, import_node_fs2.chmodSync)(target, 384);
+    } catch {
+    }
+  }
+};
 var projectSlug = (projectKey) => {
   const text = String(projectKey || "").trim().replace(/[\\/]+$/, "");
   if (!text) return "";
@@ -763,7 +813,8 @@ var normaliseStore = (value) => {
   };
 };
 var writeStore = (store, target) => {
-  const temp = `${target}.tmp`;
+  (0, import_node_fs2.mkdirSync)((0, import_node_path2.dirname)(target), { recursive: true, mode: 448 });
+  const temp = `${target}.${process.pid}.tmp`;
   (0, import_node_fs2.writeFileSync)(temp, `${JSON.stringify(store, null, 2)}
 `, { mode: 384 });
   (0, import_node_fs2.renameSync)(temp, target);
@@ -790,6 +841,7 @@ var migrateLegacyBoard = (projectKey) => {
   }
 };
 var readStore = (projectKey = "") => {
+  adoptLegacyBoards();
   migrateLegacyBoard(projectKey);
   try {
     return normaliseStore(JSON.parse((0, import_node_fs2.readFileSync)(localBoardPath(projectKey), "utf8")));
@@ -799,6 +851,7 @@ var readStore = (projectKey = "") => {
 };
 var withLock = async (projectKey, work) => {
   const lock = lockPath(projectKey);
+  (0, import_node_fs2.mkdirSync)((0, import_node_path2.dirname)(lock), { recursive: true, mode: 448 });
   const deadline = Date.now() + 2500;
   let handle = null;
   while (handle === null) {
@@ -1160,9 +1213,8 @@ var LOCAL_BOARD_ID = BOARD_ID;
 // src/shared/board-projects.js
 var import_node_child_process = require("node:child_process");
 var import_node_fs3 = require("node:fs");
-var import_node_os = require("node:os");
 var import_node_path3 = require("node:path");
-var DIR = (0, import_node_path3.join)((0, import_node_os.homedir)(), ".kanban");
+var DIR = DATA_DIR;
 var FILE = process.env.KANBAN_BOARD_PROJECTS_PATH || (0, import_node_path3.join)(DIR, "board-projects.json");
 var empty = () => ({ version: 1, boards: {}, projects: {} });
 var normalize = (value) => String(value || "").trim().replace(/\/+$/, "");
@@ -1241,9 +1293,8 @@ var resolveProjectBoard = (directory) => {
 
 // src/shared/links.js
 var import_node_fs4 = require("node:fs");
-var import_node_os2 = require("node:os");
 var import_node_path4 = require("node:path");
-var DIR2 = (0, import_node_path4.join)((0, import_node_os2.homedir)(), ".kanban");
+var DIR2 = DATA_DIR;
 var FILE2 = (0, import_node_path4.join)(DIR2, "links.json");
 var empty2 = () => ({ version: 1, links: {} });
 var readLinks = () => {

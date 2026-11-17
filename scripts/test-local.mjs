@@ -3,12 +3,31 @@
 // the module to CJS before requiring it.
 import { build } from 'esbuild';
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import assert from 'node:assert/strict';
+import { basename, join } from 'node:path';
+import assertImpl from 'node:assert/strict';
+
+// Count the assertions instead of printing a hardcoded number that goes stale
+// every time a test is added.
+let assertions = 0;
+const assert = new Proxy(assertImpl, {
+  apply(target, thisArg, args) {
+    assertions += 1;
+    return Reflect.apply(target, thisArg, args);
+  },
+  get(target, prop) {
+    const value = target[prop];
+    if (typeof value !== 'function') return value;
+    return (...args) => {
+      assertions += 1;
+      return value.apply(target, args);
+    };
+  },
+});
 
 const dir = mkdtempSync(join(tmpdir(), 'kanban-local-'));
 const bundle = join(dir, 'local.cjs');
@@ -306,6 +325,16 @@ try {
   }
   assert.equal(ready, true, 'the service answers /health');
 
+  // An update replaces the package folder, so the config must not live in it.
+  // This service was started with the config beside the bundle, the way
+  // versions before 1.9.1 wrote it, and adopts it into ~/.kanban on first read.
+  await get('/config', projectA);
+  const adoptedConfig = join(home, '.kanban', 'config.json');
+  assert.equal(existsSync(adoptedConfig), true, 'the config beside the package is adopted');
+  assert.equal(JSON.parse(readFileSync(adoptedConfig, 'utf8')).source, 'local');
+  assert.equal(statSync(adoptedConfig).mode & 0o777, 0o600, 'the adopted config stays private');
+  assert.equal(existsSync(join(ext, 'config.json')), true, 'the old copy is left in place');
+
   const copy = await post('/local/export', projectA, { format: 'json' });
   assert.equal(copy.format, 'json');
   const exported = readFileSync(join(ext, copy.name), 'utf8');
@@ -368,6 +397,126 @@ try {
     });
   }
 }
+
+// Every file this extension keeps between runs must live outside the package:
+// an update clones the repository into a new folder and deletes the old one, so
+// a config or a board written beside the bundle disappears and the user has to
+// sign in to Planka and configure the local board again. Both are adopted once
+// into ~/.kanban, and the copies beside the package are left alone.
+const homeBefore = process.env.HOME;
+const localPathBefore = process.env.KANBAN_LOCAL_PATH;
+const pkg = join(dir, 'update-pkg');
+mkdirSync(join(pkg, 'shared'), { recursive: true });
+
+const configBundle = join(pkg, 'shared', 'config.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/config.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: configBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const configHome = join(dir, 'home-config');
+process.env.HOME = configHome;
+writeFileSync(
+  join(pkg, 'config.json'),
+  JSON.stringify({ source: 'planka', email: 'ana', token: 'tok-1', boardId: 'b-1', boardName: 'Tablero' }),
+);
+delete process.env.KANBAN_LOCAL_PATH;
+const {
+  CONFIG_PATH: adoptedConfigPath,
+  DATA_DIR: adoptedDataDir,
+  readConfig: readAdoptedConfig,
+  saveConfig: saveAdoptedConfig,
+} = require(configBundle);
+
+assert.equal(adoptedDataDir, join(configHome, '.kanban'), 'the data folder is ~/.kanban');
+assert.equal(adoptedConfigPath, join(configHome, '.kanban', 'config.json'));
+const adoptedConfigValue = readAdoptedConfig();
+assert.equal(adoptedConfigValue.token, 'tok-1', 'the session survives the move');
+assert.equal(adoptedConfigValue.boardId, 'b-1', 'the chosen board survives the move');
+assert.equal(statSync(adoptedConfigPath).mode & 0o777, 0o600, 'the adopted config is private');
+saveAdoptedConfig({ boardId: 'b-2' });
+assert.equal(JSON.parse(readFileSync(adoptedConfigPath, 'utf8')).boardId, 'b-2', 'writes land outside the package');
+assert.equal(readAdoptedConfig().boardId, 'b-2', 'the old copy never overwrites a later save');
+assert.equal(existsSync(join(pkg, 'config.json')), true, 'the old file is not deleted');
+// The update deletes the package and clones a fresh copy: nothing beside it
+// survives, and the session must still be there.
+rmSync(join(pkg, 'config.json'));
+assert.equal(readAdoptedConfig().token, 'tok-1', 'the session survives the package being replaced');
+
+// The local boards follow the same rule: the base board and the per-project
+// files found beside the package are copied into ~/.kanban, and the board the
+// client reads afterwards is the adopted one, with its cards.
+const localBundle = join(pkg, 'shared', 'local.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/local.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: localBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const legacyBoard = {
+  version: 1,
+  board: { id: 'local', name: 'Kanban local' },
+  lists: [
+    { id: 'list-1', name: 'IDEAS', position: 65536 },
+    { id: 'list-2', name: 'EN PROGRESO', position: 131072 },
+    { id: 'list-3', name: 'HECHO', position: 196608 },
+  ],
+  cards: [
+    {
+      id: 'card-update',
+      listId: 'list-1',
+      name: 'Sobrevive a la actualización',
+      description: '',
+      position: 65536,
+      dueDate: '',
+      isDueCompleted: false,
+      createdAt: 1,
+    },
+  ],
+  labels: [],
+  cardLabels: [],
+  taskLists: [],
+  tasks: [],
+};
+writeFileSync(join(pkg, 'board.local.json'), JSON.stringify(legacyBoard));
+writeFileSync(
+  join(pkg, 'board.local.otro-proyecto-12345678.json'),
+  JSON.stringify({ ...legacyBoard, cards: [] }),
+);
+const boardHome = join(dir, 'home-board');
+process.env.HOME = boardHome;
+const { LocalClient: AdoptedClient, localBoardPath: adoptedBoardPath } = require(localBundle);
+const adoptedBoard = await new AdoptedClient({ projectKey: projectA }).readBoard();
+assert.equal(adoptedBoard.counts.total, 1, 'the board beside the package is adopted');
+assert.equal(adoptedBoard.lists[0].cards[0].name, 'Sobrevive a la actualización');
+assert.equal(
+  existsSync(join(boardHome, '.kanban', basename(adoptedBoardPath(projectA)))),
+  true,
+  'the project board lands in ~/.kanban',
+);
+assert.equal(
+  existsSync(join(boardHome, '.kanban', 'board.local.otro-proyecto-12345678.json')),
+  true,
+  'a per-project board beside the package is adopted too',
+);
+assert.equal(existsSync(join(pkg, 'board.local.json')), true, 'the old board file is left alone');
+// Same as the config: the update removes the package and its boards. The board
+// the user sees afterwards is the one in ~/.kanban.
+rmSync(join(pkg, 'board.local.json'));
+rmSync(join(pkg, 'board.local.otro-proyecto-12345678.json'));
+const afterUpdate = await new AdoptedClient({ projectKey: projectA }).readBoard();
+assert.equal(afterUpdate.counts.total, 1, 'the board survives the package being replaced');
+assert.equal(afterUpdate.lists[0].cards[0].name, 'Sobrevive a la actualización');
+
+if (localPathBefore === undefined) delete process.env.KANBAN_LOCAL_PATH;
+else process.env.KANBAN_LOCAL_PATH = localPathBefore;
+if (homeBefore === undefined) delete process.env.HOME;
+else process.env.HOME = homeBefore;
 
 // Automatic delegation shares one session per batch. These are the pure
 // decisions, exercised without a host so a change in the reuse rule is caught.
@@ -694,4 +843,186 @@ assert.ok(
   'the Work Status opens tall enough for three cards',
 );
 
-console.log('local mode: 146 assertions ok');
+// 1.9.1: the Planka session and the local boards live in ~/.kanban, outside the
+// folder an update replaces, so updating stops signing the user out. The data
+// folder is also the one the agent's MCP server resolves without the host's
+// OPENCHAMBER_SERVICE_DATA_DIR. These checks pin the parts a later change could
+// break silently: a later save beating the legacy copy, the privacy of a legacy
+// file that was world-readable, an explicit KANBAN_LOCAL_PATH, a board already
+// in the data folder that the legacy copy must not overwrite, and the MCP.
+const kept = join(dir, 'kept');
+const keptHome = join(kept, 'home');
+const keptPackage = join(kept, 'package');
+mkdirSync(join(keptPackage, 'shared'), { recursive: true });
+mkdirSync(keptHome, { recursive: true });
+writeFileSync(
+  join(keptPackage, 'config.json'),
+  JSON.stringify({ source: 'planka', token: 'token-legacy', boardId: 'board-legacy' }),
+  { mode: 0o644 },
+);
+const keptConfigRunner = join(kept, 'config-run.cjs');
+writeFileSync(
+  keptConfigRunner,
+  [
+    'const config = require(process.env.KEPT_CONFIG);',
+    'const action = process.argv[2] || "read";',
+    "if (action === 'save') config.saveConfig({ token: 'token-later' });",
+    "if (action === 'clear') config.clearConfig();",
+    'const value = config.readConfig();',
+    'process.stdout.write(JSON.stringify({ token: value.token, boardId: value.boardId }));',
+  ].join('\n'),
+);
+const keptConfigBundle = join(keptPackage, 'shared', 'config.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/config.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: keptConfigBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const keptEnv = { ...process.env, HOME: keptHome, KEPT_CONFIG: keptConfigBundle };
+for (const name of ['KANBAN_LOCAL_PATH', 'KANBAN_DATA_DIR', 'KANBAN_CONFIG_PATH']) delete keptEnv[name];
+const runKeptConfig = (action) =>
+  JSON.parse(execFileSync(process.execPath, [keptConfigRunner, action], { env: keptEnv, encoding: 'utf8' }));
+
+assert.equal(runKeptConfig('read').token, 'token-legacy', 'the legacy session is adopted on the first read');
+const keptConfigPath = join(keptHome, '.kanban', 'config.json');
+assert.equal(statSync(keptConfigPath).mode & 0o777, 0o600, 'a world-readable legacy file is adopted private');
+assert.equal(statSync(join(keptHome, '.kanban')).mode & 0o777, 0o700, 'the data folder is private');
+runKeptConfig('save');
+assert.equal(runKeptConfig('read').token, 'token-later', 'a later save survives the next process');
+writeFileSync(
+  join(keptPackage, 'config.json'),
+  JSON.stringify({ source: 'planka', token: 'token-stale', boardId: 'board-stale' }),
+);
+const afterStaleLegacy = runKeptConfig('read');
+assert.equal(afterStaleLegacy.token, 'token-later', 'the legacy copy never overwrites a later save');
+assert.equal(afterStaleLegacy.boardId, 'board-legacy', 'the rest of the save is kept too');
+runKeptConfig('clear');
+assert.equal(runKeptConfig('read').token, '', 'logging out sticks: the legacy copy is not adopted again');
+
+// The same rule for the boards: an explicit KANBAN_LOCAL_PATH wins and the
+// package folder is never written, and a board already in the data folder is
+// never replaced by the legacy copy.
+const legacyBoardStore = {
+  version: 1,
+  board: { id: 'local', name: 'Tablero del paquete' },
+  lists: [
+    { id: 'list-1', name: 'IDEAS', position: 65536 },
+    { id: 'list-2', name: 'EN PROGRESO', position: 131072 },
+    { id: 'list-3', name: 'HECHO', position: 196608 },
+  ],
+  cards: [
+    {
+      id: 'card-pkg',
+      listId: 'list-1',
+      name: 'Tarjeta del paquete',
+      description: '',
+      position: 65536,
+      dueDate: '',
+      isDueCompleted: false,
+      createdAt: 1,
+    },
+  ],
+  labels: [],
+  cardLabels: [],
+  taskLists: [],
+  tasks: [],
+};
+writeFileSync(join(keptPackage, 'board.local.json'), JSON.stringify(legacyBoardStore));
+const keptLocalBundle = join(keptPackage, 'shared', 'local.cjs');
+await build({
+  entryPoints: [new URL('../src/shared/local.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: keptLocalBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const KeptLocalClient = require(keptLocalBundle).LocalClient;
+process.env.HOME = keptHome;
+process.env.KANBAN_LOCAL_PATH = join(kept, 'elsewhere', 'board.local.json');
+const overrideBoard = await new KeptLocalClient({ projectKey: '/home/ana/proyectos/override' }).readBoard();
+assert.equal(overrideBoard.counts.total, 0, 'the override never reads the board beside the package');
+await new KeptLocalClient({ projectKey: '/home/ana/proyectos/override' }).createCard(
+  overrideBoard.lists[0].id,
+  'Con override',
+);
+assert.equal(overrideBoard.lists[0].cards.length, 0, 'the override starts from its own empty board');
+assert.equal(
+  readFileSync(join(keptPackage, 'board.local.json'), 'utf8'),
+  JSON.stringify(legacyBoardStore),
+  'nothing is written beside the package',
+);
+delete process.env.KANBAN_LOCAL_PATH;
+
+// A fresh process, the way OpenChamber starts the service: the data folder is
+// fixed when the module loads, so the merge is read from its own home.
+const mergeHome = join(kept, 'merge-home');
+mkdirSync(join(mergeHome, '.kanban'), { recursive: true });
+const mine = {
+  ...legacyBoardStore,
+  board: { id: 'local', name: 'Mío' },
+  cards: [{ ...legacyBoardStore.cards[0], id: 'card-mine', name: 'Tarjeta mía' }],
+};
+writeFileSync(join(mergeHome, '.kanban', 'board.local.json'), JSON.stringify(mine));
+const mergeCards = execFileSync(
+  process.execPath,
+  [
+    '-e',
+    'require(process.env.KEPT_LOCAL).LocalClient && new (require(process.env.KEPT_LOCAL).LocalClient)({}).readBoard().then((b) => process.stdout.write(JSON.stringify(b.lists.flatMap((l) => l.cards.map((c) => c.name)))));',
+  ],
+  { env: { ...process.env, HOME: mergeHome, KEPT_LOCAL: keptLocalBundle }, encoding: 'utf8' },
+);
+assert.deepEqual(JSON.parse(mergeCards), ['Tarjeta mía'], 'the board already in the data folder wins');
+assert.equal(
+  readFileSync(join(mergeHome, '.kanban', 'board.local.json'), 'utf8'),
+  JSON.stringify(mine),
+  'the user file is left byte for byte as it was',
+);
+
+// The MCP server is started by OpenCode, so it never sees the host's service
+// data folder. It must still read the same ~/.kanban as the service.
+process.env.HOME = keptHome;
+writeFileSync(join(keptHome, '.kanban', 'config.json'), JSON.stringify({ source: 'local' }));
+const mcpProject = join(kept, 'mcp-project');
+mkdirSync(mcpProject, { recursive: true });
+const mcpSlug = `mcp-project-${createHash('sha1').update(mcpProject).digest('hex').slice(0, 8)}`;
+writeFileSync(
+  join(keptHome, '.kanban', `board.local.${mcpSlug}.json`),
+  JSON.stringify({ ...legacyBoardStore, board: { id: 'local', name: 'Tablero del agente' }, cards: [] }),
+);
+const mcpBundle = join(kept, 'mcp.cjs');
+await build({
+  entryPoints: [new URL('../src/mcp/main.js', import.meta.url).pathname],
+  bundle: true,
+  outfile: mcpBundle,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const mcp = spawn(process.execPath, [mcpBundle], {
+  cwd: mcpProject,
+  env: { ...process.env, HOME: keptHome, OPENCHAMBER_SERVICE_DATA_DIR: join(kept, 'host-service-data') },
+  stdio: ['pipe', 'pipe', 'ignore'],
+});
+let mcpOut = '';
+mcp.stdout.on('data', (chunk) => {
+  mcpOut += chunk;
+});
+mcp.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })}\n`);
+mcp.stdin.write(
+  `${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'kanban_board', arguments: {} } })}\n`,
+);
+mcp.stdin.end();
+await new Promise((resolve) => mcp.on('exit', resolve));
+assert.ok(mcpOut.includes('Tablero del agente'), 'the MCP reads the same data folder as the service');
+assert.equal(existsSync(join(kept, 'host-service-data')), false, 'the host service folder is never used');
+
+if (localPathBefore === undefined) delete process.env.KANBAN_LOCAL_PATH;
+else process.env.KANBAN_LOCAL_PATH = localPathBefore;
+if (homeBefore === undefined) delete process.env.HOME;
+else process.env.HOME = homeBefore;
+
+console.log(`local mode: ${assertions} assertions ok`);

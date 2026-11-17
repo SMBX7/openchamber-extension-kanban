@@ -3,10 +3,10 @@
 // project pins for its agent sessions.
 import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { DATA_DIR } from './config.js';
 
-const DIR = join(homedir(), '.kanban');
+const DIR = DATA_DIR;
 const FILE = process.env.KANBAN_BOARD_PROJECTS_PATH || join(DIR, 'board-projects.json');
 
 const empty = () => ({ version: 1, boards: {}, projects: {} });

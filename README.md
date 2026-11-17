@@ -91,9 +91,10 @@ The first time, the panel asks for three things:
 | Email or user | Your Planka account |
 | Password | Your Planka password |
 
-The password is used once to request an access key and is not stored. The key stays in a
-configuration file next to the extension, on your machine, and is never uploaded. Then
-pick the Planka board and the OpenChamber project its sessions belong to.
+The password is used once to request an access key and is not stored. The key stays in
+`~/.kanban/config.json`, on your machine, and is never uploaded. It sits outside the
+extension's folder, so an update does not sign you out. Then pick the Planka board and
+the OpenChamber project its sessions belong to.
 
 ## Local board
 
@@ -109,7 +110,8 @@ stored on this machine.
 - **JSON copy** (Copia JSON) writes the complete board; it is the only format that can be
   loaded back with **Import a copy…** (Importar copia…).
 
-The file is written by the extension where OpenChamber runs, not by the browser.
+The files are written by the extension where OpenChamber runs, under `~/.kanban`, not by
+the browser. They sit outside the extension's folder, so an update does not lose them.
 
 <img src="docs/settings.png" width="460" alt="Connection: Planka or the local board">
 

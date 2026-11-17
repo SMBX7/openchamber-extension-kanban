@@ -80,6 +80,10 @@ Abrir **Ajustes → Extensiones** comprueba las instalaciones de git una vez por
 sigue `main`; añade `#v1.2.0` o `#stable` para fijar una etiqueta o una rama. Publicar
 una versión es subir el `version` de `package.json` y hacer push.
 
+La conexión con Planka y los tableros locales se guardan en `~/.kanban`, fuera de la
+carpeta que reemplaza la actualización, así que no tienes que volver a entrar ni a
+configurarla.
+
 ## Conectar con Planka
 
 La primera vez, el panel pide tres cosas:
@@ -91,9 +95,10 @@ La primera vez, el panel pide tres cosas:
 | Contraseña | Tu contraseña de Planka |
 
 La contraseña se usa una vez para pedir una llave de acceso y no se guarda. La llave
-queda en un archivo de configuración junto a la extensión, en tu equipo, y no se sube a
-ningún sitio. Después eliges el tablero de Planka y el proyecto de OpenChamber al que
-pertenecen sus sesiones.
+queda en `~/.kanban/config.json`, en tu equipo, y no se sube a ningún sitio. Está fuera
+de la carpeta de la extensión, así que una actualización no te saca de la sesión.
+Después eliges el tablero de Planka y el proyecto de OpenChamber al que pertenecen sus
+sesiones.
 
 ## Tablero local
 
@@ -109,7 +114,9 @@ equipo.
 - **Copia JSON** escribe el tablero completo; es el único formato que se puede volver a
   cargar con **Importar copia…**.
 
-El archivo lo escribe la extensión donde corre OpenChamber, no el navegador.
+Los archivos los escribe la extensión donde corre OpenChamber, en `~/.kanban`, no el
+navegador. Están fuera de la carpeta de la extensión, así que una actualización no los
+pierde.
 
 <img src="docs/settings.png" width="460" alt="Conexión: Planka o el tablero local">
 

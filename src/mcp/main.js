@@ -1,5 +1,6 @@
 // MCP stdio server for the Kanban extension. Same Planka client and the same
-// config.json as the service; cards are addressed by id or by part of a title.
+// config as the service (~/.kanban/config.json); cards are addressed by id or
+// by part of a title.
 import { readConfig } from '../shared/config.js';
 import { LOCAL_BOARD_ID, LocalClient } from '../shared/local.js';
 import { workListFor } from '../shared/defaults.js';

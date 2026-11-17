@@ -25,7 +25,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var import_node_http = __toESM(require("node:http"));
 var import_node_fs6 = require("node:fs");
 var import_node_async_hooks = require("node:async_hooks");
-var import_node_os4 = require("node:os");
+var import_node_os2 = require("node:os");
 var import_node_path6 = require("node:path");
 
 // node_modules/@openchamber/sdk/dist/scrollbar-style.js
@@ -293,9 +293,12 @@ var CONTROLLERS = new Set(SURFACE_CONTROLLERS);
 
 // src/shared/config.js
 var import_node_fs = require("node:fs");
+var import_node_os = require("node:os");
 var import_node_path = require("node:path");
 var ROOT = (0, import_node_path.resolve)(__dirname, "..");
-var CONFIG_PATH = (0, import_node_path.join)(ROOT, "config.json");
+var DATA_DIR = process.env.KANBAN_DATA_DIR || (0, import_node_path.join)((0, import_node_os.homedir)(), ".kanban");
+var CONFIG_PATH = process.env.KANBAN_CONFIG_PATH || (0, import_node_path.join)(DATA_DIR, "config.json");
+var LEGACY_CONFIG_PATH = (0, import_node_path.join)(ROOT, "config.json");
 var DEFAULT_BASE_URL = "http://127.0.0.1:3040";
 var EMPTY = {
   source: "planka",
@@ -316,7 +319,30 @@ var normalise = (value) => {
     boardName: typeof value?.boardName === "string" ? value.boardName : ""
   };
 };
+var persist = (value) => {
+  const dir = (0, import_node_path.dirname)(CONFIG_PATH);
+  (0, import_node_fs.mkdirSync)(dir, { recursive: true, mode: 448 });
+  const temp = (0, import_node_path.join)(dir, `.${process.pid}.config.json.tmp`);
+  (0, import_node_fs.writeFileSync)(temp, `${JSON.stringify(value, null, 2)}
+`, { mode: 384 });
+  (0, import_node_fs.renameSync)(temp, CONFIG_PATH);
+  try {
+    (0, import_node_fs.chmodSync)(CONFIG_PATH, 384);
+  } catch {
+  }
+};
+var adopted = false;
+var adoptLegacyConfig = () => {
+  if (adopted) return;
+  adopted = true;
+  if ((0, import_node_fs.existsSync)(CONFIG_PATH) || !(0, import_node_fs.existsSync)(LEGACY_CONFIG_PATH)) return;
+  try {
+    persist(normalise(JSON.parse((0, import_node_fs.readFileSync)(LEGACY_CONFIG_PATH, "utf8"))));
+  } catch {
+  }
+};
 var readConfig = () => {
+  adoptLegacyConfig();
   try {
     const parsed = JSON.parse((0, import_node_fs.readFileSync)(CONFIG_PATH, "utf8"));
     return normalise(parsed);
@@ -326,37 +352,22 @@ var readConfig = () => {
 };
 var isConnected = (config = readConfig()) => config.source === "local" || Boolean(config.token);
 var saveConfig = (patch) => {
-  const next = normalise({ ...readConfig(), ...patch });
   const previous = readConfig();
+  const next = normalise({ ...previous, ...patch });
   if (JSON.stringify(previous) === JSON.stringify(next)) return next;
-  const temp = (0, import_node_path.join)(ROOT, ".config.json.tmp");
-  (0, import_node_fs.writeFileSync)(temp, `${JSON.stringify(next, null, 2)}
-`, { mode: 384 });
-  (0, import_node_fs.renameSync)(temp, CONFIG_PATH);
-  try {
-    (0, import_node_fs.chmodSync)(CONFIG_PATH, 384);
-  } catch {
-  }
+  persist(next);
   return next;
 };
 var clearConfig = () => {
   const next = { ...EMPTY, baseUrl: readConfig().baseUrl };
-  const temp = (0, import_node_path.join)(ROOT, ".config.json.tmp");
-  (0, import_node_fs.writeFileSync)(temp, `${JSON.stringify(next, null, 2)}
-`, { mode: 384 });
-  (0, import_node_fs.renameSync)(temp, CONFIG_PATH);
-  try {
-    (0, import_node_fs.chmodSync)(CONFIG_PATH, 384);
-  } catch {
-  }
+  persist(next);
   return next;
 };
 
 // src/shared/links.js
 var import_node_fs2 = require("node:fs");
-var import_node_os = require("node:os");
 var import_node_path2 = require("node:path");
-var DIR = (0, import_node_path2.join)((0, import_node_os.homedir)(), ".kanban");
+var DIR = DATA_DIR;
 var FILE = (0, import_node_path2.join)(DIR, "links.json");
 var empty = () => ({ version: 1, links: {} });
 var readLinks = () => {
@@ -477,9 +488,8 @@ var listLinks = () => readLinks().links;
 // src/shared/board-projects.js
 var import_node_child_process = require("node:child_process");
 var import_node_fs3 = require("node:fs");
-var import_node_os2 = require("node:os");
 var import_node_path3 = require("node:path");
-var DIR2 = (0, import_node_path3.join)((0, import_node_os2.homedir)(), ".kanban");
+var DIR2 = DATA_DIR;
 var FILE2 = process.env.KANBAN_BOARD_PROJECTS_PATH || (0, import_node_path3.join)(DIR2, "board-projects.json");
 var empty2 = () => ({ version: 1, boards: {}, projects: {} });
 var normalize = (value) => String(value || "").trim().replace(/\/+$/, "");
@@ -611,9 +621,8 @@ var resolveProjectBoard = (directory) => {
 
 // src/shared/appearance.js
 var import_node_fs4 = require("node:fs");
-var import_node_os3 = require("node:os");
 var import_node_path4 = require("node:path");
-var DIR3 = (0, import_node_path4.join)((0, import_node_os3.homedir)(), ".kanban");
+var DIR3 = DATA_DIR;
 var FILE3 = (0, import_node_path4.join)(DIR3, "appearance.json");
 var HEX = /^#[0-9a-f]{6}$/i;
 var clean = (value) => {
@@ -1257,7 +1266,31 @@ var DEFAULT_LABELS = [
   { name: "Importante", color: "hsl(38 78% 58%)" },
   { name: "Idea", color: "hsl(210 70% 62%)" }
 ];
-var basePath = () => process.env.KANBAN_LOCAL_PATH || (0, import_node_path5.join)(ROOT, "board.local.json");
+var basePath = () => process.env.KANBAN_LOCAL_PATH || (0, import_node_path5.join)(DATA_DIR, "board.local.json");
+var legacyBoardFile = /^board\.local(\..+)?\.json$/;
+var adoptedBoards = false;
+var adoptLegacyBoards = () => {
+  if (adoptedBoards || process.env.KANBAN_LOCAL_PATH) return;
+  adoptedBoards = true;
+  if (ROOT === DATA_DIR) return;
+  let names;
+  try {
+    names = (0, import_node_fs5.readdirSync)(ROOT);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (!legacyBoardFile.test(name)) continue;
+    const target = (0, import_node_path5.join)(DATA_DIR, name);
+    if ((0, import_node_fs5.existsSync)(target)) continue;
+    try {
+      (0, import_node_fs5.mkdirSync)(DATA_DIR, { recursive: true, mode: 448 });
+      (0, import_node_fs5.copyFileSync)((0, import_node_path5.join)(ROOT, name), target);
+      (0, import_node_fs5.chmodSync)(target, 384);
+    } catch {
+    }
+  }
+};
 var projectSlug = (projectKey) => {
   const text = String(projectKey || "").trim().replace(/[\\/]+$/, "");
   if (!text) return "";
@@ -1356,7 +1389,8 @@ var normaliseStore = (value) => {
   };
 };
 var writeStore = (store, target) => {
-  const temp = `${target}.tmp`;
+  (0, import_node_fs5.mkdirSync)((0, import_node_path5.dirname)(target), { recursive: true, mode: 448 });
+  const temp = `${target}.${process.pid}.tmp`;
   (0, import_node_fs5.writeFileSync)(temp, `${JSON.stringify(store, null, 2)}
 `, { mode: 384 });
   (0, import_node_fs5.renameSync)(temp, target);
@@ -1383,6 +1417,7 @@ var migrateLegacyBoard = (projectKey) => {
   }
 };
 var readStore = (projectKey = "") => {
+  adoptLegacyBoards();
   migrateLegacyBoard(projectKey);
   try {
     return normaliseStore(JSON.parse((0, import_node_fs5.readFileSync)(localBoardPath(projectKey), "utf8")));
@@ -1392,6 +1427,7 @@ var readStore = (projectKey = "") => {
 };
 var withLock2 = async (projectKey, work) => {
   const lock = lockPath(projectKey);
+  (0, import_node_fs5.mkdirSync)((0, import_node_path5.dirname)(lock), { recursive: true, mode: 448 });
   const deadline = Date.now() + 2500;
   let handle = null;
   while (handle === null) {
@@ -2647,11 +2683,11 @@ var routes = {
       throw new PlankaError("La copia solo existe en el tablero local.", { kind: "validation" });
     }
     const format = body?.format === "md" || body?.format === "csv" ? body.format : "json";
-    const downloads = (0, import_node_path6.join)((0, import_node_os4.homedir)(), "Downloads");
+    const downloads = (0, import_node_path6.join)((0, import_node_os2.homedir)(), "Downloads");
     const dir = (0, import_node_fs6.existsSync)(downloads) ? downloads : ROOT;
     const file = (0, import_node_path6.join)(dir, `kanban-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.${format}`);
     (0, import_node_fs6.writeFileSync)(file, exportBoard(format, currentProject()), { mode: 384 });
-    return { path: file.replace((0, import_node_os4.homedir)(), "~"), name: (0, import_node_path6.basename)(file), format };
+    return { path: file.replace((0, import_node_os2.homedir)(), "~"), name: (0, import_node_path6.basename)(file), format };
   },
   "POST /local/import": async (body) => {
     if (readConfig().source !== "local") {
