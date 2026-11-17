@@ -82,7 +82,9 @@ una versión es subir el `version` de `package.json` y hacer push.
 
 La conexión con Planka y los tableros locales se guardan en `~/.kanban`, fuera de la
 carpeta que reemplaza la actualización, así que no tienes que volver a entrar ni a
-configurarla.
+configurarla. Si vienes de una versión anterior a la 1.9.1, esa última actualización te
+pedirá conectar Planka una vez: hasta entonces la configuración vivía dentro de la
+carpeta que se borra.
 
 ## Conectar con Planka
 

@@ -81,6 +81,11 @@ settings are kept. Without a suffix the URL follows `main`; add `#v1.2.0` or `#s
 pin a tag or branch. Publishing a version means bumping `version` in `package.json` and
 pushing.
 
+The Planka connection and the local boards live in `~/.kanban`, outside the folder the
+update replaces, so you do not have to sign in or configure them again. Coming from a
+version before 1.9.1, that last update asks you to connect Planka once: until then the
+settings lived inside the folder that gets deleted.
+
 ## Connecting to Planka
 
 The first time, the panel asks for three things:
