@@ -200,8 +200,28 @@ const normaliseStore = (value) => {
   };
 };
 
+const parses = (file) => {
+  try {
+    JSON.parse(readFileSync(file, 'utf8'));
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const savedAtOf = (file) => {
+  try {
+    return new Date(statSync(file).mtimeMs).toISOString();
+  } catch {
+    return '';
+  }
+};
+
 const writeStore = (store, target) => {
   mkdirSync(dirname(target), { recursive: true, mode: 0o700 });
+  // A file that is there and cannot be read is damaged: the last good copy must
+  // survive the write that replaces it.
+  const keepPrevious = !existsSync(target) || parses(target);
   const temp = `${target}.${process.pid}.tmp`;
   writeFileSync(temp, `${JSON.stringify(store, null, 2)}\n`, { mode: 0o600 });
   renameSync(temp, target);
@@ -213,6 +233,7 @@ const writeStore = (store, target) => {
   // The last good copy stays beside the board. An update that deletes the
   // package folder cannot reach this one, and a board that goes missing can be
   // put back instead of silently starting empty.
+  if (!keepPrevious) return;
   try {
     copyFileSync(target, `${target}.prev`);
   } catch {
@@ -254,32 +275,30 @@ const readStore = (projectKey = '') => {
   }
 };
 
-// An empty board and a lost board look the same from the data, and they are not
-// the same thing: the first is a project nobody wrote to, the second is a board
-// an update took away. `state` tells them apart and, when the board is gone and
-// a previous copy is here, the panel offers that copy back instead of drawing a
-// fresh empty board.
+// An empty board, a damaged board and a lost board all draw the same columns on
+// screen, and they are not the same thing: the first is a project nobody wrote
+// to, the others have a copy to go back to. `state` tells them apart, and
+// `canRestore` says whether the button can do anything.
 export const boardRecovery = (projectKey = '') => {
   const file = localBoardPath(projectKey);
   const previous = `${file}.prev`;
-  const present = existsSync(file);
-  if (present) return { state: 'ok', savedAt: '' };
-  if (!existsSync(previous)) return { state: 'new', savedAt: '' };
-  let savedAt = '';
-  try {
-    savedAt = new Date(statSync(previous).mtimeMs).toISOString();
-  } catch {
-    // The copy is there even if its date is not readable.
+  const copy = existsSync(previous);
+  const copyReadable = copy && parses(previous);
+  if (existsSync(file)) {
+    if (parses(file)) return { state: 'ok', savedAt: '', canRestore: false };
+    return { state: 'corrupt', savedAt: copyReadable ? savedAtOf(previous) : '', canRestore: copyReadable };
   }
-  return { state: 'missing', savedAt };
+  if (!copy) return { state: 'new', savedAt: '', canRestore: false };
+  return { state: 'missing', savedAt: copyReadable ? savedAtOf(previous) : '', canRestore: copyReadable };
 };
 
-// Put the previous copy back, only when the board file is absent: a board that
-// exists is never replaced by an older copy behind the user's back.
+// Put the previous copy back. It never replaces a board that can be read, and
+// it never copies a broken copy over a good one.
 export const restoreBoard = (projectKey = '') => {
   const file = localBoardPath(projectKey);
   const previous = `${file}.prev`;
-  if (existsSync(file) || !existsSync(previous)) return boardRecovery(projectKey);
+  const current = boardRecovery(projectKey);
+  if (current.state === 'ok' || !current.canRestore) return current;
   try {
     copyFileSync(previous, file);
     chmodSync(file, 0o600);

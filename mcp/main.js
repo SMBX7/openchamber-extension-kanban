@@ -812,8 +812,24 @@ var normaliseStore = (value) => {
     }))
   };
 };
+var parses = (file) => {
+  try {
+    JSON.parse((0, import_node_fs2.readFileSync)(file, "utf8"));
+    return true;
+  } catch {
+    return false;
+  }
+};
+var savedAtOf = (file) => {
+  try {
+    return new Date((0, import_node_fs2.statSync)(file).mtimeMs).toISOString();
+  } catch {
+    return "";
+  }
+};
 var writeStore = (store, target) => {
   (0, import_node_fs2.mkdirSync)((0, import_node_path2.dirname)(target), { recursive: true, mode: 448 });
+  const keepPrevious = !(0, import_node_fs2.existsSync)(target) || parses(target);
   const temp = `${target}.${process.pid}.tmp`;
   (0, import_node_fs2.writeFileSync)(temp, `${JSON.stringify(store, null, 2)}
 `, { mode: 384 });
@@ -822,6 +838,7 @@ var writeStore = (store, target) => {
     (0, import_node_fs2.chmodSync)(target, 384);
   } catch {
   }
+  if (!keepPrevious) return;
   try {
     (0, import_node_fs2.copyFileSync)(target, `${target}.prev`);
   } catch {
@@ -856,15 +873,14 @@ var readStore = (projectKey = "") => {
 var boardRecovery = (projectKey = "") => {
   const file = localBoardPath(projectKey);
   const previous = `${file}.prev`;
-  const present = (0, import_node_fs2.existsSync)(file);
-  if (present) return { state: "ok", savedAt: "" };
-  if (!(0, import_node_fs2.existsSync)(previous)) return { state: "new", savedAt: "" };
-  let savedAt = "";
-  try {
-    savedAt = new Date((0, import_node_fs2.statSync)(previous).mtimeMs).toISOString();
-  } catch {
+  const copy = (0, import_node_fs2.existsSync)(previous);
+  const copyReadable = copy && parses(previous);
+  if ((0, import_node_fs2.existsSync)(file)) {
+    if (parses(file)) return { state: "ok", savedAt: "", canRestore: false };
+    return { state: "corrupt", savedAt: copyReadable ? savedAtOf(previous) : "", canRestore: copyReadable };
   }
-  return { state: "missing", savedAt };
+  if (!copy) return { state: "new", savedAt: "", canRestore: false };
+  return { state: "missing", savedAt: copyReadable ? savedAtOf(previous) : "", canRestore: copyReadable };
 };
 var withLock = async (projectKey, work) => {
   const lock = lockPath(projectKey);
@@ -1426,9 +1442,15 @@ var context = async () => {
   const config = readConfig();
   if (config.source === "local") {
     const projectKey = process.cwd();
-    if (boardRecovery(projectKey).state === "missing") {
+    const recovery = boardRecovery(projectKey);
+    if (recovery.state === "missing") {
       throw new Error(
         "El tablero local de este proyecto no est\xE1 en disco, pero hay una copia guardada. Abre el panel de Kanban en esta sesi\xF3n y pulsa \xABRestaurar la copia\xBB; no voy a trabajar sobre un tablero vac\xEDo."
+      );
+    }
+    if (recovery.state === "corrupt") {
+      throw new Error(
+        "El tablero local de este proyecto est\xE1 da\xF1ado y no se puede leer. Abre el panel de Kanban en esta sesi\xF3n para recuperarlo; no voy a trabajar sobre un tablero vac\xEDo."
       );
     }
     return { client: new LocalClient({ ...config, projectKey }), boardId: LOCAL_BOARD_ID };

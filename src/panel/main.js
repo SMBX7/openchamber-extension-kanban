@@ -2292,7 +2292,7 @@ const renderRecovery = () => {
   const notice = state.refs?.notice;
   if (!notice) return;
   const recovery = state.snapshot?.recovery;
-  if (recovery?.state !== 'missing') {
+  if (!recovery || (recovery.state !== 'missing' && recovery.state !== 'corrupt')) {
     notice.hidden = true;
     notice.replaceChildren();
     return;
@@ -2313,17 +2313,19 @@ const renderRecovery = () => {
     }
   });
   const when = formatSavedAt(recovery.savedAt);
+  const damaged = recovery.state === 'corrupt';
+  let text;
+  if (damaged) {
+    text = when
+      ? `El tablero de este proyecto está dañado y no se puede leer. Hay una copia del ${when}.`
+      : 'El tablero de este proyecto está dañado y no se puede leer, y no hay ninguna copia que restaurar.';
+  } else if (when) {
+    text = `El tablero de este proyecto no está en disco. Hay una copia del ${when}: la actualización pudo moverla y no se ha borrado nada.`;
+  } else {
+    text = 'El tablero de este proyecto no está en disco, pero hay una copia que no se puede leer.';
+  }
   notice.hidden = false;
-  notice.replaceChildren(
-    el(
-      'div',
-      'recovery-text',
-      when
-        ? `El tablero de este proyecto no está en disco. Hay una copia del ${when}: la actualización pudo moverla y no se ha borrado nada.`
-        : 'El tablero de este proyecto no está en disco, pero hay una copia de seguridad.',
-    ),
-    restore,
-  );
+  notice.replaceChildren(el('div', 'recovery-text', text), ...(recovery.canRestore ? [restore] : []));
 };
 
 const renderBoard = () => {  const board = state.refs?.board;

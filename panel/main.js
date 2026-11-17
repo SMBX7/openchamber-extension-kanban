@@ -3898,7 +3898,7 @@ ${card.description}`.toLowerCase();
     const notice = state.refs?.notice;
     if (!notice) return;
     const recovery = state.snapshot?.recovery;
-    if (recovery?.state !== "missing") {
+    if (!recovery || recovery.state !== "missing" && recovery.state !== "corrupt") {
       notice.hidden = true;
       notice.replaceChildren();
       return;
@@ -3919,15 +3919,17 @@ ${card.description}`.toLowerCase();
       }
     });
     const when = formatSavedAt(recovery.savedAt);
+    const damaged = recovery.state === "corrupt";
+    let text;
+    if (damaged) {
+      text = when ? `El tablero de este proyecto est\xE1 da\xF1ado y no se puede leer. Hay una copia del ${when}.` : "El tablero de este proyecto est\xE1 da\xF1ado y no se puede leer, y no hay ninguna copia que restaurar.";
+    } else if (when) {
+      text = `El tablero de este proyecto no est\xE1 en disco. Hay una copia del ${when}: la actualizaci\xF3n pudo moverla y no se ha borrado nada.`;
+    } else {
+      text = "El tablero de este proyecto no est\xE1 en disco, pero hay una copia que no se puede leer.";
+    }
     notice.hidden = false;
-    notice.replaceChildren(
-      el2(
-        "div",
-        "recovery-text",
-        when ? `El tablero de este proyecto no est\xE1 en disco. Hay una copia del ${when}: la actualizaci\xF3n pudo moverla y no se ha borrado nada.` : "El tablero de este proyecto no est\xE1 en disco, pero hay una copia de seguridad."
-      ),
-      restore
-    );
+    notice.replaceChildren(el2("div", "recovery-text", text), ...recovery.canRestore ? [restore] : []);
   };
   var renderBoard = () => {
     const board = state.refs?.board;

@@ -86,3 +86,16 @@ The agent repair runs once per service start, before any panel read. The board
 copy is written after every successful save, so the copy always matches the last
 good state. Neither path deletes anything: the config keeps a `.kanban-backup`
 and boards keep `.prev`.
+
+L4 (independent verification, 2026-11-17): no blockers. S1-S5 met, S6 declared
+deferred. Five advisories, four of them acted on in the same branch:
+- a board that is present but unreadable now reports `corrupt` instead of `ok`,
+  the panel offers the copy, and a write over a damaged board no longer replaces
+  the last good copy (`writeStore` checks that the file it replaces can be read);
+- `restoreBoard` refuses a copy that cannot be parsed;
+- both `mcp.kanban` and `mcp.servers.kanban` are repaired, and a path is only
+  rewritten when every occurrence of it belongs to a `kanban` entry;
+- `OPENCODE_CONFIG` is read on top of the default file, not instead of it, and a
+  byte-order mark no longer stops the parse.
+The verifier's probes are now permanent cases in `scripts/test-updates.mjs`
+(69 assertions). Remaining advisory: panel rendering not checked in a browser.

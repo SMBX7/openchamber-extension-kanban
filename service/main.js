@@ -686,10 +686,9 @@ var normalPath = (value) => {
   }
 };
 var agentConfigFiles = (env = process.env, home = (0, import_node_os2.homedir)()) => {
-  const explicit = env.OPENCODE_CONFIG;
-  if (explicit) return (0, import_node_fs5.existsSync)(explicit) ? [explicit] : [];
   const configHome = env.XDG_CONFIG_HOME || (0, import_node_path5.join)(home, ".config");
   const files = [
+    env.OPENCODE_CONFIG,
     (0, import_node_path5.join)(configHome, "opencode", "opencode.jsonc"),
     (0, import_node_path5.join)(configHome, "opencode", "opencode.json")
   ];
@@ -832,14 +831,15 @@ var stalePathOf = (server2, installed) => {
   }
   return "";
 };
-var replaceOnce = (file, oldPath, newPath) => {
+var replacePaths = (file, oldPath, newPath, expected) => {
   const text = (0, import_node_fs5.readFileSync)(file, "utf8");
   const token = JSON.stringify(oldPath);
-  const parts = text.split(token);
-  if (parts.length !== 2) return { changed: false, reason: "ambiguous" };
+  const occurrences = text.split(token).length - 1;
+  if (occurrences === 0) return { changed: false, reason: "absent" };
+  if (occurrences !== expected) return { changed: false, reason: "ambiguous" };
   const backup = `${file}${BACKUP_SUFFIX}`;
   if (!(0, import_node_fs5.existsSync)(backup)) (0, import_node_fs5.copyFileSync)(file, backup);
-  const next = parts.join(JSON.stringify(newPath));
+  const next = text.split(token).join(JSON.stringify(newPath));
   const temp = `${file}.${process.pid}.agent.tmp`;
   (0, import_node_fs5.writeFileSync)(temp, next, { mode: (0, import_node_fs5.statSync)(file).mode });
   (0, import_node_fs5.renameSync)(temp, file);
@@ -860,7 +860,7 @@ var healAgentEntry = ({ env = process.env, home = (0, import_node_os2.homedir)()
     }
     let doc;
     try {
-      doc = parseJsonc(text);
+      doc = parseJsonc(text.replace(/^\uFEFF/, ""));
     } catch {
       entries.push({ file, state: "unreadable" });
       if (state === "absent" || state === "ok") state = "unreadable";
@@ -868,25 +868,42 @@ var healAgentEntry = ({ env = process.env, home = (0, import_node_os2.homedir)()
     }
     const servers = kanbanServers(doc);
     if (!servers.length) continue;
-    const stale = servers.map((server2) => stalePathOf(server2, installed)).find(Boolean);
-    if (!stale) {
+    const stalePaths = [...new Set(servers.map((server2) => stalePathOf(server2, installed)).filter(Boolean))];
+    if (!stalePaths.length) {
       if (state === "absent") state = "ok";
       entries.push({ file, state: "ok", path: installed });
       continue;
     }
     if (!installedReady) {
       if (state !== "fixed") state = "stale";
-      entries.push({ file, state: "stale", from: stale, to: installed });
+      entries.push({ file, state: "stale", from: stalePaths[0], to: installed });
       continue;
     }
-    const result = replaceOnce(file, stale, installed);
-    if (!result.changed) {
+    let fixed = false;
+    let blocked = "";
+    let backup = "";
+    for (const stale of stalePaths) {
+      const expected = servers.filter((server2) => stalePathOf(server2, installed) === stale).length;
+      const result = replacePaths(file, stale, installed, expected);
+      if (result.changed) {
+        fixed = true;
+        backup = result.backup || backup;
+        continue;
+      }
+      if (!blocked) blocked = result.reason === "ambiguous" ? stale : "";
+    }
+    if (fixed) {
+      state = "fixed";
+      entries.push({ file, state: "fixed", from: stalePaths[0], to: installed, backup });
+      continue;
+    }
+    if (blocked) {
       if (state !== "fixed") state = "ambiguous";
-      entries.push({ file, state: "ambiguous", from: stale, to: installed });
+      entries.push({ file, state: "ambiguous", from: blocked, to: installed });
       continue;
     }
-    state = "fixed";
-    entries.push({ file, state: "fixed", from: stale, to: installed, backup: result.backup });
+    if (state === "absent") state = "ok";
+    entries.push({ file, state: "ok", path: installed });
   }
   return { state, installed, files: paths, entries };
 };
@@ -1611,8 +1628,24 @@ var normaliseStore = (value) => {
     }))
   };
 };
+var parses = (file) => {
+  try {
+    JSON.parse((0, import_node_fs6.readFileSync)(file, "utf8"));
+    return true;
+  } catch {
+    return false;
+  }
+};
+var savedAtOf = (file) => {
+  try {
+    return new Date((0, import_node_fs6.statSync)(file).mtimeMs).toISOString();
+  } catch {
+    return "";
+  }
+};
 var writeStore = (store, target) => {
   (0, import_node_fs6.mkdirSync)((0, import_node_path6.dirname)(target), { recursive: true, mode: 448 });
+  const keepPrevious = !(0, import_node_fs6.existsSync)(target) || parses(target);
   const temp = `${target}.${process.pid}.tmp`;
   (0, import_node_fs6.writeFileSync)(temp, `${JSON.stringify(store, null, 2)}
 `, { mode: 384 });
@@ -1621,6 +1654,7 @@ var writeStore = (store, target) => {
     (0, import_node_fs6.chmodSync)(target, 384);
   } catch {
   }
+  if (!keepPrevious) return;
   try {
     (0, import_node_fs6.copyFileSync)(target, `${target}.prev`);
   } catch {
@@ -1655,20 +1689,20 @@ var readStore = (projectKey = "") => {
 var boardRecovery = (projectKey = "") => {
   const file = localBoardPath(projectKey);
   const previous = `${file}.prev`;
-  const present = (0, import_node_fs6.existsSync)(file);
-  if (present) return { state: "ok", savedAt: "" };
-  if (!(0, import_node_fs6.existsSync)(previous)) return { state: "new", savedAt: "" };
-  let savedAt = "";
-  try {
-    savedAt = new Date((0, import_node_fs6.statSync)(previous).mtimeMs).toISOString();
-  } catch {
+  const copy = (0, import_node_fs6.existsSync)(previous);
+  const copyReadable = copy && parses(previous);
+  if ((0, import_node_fs6.existsSync)(file)) {
+    if (parses(file)) return { state: "ok", savedAt: "", canRestore: false };
+    return { state: "corrupt", savedAt: copyReadable ? savedAtOf(previous) : "", canRestore: copyReadable };
   }
-  return { state: "missing", savedAt };
+  if (!copy) return { state: "new", savedAt: "", canRestore: false };
+  return { state: "missing", savedAt: copyReadable ? savedAtOf(previous) : "", canRestore: copyReadable };
 };
 var restoreBoard = (projectKey = "") => {
   const file = localBoardPath(projectKey);
   const previous = `${file}.prev`;
-  if ((0, import_node_fs6.existsSync)(file) || !(0, import_node_fs6.existsSync)(previous)) return boardRecovery(projectKey);
+  const current = boardRecovery(projectKey);
+  if (current.state === "ok" || !current.canRestore) return current;
   try {
     (0, import_node_fs6.copyFileSync)(previous, file);
     (0, import_node_fs6.chmodSync)(file, 384);

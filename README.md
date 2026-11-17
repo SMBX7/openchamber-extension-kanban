@@ -83,8 +83,8 @@ pushing.
 
 The Planka connection and the local boards live in `~/.kanban`, outside the folder the
 update replaces, so an update does not sign you out or take a board with it. Every board
-also keeps its last good copy beside it: if a board file ever goes missing, the panel
-says so and offers that copy back instead of showing an empty board.
+also keeps its last good copy beside it: if a board file ever goes missing or is
+damaged, the panel says so and offers that copy back instead of showing an empty board.
 
 The agent is the part that lives outside the extension. OpenCode starts its Kanban tools
 from a path written into OpenCode's own config, and a running OpenCode keeps the version

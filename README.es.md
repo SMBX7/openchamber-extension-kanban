@@ -83,7 +83,7 @@ una versión es subir el `version` de `package.json` y hacer push.
 La conexión con Planka y los tableros locales se guardan en `~/.kanban`, fuera de la
 carpeta que reemplaza la actualización, así que una actualización no te saca de la sesión
 ni se lleva un tablero. Además, cada tablero guarda su última copia buena al lado: si un
-archivo desaparece, el panel lo dice y ofrece esa copia en vez de enseñar un tablero
+archivo desaparece o se daña, el panel lo dice y ofrece esa copia en vez de enseñar un tablero
 vacío.
 
 El agente es la parte que vive fuera de la extensión. OpenCode arranca sus herramientas

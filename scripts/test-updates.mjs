@@ -129,7 +129,15 @@ mkdirSync(join(home, '.config', 'opencode'), { recursive: true });
 writeFileSync(join(home, '.config', 'opencode', 'opencode.jsonc'), '{}');
 const found = agentConfigFiles({ XDG_CONFIG_HOME: '' }, home);
 assert.deepEqual(found, [join(home, '.config', 'opencode', 'opencode.jsonc')]);
-assert.deepEqual(agentConfigFiles({ OPENCODE_CONFIG: config }, home), [config]);
+// OPENCODE_CONFIG is added on top of the default file, not instead of it.
+assert.deepEqual(agentConfigFiles({ OPENCODE_CONFIG: config }, home), [
+  config,
+  join(home, '.config', 'opencode', 'opencode.jsonc'),
+]);
+const noConfig = join(root, 'probe', 'nocfg', 'opencode.json');
+assert.ok(!agentConfigFiles({ OPENCODE_CONFIG: noConfig }, join(root, 'nada')).includes(noConfig));
+assert.equal(healAgentEntry({ env: { OPENCODE_CONFIG: noConfig }, home: join(root, 'nada') }).state, 'absent');
+assert.ok(!existsSync(noConfig), 'a config that is not there is never created');
 
 // --- The board: a lost board is offered back, never replaced by a silent empty one.
 const boardsDir = join(root, 'boards');
@@ -200,5 +208,86 @@ const probe = spawnSync(process.execPath, [new URL('../mcp/main.js', import.meta
 });
 assert.match(probe.stdout, /Restaurar la copia/, 'the agent says how to bring the board back');
 assert.match(probe.stdout, /"isError":true/, 'the agent does not answer with an empty board');
+
+// --- More shapes an entry can have, all repaired the same way.
+const asString = write(
+  'probe/string/opencode.json',
+  '{"mcp":{"kanban":{"command":"/old/kanban/mcp/main.js"},"x":{"command":["node","/other/mcp/main.js"]}}}',
+);
+assert.equal(healAgentEntry({ files: [asString] }).state, 'fixed');
+assert.equal(
+  read(asString),
+  `{"mcp":{"kanban":{"command":${JSON.stringify(installed)}},"x":{"command":["node","/other/mcp/main.js"]}}}`,
+);
+
+const disabled = write(
+  'probe/disabled/opencode.json',
+  '{"mcp":{"kanban":{"type":"local","enabled":false,"command":["node","/old/kanban/mcp/main.js"]}}}',
+);
+assert.equal(healAgentEntry({ files: [disabled] }).state, 'fixed');
+assert.ok(read(disabled).includes('"enabled":false'), 'the rest of the entry is kept');
+
+const serversShape = write(
+  'probe/servers/opencode.json',
+  '{"mcp":{"servers":{"kanban":{"command":["node","/old/kanban/mcp/main.js"]}}}}',
+);
+assert.equal(healAgentEntry({ files: [serversShape] }).state, 'fixed');
+assert.ok(read(serversShape).includes(JSON.stringify(installed)));
+
+// Two containers can name the same server: both are repaired.
+const bothContainers = write(
+  'probe/both/opencode.json',
+  '{"mcp":{"kanban":{"command":["node","/first/kanban/mcp/main.js"]},"servers":{"kanban":{"command":["node","/second/kanban/mcp/main.js"]}}}}',
+);
+assert.equal(healAgentEntry({ files: [bothContainers] }).state, 'fixed');
+assert.equal(read(bothContainers).split(JSON.stringify(installed)).length - 1, 2, 'every kanban entry is repaired');
+
+// A path that is a prefix of a sibling file changes only its own entry.
+const shared = '/opt/kanban/mcp/main.js';
+const prefixes = write(
+  'probe/prefix/opencode.json',
+  `{"mcp":{"kanban":{"command":["node","${shared}","--log=${shared}.log"]},"bak":{"command":["node","${shared}.bak"]}},"note":"${shared}.old"}`,
+);
+assert.equal(healAgentEntry({ files: [prefixes] }).state, 'fixed');
+assert.ok(read(prefixes).includes(`"node",${JSON.stringify(installed)}`), "the kanban path itself is repaired");
+assert.ok(read(prefixes).includes(`"--log=${shared}.log"`), "a sibling path is not touched");
+assert.ok(read(prefixes).includes(`"${shared}.bak"`));
+assert.ok(read(prefixes).includes(`"${shared}.old"`));
+
+// A comment inside the command array survives, and a byte-order mark is tolerated.
+const block = `\uFEFF{\n  "mcp": {\n    "kanban": {\n      "command": [\n        "node", /* runner */\n        "${stale}",\n      ],\n    },\n  },\n}\n`;
+const blocked = write('probe/block/opencode.jsonc', block);
+assert.equal(healAgentEntry({ files: [blocked] }).state, 'fixed');
+assert.equal(read(blocked), block.replace(`"${stale}"`, JSON.stringify(installed)));
+
+// --- A damaged board is reported, and its good copy survives the next write.
+const damagedProject = join(root, 'proyecto-danado');
+const damagedClient = new LocalClient({ projectKey: damagedProject });
+await damagedClient.createCard((await damagedClient.readBoard()).lists[0].id, 'La buena');
+const damagedFile = localBoardPath(damagedProject);
+writeFileSync(damagedFile, '{"corrupt": ');
+const damaged = boardRecovery(damagedProject);
+assert.equal(damaged.state, 'corrupt');
+assert.equal(damaged.canRestore, true);
+assert.ok(damaged.savedAt.length > 0, 'the panel can date the copy');
+
+await damagedClient.createCard((await damagedClient.readBoard()).lists[0].id, 'Otra');
+const keptAfterDamage = readFileSync(`${damagedFile}.prev`, 'utf8');
+assert.ok(keptAfterDamage.includes('La buena'), 'the good copy is not overwritten by a write over a damaged board');
+assert.ok(!keptAfterDamage.includes('Otra'));
+
+writeFileSync(damagedFile, '{"corrupt": ');
+assert.equal(restoreBoard(damagedProject).state, 'ok');
+assert.ok(readFileSync(damagedFile, 'utf8').includes('La buena'));
+
+// --- A broken copy is never copied over the board.
+const brokenCopy = join(root, 'proyecto-copia-rota');
+writeFileSync(localBoardPath(brokenCopy), '{"corrupt": ');
+writeFileSync(`${localBoardPath(brokenCopy)}.prev`, 'not json at all');
+const brokenState = boardRecovery(brokenCopy);
+assert.equal(brokenState.state, 'corrupt');
+assert.equal(brokenState.canRestore, false, 'a copy that cannot be read offers no button');
+assert.equal(restoreBoard(brokenCopy).state, 'corrupt');
+assert.equal(readFileSync(localBoardPath(brokenCopy), 'utf8'), '{"corrupt": ');
 
 console.log(`update safety: ${assertions} assertions OK`);

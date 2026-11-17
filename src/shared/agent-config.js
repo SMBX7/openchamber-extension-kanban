@@ -33,13 +33,13 @@ const normalPath = (value) => {
   }
 };
 
-// Where OpenCode reads its config. An explicit OPENCODE_CONFIG replaces the
-// default file, so nothing else is read then. Never created here.
+// Where OpenCode reads its config. An explicit OPENCODE_CONFIG is added on top
+// of the default file, it does not replace it, so both are read. Never created
+// here.
 export const agentConfigFiles = (env = process.env, home = homedir()) => {
-  const explicit = env.OPENCODE_CONFIG;
-  if (explicit) return existsSync(explicit) ? [explicit] : [];
   const configHome = env.XDG_CONFIG_HOME || join(home, '.config');
   const files = [
+    env.OPENCODE_CONFIG,
     join(configHome, 'opencode', 'opencode.jsonc'),
     join(configHome, 'opencode', 'opencode.json'),
   ];
@@ -191,14 +191,18 @@ const stalePathOf = (server, installed) => {
   return '';
 };
 
-const replaceOnce = (file, oldPath, newPath) => {
+const replacePaths = (file, oldPath, newPath, expected) => {
   const text = readFileSync(file, 'utf8');
   const token = JSON.stringify(oldPath);
-  const parts = text.split(token);
-  if (parts.length !== 2) return { changed: false, reason: 'ambiguous' };
+  const occurrences = text.split(token).length - 1;
+  // Every occurrence must belong to a `kanban` entry. One more means the same
+  // path also lives in a server that is not ours, and guessing is worse than
+  // leaving the file alone.
+  if (occurrences === 0) return { changed: false, reason: 'absent' };
+  if (occurrences !== expected) return { changed: false, reason: 'ambiguous' };
   const backup = `${file}${BACKUP_SUFFIX}`;
   if (!existsSync(backup)) copyFileSync(file, backup);
-  const next = parts.join(JSON.stringify(newPath));
+  const next = text.split(token).join(JSON.stringify(newPath));
   const temp = `${file}.${process.pid}.agent.tmp`;
   writeFileSync(temp, next, { mode: statSync(file).mode });
   renameSync(temp, file);
@@ -229,7 +233,8 @@ export const healAgentEntry = ({ env = process.env, home = homedir(), files } = 
     }
     let doc;
     try {
-      doc = parseJsonc(text);
+      // A byte-order mark is not a comment: OpenCode tolerates one, and so do we.
+      doc = parseJsonc(text.replace(/^\uFEFF/, ''));
     } catch {
       entries.push({ file, state: 'unreadable' });
       if (state === 'absent' || state === 'ok') state = 'unreadable';
@@ -237,25 +242,44 @@ export const healAgentEntry = ({ env = process.env, home = homedir(), files } = 
     }
     const servers = kanbanServers(doc);
     if (!servers.length) continue;
-    const stale = servers.map((server) => stalePathOf(server, installed)).find(Boolean);
-    if (!stale) {
+    const stalePaths = [...new Set(servers.map((server) => stalePathOf(server, installed)).filter(Boolean))];
+    if (!stalePaths.length) {
       if (state === 'absent') state = 'ok';
       entries.push({ file, state: 'ok', path: installed });
       continue;
     }
     if (!installedReady) {
       if (state !== 'fixed') state = 'stale';
-      entries.push({ file, state: 'stale', from: stale, to: installed });
+      entries.push({ file, state: 'stale', from: stalePaths[0], to: installed });
       continue;
     }
-    const result = replaceOnce(file, stale, installed);
-    if (!result.changed) {
+    let fixed = false;
+    let blocked = '';
+    let backup = '';
+    for (const stale of stalePaths) {
+      // How many `kanban` entries name this path: the only occurrences the
+      // rewrite is allowed to find.
+      const expected = servers.filter((server) => stalePathOf(server, installed) === stale).length;
+      const result = replacePaths(file, stale, installed, expected);
+      if (result.changed) {
+        fixed = true;
+        backup = result.backup || backup;
+        continue;
+      }
+      if (!blocked) blocked = result.reason === 'ambiguous' ? stale : '';
+    }
+    if (fixed) {
+      state = 'fixed';
+      entries.push({ file, state: 'fixed', from: stalePaths[0], to: installed, backup });
+      continue;
+    }
+    if (blocked) {
       if (state !== 'fixed') state = 'ambiguous';
-      entries.push({ file, state: 'ambiguous', from: stale, to: installed });
+      entries.push({ file, state: 'ambiguous', from: blocked, to: installed });
       continue;
     }
-    state = 'fixed';
-    entries.push({ file, state: 'fixed', from: stale, to: installed, backup: result.backup });
+    if (state === 'absent') state = 'ok';
+    entries.push({ file, state: 'ok', path: installed });
   }
 
   return { state, installed, files: paths, entries };

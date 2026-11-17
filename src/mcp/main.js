@@ -40,12 +40,18 @@ const context = async () => {
     // The host starts this server in the session's project directory, which is
     // the key the service also uses for the per-project local board.
     const projectKey = process.cwd();
-    // A board file that is gone while a copy sits beside it is a board an update
-    // took away, not a new project. Refusing here keeps the agent from writing
-    // cards into a fresh empty board that would then hide the copy.
-    if (boardRecovery(projectKey).state === 'missing') {
+    // A board that is gone or damaged while a copy sits beside it is a board
+    // that needs restoring, not a new project. Refusing here keeps the agent
+    // from writing cards into a fresh empty board that would then hide the copy.
+    const recovery = boardRecovery(projectKey);
+    if (recovery.state === 'missing') {
       throw new Error(
         'El tablero local de este proyecto no está en disco, pero hay una copia guardada. Abre el panel de Kanban en esta sesión y pulsa «Restaurar la copia»; no voy a trabajar sobre un tablero vacío.',
+      );
+    }
+    if (recovery.state === 'corrupt') {
+      throw new Error(
+        'El tablero local de este proyecto está dañado y no se puede leer. Abre el panel de Kanban en esta sesión para recuperarlo; no voy a trabajar sobre un tablero vacío.',
       );
     }
     return { client: new LocalClient({ ...config, projectKey }), boardId: LOCAL_BOARD_ID };
