@@ -101,8 +101,8 @@ const resolveList = async (client, boardId, reference) => {
   );
 };
 
-// The names are the public contract: the agent's instructions, the mention text
-// and the README all use them, so they do not change when the delivery does.
+// The names are the public contract: the agent's instructions, the citation
+// text and the README all use them, so they do not change when the delivery does.
 export const AGENT_TOOLS = [
   {
     name: 'kanban_board',

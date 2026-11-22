@@ -83,100 +83,26 @@
       html[data-style="neumorphism"] .sheet {
         box-shadow: -14px 0 34px rgba(0, 0, 0, .32);
       }
+      /* Neumorfismo: el brillo de menta se apoya en el relieve del resto. */
+      html[data-style="neumorphism"] .scroll-top:not(:disabled) {
+        box-shadow:
+          0 0 0 1px color-mix(in srgb, var(--mint) 42%, transparent),
+          0 0 10px -1px color-mix(in srgb, var(--mint) 45%, transparent),
+          var(--relief-btn);
+      }
+      html[data-style="neumorphism"] .scroll-top:not(:disabled):hover {
+        box-shadow:
+          0 0 0 1px color-mix(in srgb, var(--mint) 60%, transparent),
+          0 0 14px -1px color-mix(in srgb, var(--mint) 60%, transparent),
+          var(--relief-btn);
+      }
+      html[data-style="neumorphism"] .scroll-top:not(:disabled):active {
+        box-shadow: var(--relief-inset);
+      }
+      html[data-style="neumorphism"] .scroll-top:disabled { box-shadow: none; }
       html[data-style="neumorphism"] .menu-select-menu {
         box-shadow: 8px 8px 22px rgba(0, 0, 0, .38), -4px -4px 14px rgba(255, 255, 255, .035);
       }
-      html[data-style="neumorphism"] .sort-pop {
-        box-shadow: 8px 8px 22px rgba(0, 0, 0, .38), -4px -4px 14px rgba(255, 255, 255, .035);
-      }
-
-      /* Brutalismo: gris claro, esquinas rectas, sombras sólidas */
-      html[data-style="brutalism"] {
-        --kanban-radius: 0px;
-        --card-radius: 0px;
-        --brutal-line: color-mix(in srgb, var(--oc-fg) 55%, transparent);
-        --relief-btn: 2px 2px 0 var(--brutal-line);
-        --relief-inset: none;
-      }
-      html[data-style="brutalism"] *:not(.col-dot):not(.board-dot):not(.brand-dot):not(.dot):not(.label-dot):not(.session-dot) {
-        border-radius: 0;
-      }
-      html[data-style="brutalism"] .column {
-        border: 2px solid var(--brutal-line);
-        background: var(--oc-elevated);
-        box-shadow: 6px 6px 0 rgba(0, 0, 0, .40);
-        padding-bottom: 10px;
-      }
-      html[data-style="brutalism"] .card {
-        border: 2px solid var(--brutal-line);
-        box-shadow: 3px 3px 0 var(--brutal-line);
-      }
-      html[data-style="brutalism"] .card-title { font-weight: 700; }
-      html[data-style="brutalism"] .card-actions { opacity: 1; }
-      html[data-style="brutalism"] .card-edit,
-      html[data-style="brutalism"] .card-delete {
-        border: 2px solid var(--brutal-line); background: var(--oc-elevated); color: var(--oc-fg);
-        box-shadow: 2px 2px 0 var(--brutal-line);
-      }
-      html[data-style="brutalism"] .add-card,
-      html[data-style="brutalism"] .col-add {
-        width: 26px; height: 26px; opacity: 1;
-        border: 2px solid var(--brutal-line); background: var(--oc-elevated); color: var(--oc-fg);
-        box-shadow: 2px 2px 0 var(--brutal-line);
-      }
-      html[data-style="brutalism"] .sheet { border-left: 3px solid var(--brutal-line); }
-
-
-      html[data-style="brutalism"] .field input,
-      html[data-style="brutalism"] .field select,
-      html[data-style="brutalism"] .search-input,
-      html[data-style="brutalism"] .mini-select,
-      html[data-style="brutalism"] .settings-textarea,
-      html[data-style="brutalism"] .description,
-      html[data-style="brutalism"] .session-select,
-      html[data-style="brutalism"] .task-add input,
-      html[data-style="brutalism"] .composer-field {
-        background-color: var(--oc-elevated);
-        border: 2px solid var(--brutal-line);
-        box-shadow: 2px 2px 0 var(--brutal-line);
-      }
-      html[data-style="brutalism"] .settings-box,
-      html[data-style="brutalism"] .login-card {
-        background: var(--oc-elevated);
-        border: 2px solid var(--brutal-line);
-        box-shadow: 4px 4px 0 var(--brutal-line);
-      }
-      html[data-style="brutalism"] .mode-card,
-      html[data-style="brutalism"] .style-card,
-      html[data-style="brutalism"] .source-btn {
-        border-width: 2px;
-        box-shadow: 2px 2px 0 var(--brutal-line);
-      }
-      html[data-style="brutalism"] .mode-card:not([aria-pressed="true"]),
-      html[data-style="brutalism"] .style-card:not([aria-pressed="true"]),
-      html[data-style="brutalism"] .source-btn:not([aria-pressed="true"]) {
-        border-color: var(--brutal-line);
-      }
-      html[data-style="brutalism"] .mode-card::before { border-radius: 0; }
-      html[data-style="brutalism"] .menu-select-menu,
-      html[data-style="brutalism"] .undo-bar,
-      html[data-style="brutalism"] .sort-pop {
-        border: 2px solid var(--brutal-line);
-        box-shadow: 4px 4px 0 var(--brutal-line);
-      }
-      html[data-style="brutalism"] .col-sort {
-        border: 2px solid var(--brutal-line);
-        background: var(--oc-elevated);
-        color: var(--oc-fg);
-        opacity: 1;
-      }
-
-
-      html[data-style="brutalism"] .settings-section:not(:first-child),
-      html[data-style="brutalism"] .sheet-foot {
-        border-top: 2px solid var(--brutal-line);
-      }
-      html[data-style="brutalism"] .settings-heading::before { border-radius: 0; }
 
       /* Cristal */
       html[data-style="glass"] {
@@ -225,9 +151,10 @@
       html[data-style="glass"] .sheet-title,
       html[data-style="glass"] .field input,
       html[data-style="glass"] .field select { border-radius: 14px; }
-      /* The card action is a 20px square; in glass the rest of the buttons are
-         pills, so it becomes a circle instead of staying square. */
-      html[data-style="glass"] .card-edit { border-radius: 999px; }
+      /* The card actions are 20px squares; in glass the rest of the buttons are
+         pills, so they become circles instead of staying square. */
+      html[data-style="glass"] .card-edit,
+      html[data-style="glass"] .card-cite { border-radius: 999px; }
 
 
       html[data-style="glass"] .field input,
@@ -279,20 +206,12 @@
         -webkit-backdrop-filter: blur(18px) saturate(150%);
         backdrop-filter: blur(18px) saturate(150%);
       }
-      html[data-style="glass"] .sort-pop {
-        background:
-          linear-gradient(150deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)),
-          color-mix(in srgb, var(--oc-elevated) 78%, transparent);
-        border-color: rgba(255, 255, 255, .18);
-        -webkit-backdrop-filter: blur(18px) saturate(150%);
-        backdrop-filter: blur(18px) saturate(150%);
-      }
-      html[data-style="glass"] .col-sort { border-radius: 10px; }
 
 
       html[data-style="glass"] .add-card,
       html[data-style="glass"] .col-add,
       html[data-style="glass"] .card-edit,
+      html[data-style="glass"] .card-cite,
       html[data-style="glass"] .card-delete,
       html[data-style="glass"] .card-done {
         border-radius: 10px;
@@ -303,9 +222,19 @@
         -webkit-backdrop-filter: blur(16px) saturate(150%);
         backdrop-filter: blur(16px) saturate(150%);
       }
+      /* Cristal: el mismo vidrio, teñido de menta y con su brillo suave. */
+      html[data-style="glass"] .scroll-top:not(:disabled) {
+        background: color-mix(in srgb, var(--mint) 12%, transparent);
+        border-color: color-mix(in srgb, var(--mint) 48%, rgba(255, 255, 255, .18));
+        -webkit-backdrop-filter: blur(8px) saturate(150%);
+        backdrop-filter: blur(8px) saturate(150%);
+      }
+      html[data-style="glass"] .scroll-top:not(:disabled):hover {
+        background: color-mix(in srgb, var(--mint) 20%, transparent);
+      }
+      html[data-style="glass"] .scroll-top:disabled { background: transparent; }
 
       html[data-style="neumorphism"] .column.drop-target,
-      html[data-style="brutalism"] .column.drop-target,
       html[data-style="glass"] .column.drop-target {
         background: color-mix(in srgb, var(--oc-elevated) 82%, var(--column-tone, var(--mint)) 18%);
         border-color: var(--column-tone, var(--mint));
@@ -317,6 +246,7 @@
       html[data-style="glass"] .menu-select-button:hover,
       html[data-style="glass"] .source-btn:not([aria-pressed="true"]):hover,
       html[data-style="glass"] .card-edit:hover,
+      html[data-style="glass"] .card-cite:hover,
       html[data-style="glass"] .card-done:hover,
       html[data-style="glass"] .add-card:hover,
       html[data-style="glass"] .col-add:hover,
@@ -325,6 +255,154 @@
       html[data-style="glass"] .mode-card:hover:not(:disabled):not([aria-pressed="true"]),
       html[data-style="glass"] .style-card:hover:not([aria-pressed="true"]) {
         background: rgba(255, 255, 255, .07);
+      }
+
+      /* Sketch: el borde dice dónde está la tarjeta. Discontinuo en IDEAS,
+         continuo en EN PROGRESO y ni borde ni color en HECHO. El trazo
+         discontinuo se reserva a la idea: si los campos, las columnas o los
+         botones también lo llevaran, dejaría de significar algo. */
+      html[data-style="sketch"] {
+        --kanban-radius: 12px;
+        --card-radius: 13px;
+        --sketch-line: color-mix(in srgb, var(--oc-fg) 30%, transparent);
+        --relief-btn: 2px 2px 0 var(--sketch-line);
+        --relief-inset: none;
+      }
+      /* La columna no se tiñe ni se discontinúa: el color vive en el punto de
+         la cabecera y en el borde de la tarjeta. */
+      html[data-style="sketch"] .column {
+        border: 1px solid var(--sketch-line);
+        border-radius: 14px 16px 14px 15px;
+        background: var(--oc-elevated);
+        box-shadow: none;
+      }
+      html[data-style="sketch"] .col-head { background: transparent; }
+      /* Sketch: una pieza de papel más, con su trazo y un halo apenas visible. */
+      html[data-style="sketch"] .scroll-top:not(:disabled) {
+        border: 1.5px solid color-mix(in srgb, var(--mint) 55%, var(--sketch-line));
+        border-radius: 7px 10px 6px 11px;
+        background: color-mix(in srgb, var(--mint) 10%, var(--oc-elevated));
+        color: var(--mint-text, var(--mint));
+        box-shadow: 2px 2px 0 var(--sketch-line), 0 0 9px -1px color-mix(in srgb, var(--mint) 35%, transparent);
+      }
+      html[data-style="sketch"] .scroll-top:not(:disabled):hover {
+        background: color-mix(in srgb, var(--mint) 18%, var(--oc-elevated));
+        box-shadow: 2px 2px 0 var(--sketch-line), 0 0 13px -1px color-mix(in srgb, var(--mint) 45%, transparent);
+      }
+      html[data-style="sketch"] .scroll-top:not(:disabled):active { box-shadow: none; }
+      html[data-style="sketch"] .scroll-top:disabled {
+        border: 1px solid var(--sketch-line);
+        background: var(--oc-elevated);
+        box-shadow: 2px 2px 0 var(--sketch-line);
+      }
+
+      html[data-style="sketch"] .card {
+        border: 1.5px solid var(--sketch-line);
+        border-radius: 16px 23px 18px 12px;
+        box-shadow: none;
+      }
+      /* Alternating corners: the grid is regular, the paper is not. */
+      html[data-style="sketch"] .card:nth-child(even) {
+        border-radius: 21px 13px 23px 16px;
+      }
+      /* IDEAS: sin decidir. Trazo discontinuo con el tono de su columna, y sin
+         sombra: el desplazamiento de una sombra dura coincide con el paso del
+         trazo y la tarjeta se lee como una doble línea. */
+      html[data-style="sketch"] .column[data-state="ideas"] .card {
+        border: 2px dashed color-mix(in srgb, var(--column-tone, var(--oc-muted)) 52%, var(--sketch-line));
+      }
+      /* EN PROGRESO: en la mano. Trazo continuo, el tono un poco más vivo y el
+         único peso de la pantalla. */
+      html[data-style="sketch"] .column[data-state="progress"] .card {
+        border: 2px solid color-mix(in srgb, var(--column-tone, var(--mint)) 58%, var(--sketch-line));
+        box-shadow: 3px 3px 0 rgba(0, 0, 0, .30);
+      }
+      /* HECHO: cerrada. Sin borde, sin sombra y hundida un punto sobre la
+         columna. El gris va en el texto, no en la opacidad de la tarjeta: bajar
+         opacity, o dejar el fondo claro, hunde el contraste por debajo de 4.5
+         y hace ilegible el título. */
+      html[data-style="sketch"] .column[data-state="done"] .card {
+        border: 0;
+        box-shadow: none;
+        background: color-mix(in srgb, var(--oc-bg) 38%, transparent);
+      }
+      html[data-style="sketch"] .column[data-state="done"] .card .card-title,
+      html[data-style="sketch"] .column[data-state="done"] .card .card-meta,
+      html[data-style="sketch"] .column[data-state="done"] .card .card-desc {
+        color: var(--oc-muted);
+        font-weight: 500;
+      }
+      html[data-style="sketch"] .column[data-state="done"] .cards { gap: 4px; }
+
+      html[data-style="sketch"] .card-title { font-weight: 650; letter-spacing: .01em; }
+      html[data-style="sketch"] .card-actions { opacity: 1; }
+      /* El meta (checklist, fecha) se quedaba en 4.23:1 sobre la tarjeta, por
+         debajo de AA. Un pelo más de tinta lo lleva a 4.88 sin cambiar el tono. */
+      html[data-style="sketch"] .card-meta {
+        color: color-mix(in srgb, var(--oc-muted) 85%, var(--oc-fg));
+      }
+
+      /* El único resto de trazo discontinuo: un hueco que todavía no es tarjeta. */
+      html[data-style="sketch"] .column-hint {
+        border: 1.5px dashed var(--sketch-line);
+        border-radius: 10px 14px 11px 15px;
+      }
+
+      html[data-style="sketch"] .add-card,
+      html[data-style="sketch"] .col-add,
+      html[data-style="sketch"] .card-edit,
+      html[data-style="sketch"] .card-cite,
+      html[data-style="sketch"] .card-delete,
+      html[data-style="sketch"] .card-done {
+        border: 1.5px solid var(--sketch-line);
+        border-radius: 8px 12px 9px 13px;
+        background: var(--oc-elevated); color: var(--oc-fg);
+        box-shadow: 2px 2px 0 rgba(0, 0, 0, .30);
+        opacity: 1;
+      }
+      html[data-style="sketch"] .sheet { border-left: 2px solid var(--sketch-line); }
+      html[data-style="sketch"] .field input,
+      html[data-style="sketch"] .field select,
+      html[data-style="sketch"] .search-input,
+      html[data-style="sketch"] .mini-select,
+      html[data-style="sketch"] .settings-textarea,
+      html[data-style="sketch"] .description,
+      html[data-style="sketch"] .session-select,
+      html[data-style="sketch"] .task-add input,
+      html[data-style="sketch"] .composer-field,
+      html[data-style="sketch"] .menu-select-button,
+      html[data-style="sketch"] .tool-chip {
+        background-color: var(--oc-elevated);
+        border: 1.5px solid var(--sketch-line);
+        border-radius: 9px 13px 10px 14px;
+        box-shadow: none;
+      }
+      html[data-style="sketch"] .settings-box,
+      html[data-style="sketch"] .login-card,
+      html[data-style="sketch"] .menu-select-menu,
+      html[data-style="sketch"] .popover-card {
+        border: 2px solid var(--sketch-line);
+        border-radius: 14px 19px 15px 20px;
+        box-shadow: 4px 4px 0 rgba(0, 0, 0, .30);
+      }
+      html[data-style="sketch"] .mode-card,
+      html[data-style="sketch"] .style-card,
+      html[data-style="sketch"] .source-btn,
+      html[data-style="sketch"] .label-chip,
+      html[data-style="sketch"] .icon-btn,
+      html[data-style="sketch"] .ghost-btn,
+      html[data-style="sketch"] .btn-mint,
+      html[data-style="sketch"] .project-chip,
+      html[data-style="sketch"] .quick-filter {
+        border-radius: 9px 13px 10px 14px;
+      }
+      html[data-style="sketch"] .undo-bar {
+        border: 1.5px solid var(--sketch-line);
+        border-radius: 10px 14px 11px 15px;
+      }
+      html[data-style="sketch"] .column.drop-target {
+        background: color-mix(in srgb, var(--oc-elevated) 86%, var(--column-tone, var(--mint)) 14%);
+        border-color: var(--column-tone, var(--mint));
       }
 
       .style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -343,13 +421,15 @@
         background: color-mix(in srgb, var(--oc-fg) 6%, transparent);
         box-shadow: inset 1px 1px 3px rgba(0, 0, 0, .2), inset -1px -1px 2px rgba(255, 255, 255, .05);
       }
-      .style-preview[data-preview="brutalism"] {
-        border: 2px solid var(--oc-muted); border-radius: 0; box-shadow: 3px 3px 0 var(--oc-muted);
-      }
       .style-preview[data-preview="glass"] {
         border-radius: 11px; border-color: color-mix(in srgb, #fff 30%, transparent);
         background: linear-gradient(135deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .03));
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 4px 10px rgba(0, 0, 0, .22);
+      }
+      .style-preview[data-preview="sketch"] {
+        border: 2px dashed var(--oc-muted);
+        border-radius: 13px 18px 14px 17px;
+        box-shadow: 3px 3px 0 color-mix(in srgb, var(--oc-fg) 16%, transparent);
       }
       .style-name { font-size: 11.5px; font-weight: 600; }
       .style-text { font-size: 11px; line-height: 1.4; color: color-mix(in srgb, var(--oc-muted) 82%, var(--oc-fg)); }
@@ -516,7 +596,7 @@
       .icon-btn:hover { background: var(--oc-hover); color: var(--oc-fg); }
 
       .ghost-btn, .btn-mint, .btn-complete, .add-card, .col-add, .icon-btn,
-      .project-chip:not(.auto), .quick-filter, .menu-select-button, .card-edit, .card-delete {
+      .project-chip:not(.auto), .quick-filter, .menu-select-button, .card-edit, .card-cite, .card-delete {
         box-shadow: 2px 2px 6px rgba(0, 0, 0, .22), -1px -1px 4px rgba(255, 255, 255, .035);
         transition: color .12s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease, opacity .12s ease;
       }
@@ -530,12 +610,13 @@
       html[data-oc-theme="light"] .quick-filter,
       html[data-oc-theme="light"] .menu-select-button,
       html[data-oc-theme="light"] .card-edit,
+      html[data-oc-theme="light"] .card-cite,
       html[data-oc-theme="light"] .card-delete {
         box-shadow: 2px 2px 5px rgba(54, 70, 94, .12), -2px -2px 5px rgba(255, 255, 255, .8);
       }
       .ghost-btn:active, .btn-mint:active, .btn-complete:active, .add-card:active,
       .col-add:active, .icon-btn:active, .project-chip:not(.auto):active,
-      .quick-filter:active, .menu-select-button:active, .card-edit:active, .card-delete:active {
+      .quick-filter:active, .menu-select-button:active, .card-edit:active, .card-cite:active, .card-delete:active {
         box-shadow: inset 2px 2px 4px rgba(0, 0, 0, .26), inset -1px -1px 3px rgba(255, 255, 255, .03);
       }
 
@@ -617,10 +698,6 @@
       }
       html[data-style="neumorphism"] .popover-card {
         box-shadow: 6px 6px 16px rgba(0, 0, 0, .34), -3px -3px 10px rgba(255, 255, 255, .05), inset 1px 1px 0 rgba(255, 255, 255, .06);
-      }
-      html[data-style="brutalism"] .popover-card {
-        border: 2px solid var(--brutal-line);
-        box-shadow: 4px 4px 0 var(--brutal-line);
       }
       html[data-style="glass"] .popover-card {
         background:
@@ -786,17 +863,6 @@
       .col-add:hover { background: var(--oc-hover); color: var(--oc-fg); }
       /* Ordenar: only IDEAS. A small chip next to the title; the rail keeps
          the icon alone so the header never crowds. */
-      .col-sort {
-        display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-        flex: none; height: 21px; padding: 0 6px; line-height: 0;
-        border: 0; border-radius: 7px; background: transparent; color: var(--oc-muted);
-        font-size: 9.5px; letter-spacing: .04em; white-space: nowrap; opacity: .62;
-        transition: opacity .12s ease, background-color .12s ease, color .12s ease;
-      }
-      .col-sort .icon { width: 12px; height: 12px; }
-      .col-sort:hover, .col-sort:focus-visible, .col-sort.open {
-        opacity: 1; color: var(--oc-fg); background: var(--oc-hover);
-      }
 
       .cards {
         flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
@@ -808,6 +874,45 @@
       .cards.empty { justify-content: flex-start; }
       .column-hint { color: var(--oc-muted); font-size: 10.5px; padding: 6px 4px; opacity: 0; transition: opacity .12s; }
       .column.drop-target .column-hint { opacity: 1; }
+      /* Volver arriba: 22px at the end of the column header, after the count.
+         It is in sight at the top of its column and never floats over a card;
+         mint while there is something above to scroll to, dimmed and disabled
+         at the top. The soft ring/glow follows the `.project-chip.auto`
+         language, one step quieter. */
+      .scroll-top {
+        flex: none; width: 22px; height: 22px; padding: 0; line-height: 0;
+        display: grid; place-items: center;
+        border: 1px solid color-mix(in srgb, var(--mint) 52%, var(--oc-border));
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--mint) 10%, transparent);
+        color: var(--mint-text, var(--mint));
+        box-shadow:
+          0 0 0 1px color-mix(in srgb, var(--mint) 42%, transparent),
+          0 0 10px -1px color-mix(in srgb, var(--mint) 45%, transparent);
+        transition: color .12s ease, background-color .12s ease, border-color .12s ease, box-shadow .12s ease;
+      }
+      .scroll-top[hidden] { display: none; }
+      /* A render must never animate a fresh button from mint to grey; the board
+         carries this class only while it rebuilds. */
+      .board.no-motion .scroll-top { transition: none; }
+      .scroll-top:hover {
+        background: color-mix(in srgb, var(--mint) 18%, transparent);
+        box-shadow:
+          0 0 0 1px color-mix(in srgb, var(--mint) 60%, transparent),
+          0 0 14px -1px color-mix(in srgb, var(--mint) 60%, transparent);
+      }
+      .scroll-top:active {
+        background: color-mix(in srgb, var(--mint) 26%, transparent);
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, .18);
+      }
+      .scroll-top:disabled {
+        color: var(--oc-muted);
+        background: transparent;
+        border-color: var(--oc-border);
+        box-shadow: none;
+        cursor: default;
+      }
+      .scroll-top .icon { width: 12px; height: 12px; }
 
       .card {
         position: relative;
@@ -871,16 +976,23 @@
       .check-mini .bar { width: 26px; height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--oc-fg) 14%, transparent); overflow: hidden; }
       .check-mini .bar i { display: block; height: 100%; background: var(--mint); }
       .card-actions {
-        float: right; display: flex; flex-direction: row; align-items: center; gap: 5px;
+        float: right; display: flex; flex-direction: column; align-items: center; gap: 4px;
         margin: 0 0 4px 6px; border-radius: 7px;
         pointer-events: none;
       }
-      /* The pencil is the permanent hint that the title is editable; the trash
-         still waits for hover so the card stays quiet. */
+      /* La cita queda debajo del lápiz y con el glifo más pequeño: en columna,
+         una comilla a 16px pesaba más que el propio título. */
+      .card-cite { display: grid; place-items: center; padding: 0; line-height: 0; }
+      .card-cite .icon { width: 11px; height: 11px; }
+      /* The pencil is the permanent hint that the title is editable; the quote
+         and the trash still wait for hover so the card stays quiet. */
       .card-actions .card-edit { opacity: .38; pointer-events: auto; transition: opacity .12s ease; }
+      .card-actions .card-cite { opacity: .34; pointer-events: auto; transition: opacity .12s ease; }
       .card-actions .session-dot { pointer-events: auto; }
       .card:hover .card-actions .card-edit,
-      .card:focus-within .card-actions .card-edit { opacity: 1; }
+      .card:hover .card-actions .card-cite,
+      .card:focus-within .card-actions .card-edit,
+      .card:focus-within .card-actions .card-cite { opacity: 1; }
       .card::after { content: ''; display: block; clear: both; }
       .card-delete {
         width: 20px; height: 20px; padding: 0; line-height: 0;
@@ -891,14 +1003,15 @@
       .card-delete.confirming { opacity: 1; color: var(--oc-error); background: color-mix(in srgb, var(--oc-error) 18%, transparent); }
       .card-delete .icon { width: 12px; height: 12px; }
       .card:hover .card-delete { opacity: .9; }
-      .card-edit {
+      .card-edit, .card-cite {
         width: 20px; height: 20px; padding: 0; line-height: 0;
         border: 0; border-radius: 6px; background: transparent; color: var(--oc-muted);
         display: grid; place-items: center; opacity: .45; transition: opacity .12s, color .12s, background .12s;
       }
-      .card-edit:hover, .card-edit:focus-visible { opacity: 1; color: var(--oc-fg); background: var(--oc-hover); }
-      .card-edit .icon { width: 12px; height: 12px; }
-      .card:hover .card-edit { opacity: .9; }
+      .card-edit:hover, .card-edit:focus-visible,
+      .card-cite:hover, .card-cite:focus-visible { opacity: 1; color: var(--oc-fg); background: var(--oc-hover); }
+      .card-edit .icon, .card-cite .icon { width: 12px; height: 12px; }
+      .card:hover .card-edit, .card:hover .card-cite { opacity: .9; }
       .card-done {
         position: absolute; top: 6px; right: 5px; width: 20px; height: 20px; padding: 0; line-height: 0;
         border: 0; border-radius: 6px; background: var(--oc-elevated); color: var(--oc-muted);
@@ -937,43 +1050,6 @@
       .done-close .icon { width: 11px; height: 11px; }
 
       /* ---------- ordenar IDEAS ---------- */
-      .sort-pop {
-        position: fixed; z-index: 85; display: flex; flex-direction: column; gap: 8px;
-        padding: 10px 11px 11px; border-radius: 12px;
-        background: var(--oc-elevated); border: 1px solid var(--oc-border);
-        box-shadow: 0 12px 32px rgba(0, 0, 0, .34);
-        color: var(--oc-fg); font-size: 11.5px; line-height: 1.45;
-        animation: sort-pop-in .14s ease-out;
-      }
-      @keyframes sort-pop-in {
-        from { opacity: 0; transform: translateY(-4px); }
-        to { opacity: 1; transform: none; }
-      }
-      .sort-pop-head { display: flex; align-items: center; gap: 6px; }
-      .sort-pop-title { flex: 1 1 auto; font-size: 11.5px; font-weight: 600; }
-      .sort-pop-close {
-        flex: none; width: 20px; height: 20px; padding: 0; line-height: 0;
-        border: 0; border-radius: 6px; background: transparent; color: var(--oc-muted);
-        display: grid; place-items: center;
-      }
-      .sort-pop-close:hover { background: var(--oc-hover); color: var(--oc-fg); }
-      .sort-pop-close .icon { width: 11px; height: 11px; }
-      .sort-pop-note { margin: 0; color: var(--oc-muted); font-size: 10.5px; }
-      .sort-modes { display: flex; gap: 4px; }
-      .sort-mode {
-        flex: 1 1 0; padding: 5px 4px; border-radius: 7px; cursor: pointer;
-        border: 1px solid var(--oc-border); background: transparent;
-        color: var(--oc-muted); font-size: 10.5px; font-weight: 600;
-      }
-      .sort-mode:hover { color: var(--oc-fg); }
-      .sort-mode[aria-pressed="true"] {
-        color: var(--mint-text, var(--oc-success));
-        border-color: color-mix(in srgb, var(--mint) 45%, transparent);
-        background: color-mix(in srgb, var(--mint) 14%, transparent);
-      }
-      .sort-pop-foot { display: flex; flex-direction: column; gap: 5px; }
-      .sort-run { width: 100%; padding: 6px 10px; }
-      .sort-pop-status { font-size: 9.5px; color: var(--oc-muted); }
 
       .column.composing .add-card { display: none; }
       .composer { display: none; padding: 2px 2px 0; margin-bottom: 8px; }
@@ -1036,6 +1112,9 @@
         display: block; font-size: 10px; font-weight: 600; letter-spacing: .09em;
         text-transform: uppercase; color: var(--oc-muted); margin-bottom: 7px;
       }
+
+      /* Tamaño escrito a mano: una etiqueta del tablero que el orden respeta
+         en vez de deducir. */
       .sheet-hint {
         margin: -3px 0 0; font-size: 10.5px; line-height: 1.45;
         color: var(--oc-muted);
@@ -1130,11 +1209,8 @@
       .panel-board .col-head { gap: 3px; padding: 0 2px 6px; }
       .panel-board .col-name { font-size: 9.5px; letter-spacing: .02em; overflow-wrap: normal; }
       .panel-board .add-card { width: 18px; height: 18px; }
-      .panel-board .col-sort { width: 16px; padding: 0; }
       .panel-board .col-dot { width: 6px; height: 6px; }
       .panel-board .col-name { font-size: 10px; letter-spacing: .06em; }
-      .panel-board .col-sort { width: 21px; padding: 0; }
-      .panel-board .col-sort-label { display: none; }
       .panel-board .col-count { font-size: 9.5px; }
       .panel-board .cards { gap: 6px; padding: 3px 5px 8px; border-radius: 9px; }
       .panel-board .card { padding: 7px 8px; }
@@ -1147,15 +1223,17 @@
       .panel-board .btn-mint { padding: 3px 8px; font-size: 10.5px; }
       .panel-board .ghost-btn { padding: 3px 6px; font-size: 10.5px; }
       .panel-board .column-hint { font-size: 9.5px; }
+      .panel-board .scroll-top { width: 18px; height: 18px; }
+      .panel-board .scroll-top .icon { width: 10px; height: 10px; }
 
       /* ---------- neumorphic buttons ---------- */
-      .icon-btn, .ghost-btn, .btn-mint, .add-card, .col-add, .card-edit, .card-delete,
+      .icon-btn, .ghost-btn, .btn-mint, .add-card, .col-add, .card-edit, .card-cite, .card-delete,
       .quick-filter, .project-chip, .menu-select-button, .btn-complete {
         box-shadow: var(--relief-btn);
         transition: box-shadow .12s ease, background .12s ease, color .12s ease, border-color .12s ease;
       }
       .icon-btn:active, .ghost-btn:active, .btn-mint:active, .add-card:active, .col-add:active,
-      .card-edit:active, .card-delete:active, .quick-filter:active, .project-chip:active,
+      .card-edit:active, .card-cite:active, .card-delete:active, .quick-filter:active, .project-chip:active,
       .menu-select-button:active, .btn-complete:active {
         box-shadow: var(--relief-inset);
       }

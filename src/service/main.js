@@ -22,7 +22,6 @@ import {
   batchStartPrompt,
   reusableBatchSession,
 } from '../shared/batch.js';
-import { mentionItems, mentionText, parseMentionId, promoteCardList } from '../shared/mentions.js';
 
 const PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
 const TOKEN = process.env.OPENCHAMBER_SERVICE_TOKEN || '';
@@ -71,7 +70,7 @@ const agentStatus = () => {
 // manual mode honest: the card moves when the person asks for the work, not
 // when they only ask about it.
 const AGENT_INSTRUCTIONS = [
-  'When the user asks you to work on a Kanban card, referenced with @ or by name, and that card is still in IDEAS, move it to EN PROGRESO with kanban_move_card before you start. Do this only when they ask you to work on the card, not when they only ask about it or want to read it.',
+  'When the user asks you to work on a Kanban card, referenced by name or pasted with its cite button, and that card is still in IDEAS, move it to EN PROGRESO with kanban_move_card before you start. Do this only when they ask you to work on the card, not when they only ask about it or want to read it.',
   // The panel cannot always tell which chat session it is in, so the card would
   // stay without a session while you work it. Linking it here is the reliable
   // way: the session doing the work is you.
@@ -253,24 +252,6 @@ const client = () => {
       }
     },
   });
-};
-
-// Mentions arrive from the host without the panel's query string: the project
-// travels in the search body, and a picked row's id carries the board.
-const mentionContext = (directory) => {
-  const config = readConfig();
-  if (!isConnected(config)) return null;
-  if (config.source === 'local') {
-    return {
-      source: 'local',
-      boardId: LOCAL_BOARD_ID,
-      directory,
-      client: new LocalClient({ ...config, projectKey: directory }),
-    };
-  }
-  const boardId = resolveProjectBoard(directory);
-  if (!boardId) return null;
-  return { source: 'planka', boardId, directory, client: new PlankaClient(config) };
 };
 
 const boardIdOf = async (config, requested) => {
@@ -1011,59 +992,6 @@ const routes = {
     return { directory, pinned: '', pinnedAt: '' };
   },
 
-  // Rows for the composer's `@` menu. A search carries the composer's project;
-  // the picked row comes back alone, so its id carries the board.
-  'POST /mentions/search': async (body) => {
-    const directory = String(body?.directory || '');
-    ensureInstructions(directory);
-    const context = mentionContext(directory);
-    if (!context) return { items: [] };
-    try {
-      const board = await context.client.readBoard(context.boardId);
-      return {
-        items: mentionItems(board, body?.query, {
-          source: context.source,
-          boardId: context.boardId,
-          directory,
-        }),
-      };
-    } catch {
-      return { items: [] };
-    }
-  },
-
-  'POST /mentions/resolve': async (body) => {
-    const parsed = parseMentionId(body?.id);
-    if (!parsed) throw new PlankaError('Esa tarjeta ya no está disponible.', { kind: 'not-found', status: 404 });
-    const config = readConfig();
-    const clientForMention =
-      parsed.source === 'local'
-        ? new LocalClient({ ...config, projectKey: parsed.directory })
-        : new PlankaClient(config);
-    const boardId = parsed.source === 'local' ? LOCAL_BOARD_ID : parsed.boardId;
-    const board = await clientForMention.readBoard(boardId);
-    const list = (board?.lists || []).find((entry) =>
-      (entry.cards || []).some((card) => String(card.id) === String(parsed.cardId)),
-    );
-    const card = (list?.cards || []).find((entry) => String(entry.id) === String(parsed.cardId));
-    if (!card) throw new PlankaError('Esa tarjeta ya no está disponible.', { kind: 'not-found', status: 404 });
-    // Picking a card in the composer is asking to work on it: a card still in
-    // the backlog moves to the work column before the message goes out.
-    const workListId = promoteCardList(board, list?.id);
-    let resolvedList = list;
-    if (workListId) {
-      try {
-        await clientForMention.moveCard(card.id, workListId, undefined, boardId);
-        if (parsed.source !== 'local') invalidate();
-        resolvedList = (board.lists || []).find((entry) => String(entry.id) === workListId) || list;
-      } catch {
-        // The chip is still valid if the move fails; the card keeps its column.
-      }
-    }
-    const boardName = board?.board?.name || board?.name || boardId;
-    return { text: mentionText(card, resolvedList?.name || '', boardName) };
-  },
-
   'GET /card': async (_body, url) => {
     requireConnected();
     const id = url.searchParams.get('id');
@@ -1436,6 +1364,7 @@ const routes = {
     invalidate();
     return { ok: true };
   },
+
 };
 
 const server = http.createServer((req, res) => {

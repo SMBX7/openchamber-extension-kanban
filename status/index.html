@@ -65,65 +65,6 @@
         box-shadow: 8px 8px 22px rgba(0, 0, 0, .38), -4px -4px 14px rgba(255, 255, 255, .035);
       }
 
-      /* Brutalismo: gris claro, esquinas rectas */
-      html[data-style="brutalism"] {
-        --radius-card: 0px;
-        --radius-inner: 0px;
-        --radius-btn: 0px;
-        --radius-pill: 0px;
-        --brutal-line: color-mix(in srgb, var(--oc-fg) 55%, transparent);
-        --relief-card: 3px 3px 0 var(--brutal-line);
-        --relief-btn: 2px 2px 0 var(--brutal-line);
-        --relief-inset: none;
-      }
-      html[data-style="brutalism"] *:not(.board-dot) { border-radius: 0; }
-      html[data-style="brutalism"] .card,
-      html[data-style="brutalism"] .card-head,
-      html[data-style="brutalism"] .card-body { border-width: 2px; border-color: var(--brutal-line); }
-      html[data-style="brutalism"] .card { box-shadow: 3px 3px 0 var(--brutal-line); }
-      html[data-style="brutalism"] .board-name { text-transform: uppercase; letter-spacing: .03em; }
-      html[data-style="brutalism"] .tick,
-      html[data-style="brutalism"] .open,
-      html[data-style="brutalism"] .card-delete,
-      html[data-style="brutalism"] .card-edit-btn,
-      html[data-style="brutalism"] .session-create,
-      html[data-style="brutalism"] .session-back,
-      html[data-style="brutalism"] .summary-add,
-      html[data-style="brutalism"] .pending-btn {
-        border: 2px solid var(--brutal-line); background: var(--oc-elevated); color: var(--oc-fg);
-        box-shadow: 2px 2px 0 var(--brutal-line);
-      }
-
-
-      html[data-style="brutalism"] .card { background: var(--oc-elevated); }
-      html[data-style="brutalism"] .card-head,
-      html[data-style="brutalism"] .card-body {
-        background: var(--oc-elevated);
-        box-shadow: none;
-      }
-      html[data-style="brutalism"] .card.current {
-        background: color-mix(in srgb, var(--tone, var(--oc-warning)) 10%, var(--oc-elevated));
-        border-color: var(--tone, var(--oc-warning));
-      }
-      html[data-style="brutalism"] .mode-pill,
-      html[data-style="brutalism"] .idea-input,
-      html[data-style="brutalism"] .card-edit-input,
-      html[data-style="brutalism"] .session-pick,
-      html[data-style="brutalism"] .session-menu {
-        background: var(--oc-elevated);
-        border: 2px solid var(--brutal-line);
-        box-shadow: 2px 2px 0 var(--brutal-line);
-      }
-      html[data-style="brutalism"] .mode-pill.on {
-        background: color-mix(in srgb, var(--mint) 16%, var(--oc-elevated));
-        border-color: var(--mint);
-      }
-      html[data-style="brutalism"] .status-undo,
-      html[data-style="brutalism"] .card-pending {
-        border: 2px solid var(--brutal-line);
-        box-shadow: 2px 2px 0 var(--brutal-line);
-      }
-
       /* Cristal */
       html[data-style="glass"] {
         --radius-card: 14px;
@@ -188,6 +129,41 @@
       html[data-style="glass"] .session-pick:hover,
       html[data-style="glass"] .session-menu button:hover {
         background: rgba(255, 255, 255, .07);
+      }
+
+      /* Sketch: el mismo post-it que el panel. Sin transform, que aquí también
+         lo usa el arrastre. */
+      html[data-style="sketch"] {
+        --radius-card: 15px;
+        --radius-inner: 10px;
+        --radius-btn: 9px;
+        --sketch-line: color-mix(in srgb, var(--oc-fg) 34%, transparent);
+        --relief-card: 3px 3px 0 rgba(0, 0, 0, .30);
+        --relief-btn: 2px 2px 0 rgba(0, 0, 0, .28);
+        --relief-inset: none;
+      }
+      html[data-style="sketch"] .card {
+        border: 2px solid color-mix(in srgb, var(--tone, var(--mint)) 62%, var(--sketch-line));
+        border-radius: 16px 22px 17px 12px;
+      }
+      html[data-style="sketch"] .card:nth-child(even) { border-radius: 21px 13px 22px 16px; }
+      html[data-style="sketch"] .card.current {
+        border-color: var(--tone, var(--oc-warning));
+        background: color-mix(in srgb, var(--tone, var(--oc-warning)) 10%, var(--oc-elevated));
+      }
+      html[data-style="sketch"] .idea-input,
+      html[data-style="sketch"] .card-edit-input,
+      html[data-style="sketch"] .session-pick,
+      html[data-style="sketch"] .mode-pill:not(.on),
+      html[data-style="sketch"] .session-menu {
+        border: 1.5px dashed var(--sketch-line);
+        border-radius: 9px 13px 10px 14px;
+        box-shadow: none;
+      }
+      html[data-style="sketch"] .pending-btn { border-radius: 9px 13px 10px 14px; }
+      html[data-style="sketch"] .status-undo,
+      html[data-style="sketch"] .card-pending {
+        border: 1.5px dashed var(--sketch-line);
       }
 
       html, body, #root { height: 100%; margin: 0; }

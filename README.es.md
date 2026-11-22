@@ -160,8 +160,6 @@ Cuando la sesión ya dice a qué proyecto pertenece, el selector de proyecto no 
   queda completada. Una tarjeta con su propia sesión se mueve allí cuando esa sesión
   termina su turno; en un lote, la mueve el agente principal tras revisar a su subagente.
   Lo que muevas a mano no se toca.
-- **Ordenar IDEAS**: **Ordenar** ordena por **Rápido** (lo pequeño primero) o
-  **Complejo** (rediseños y cambios de interfaz primero).
 - **Buscar** con la lupa.
 - **Paradas** filtra las tarjetas de EN PROGRESO **sin una sesión activa**.
 
@@ -182,13 +180,12 @@ lateral derecha.
 - Debajo, las ideas: el tic empieza una, la papelera la borra (con deshacer).
 - Una tarjeta de EN PROGRESO sin sesión aparece en **Paradas**.
 
-### Desde el chat
+### Citar una tarjeta
 
-Escribe `@` en el composer y elige **Tarjetas**: primero sale EN PROGRESO y después IDEAS,
-con la columna en cada fila. La lista es corta: escribe para buscar por título o detalles,
-y un título exacto sale primero. Al elegir una tarjeta que siga en IDEAS, pasa a EN
-PROGRESO. El chip le pasa al agente el título, el id, la columna y los detalles, así puede
-trabajar la tarjeta sin abrir el panel. Las de HECHO quedan fuera.
+Cada tarjeta lleva un botón de comillas junto al lápiz. Al pulsarlo, su cita se pega en el
+mensaje que tengas abierto en el chat: el tablero, el título, el id, la columna y los
+detalles, para que el agente la trabaje sin abrir el panel. Citar no mueve la tarjeta: se
+queda en su columna hasta que la muevas tú o la mueva el agente.
 
 ## Sesiones: manual y automático
 
@@ -201,8 +198,8 @@ subagente, y varias a la vez van en paralelo, cada una con sus archivos.
   con el `+` del Work Status cuando quieras que el agente la trabaje. Los dos modos van por
   lotes con subagentes. El agente trabaja la tarjeta y la deja en EN PROGRESO avisando de
   que está lista: tú la revisas, la pasas a HECHO y pides el resumen cuando el lote esté
-  listo. Referenciar una tarjeta en el chat para trabajar en ella —con `@` o por su
-  nombre— la pasa a EN PROGRESO si aún está en IDEAS.
+  listo. Referenciar una tarjeta en el chat para trabajar en ella —por su nombre o con su
+  botón de comillas— la pasa a EN PROGRESO si aún está en IDEAS.
 - **Automática**: el aviso pregunta antes de sumar cada tarjeta al lote, así que ninguna
   entra sin avisar. El agente revisa cada subagente, mueve la tarjeta a HECHO y resume al
   terminar el lote; la sesión sigue abierta para que la archives.
@@ -247,11 +244,11 @@ que un proyecto nunca parezca vacío cuando solo está perdido.
 
 Se cambian en **Ajustes → Apariencia**.
 
-<img src="docs/styles.png" width="700" alt="Los tres estilos de tarjeta">
+<img src="docs/styles.png" width="700" alt="Algunos de los estilos de tarjeta">
 
 - **Neumorfismo**: relieve suave, sombras difusas.
-- **Brutalismo**: bordes duros, esquinas rectas, sombras sólidas.
 - **Cristal**: fondos translúcidos con desenfoque.
+- **Sketch**: esquinas torcidas, trazo discontinuo y sombra sin desenfoque, como un post-it.
 
 ## Problemas frecuentes
 

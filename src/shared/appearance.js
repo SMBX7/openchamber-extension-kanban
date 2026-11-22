@@ -15,7 +15,7 @@ const clean = (value) => {
   return HEX.test(text) ? text.toLowerCase() : '';
 };
 
-const STYLES = ['neumorphism', 'brutalism', 'glass'];
+const STYLES = ['neumorphism', 'glass', 'sketch'];
 const cleanStyle = (value) => (STYLES.includes(value) ? value : 'neumorphism');
 
 const empty = () => ({ version: 1, style: 'neumorphism', columns: ['', '', ''], card: '' });

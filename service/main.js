@@ -629,7 +629,7 @@ var clean = (value) => {
   const text = String(value || "").trim();
   return HEX.test(text) ? text.toLowerCase() : "";
 };
-var STYLES = ["neumorphism", "brutalism", "glass"];
+var STYLES = ["neumorphism", "glass", "sketch"];
 var cleanStyle = (value) => STYLES.includes(value) ? value : "neumorphism";
 var empty3 = () => ({ version: 1, style: "neumorphism", columns: ["", "", ""], card: "" });
 var readAppearance = () => {
@@ -2169,91 +2169,6 @@ var reusableBatchSession = (links, snapshot, { manual = false } = {}) => {
   return "";
 };
 
-// src/shared/mentions.js
-var MENTION_ITEMS_MAX = 6;
-var MENTION_TITLE_MAX2 = 120;
-var MENTION_ID_MAX2 = 256;
-var MENTION_TEXT_MAX2 = 16e3;
-var clip = (value, max) => {
-  const text = String(value || "").replace(/\s+/g, " ").trim();
-  return text.length > max ? `${text.slice(0, max - 1)}\u2026` : text;
-};
-var mentionId = ({ source, boardId, directory, cardId }) => {
-  const base = source === "local" ? `l:${Buffer.from(String(directory || "")).toString("base64url")}` : `p:${String(boardId || "")}`;
-  const id = `${base}:${String(cardId || "")}`;
-  return id.length <= MENTION_ID_MAX2 ? id : "";
-};
-var parseMentionId = (value) => {
-  const parts = String(value || "").split(":");
-  if (parts.length < 3 || !parts[2]) return null;
-  if (parts[0] === "p" && parts[1]) return { source: "planka", boardId: parts[1], cardId: parts[2] };
-  if (parts[0] === "l" && parts[1]) {
-    try {
-      const directory = Buffer.from(parts[1], "base64url").toString();
-      if (!directory) return null;
-      return { source: "local", directory, cardId: parts[2] };
-    } catch {
-      return null;
-    }
-  }
-  return null;
-};
-var normalize2 = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-var mentionItems = (board, query, origin) => {
-  const needle = normalize2(String(query || "").trim());
-  const lists = Array.isArray(board?.lists) ? board.lists : [];
-  const work = workListFor(board);
-  const ordered = work ? [work, ...lists.filter((list) => String(list.id) !== String(work.id))] : lists;
-  const rows = [];
-  ordered.forEach((list, listIndex) => {
-    if (String(list.id) === String(board?.doneListId || "")) return;
-    (list.cards || []).forEach((card, cardIndex) => {
-      const name = normalize2(card.name);
-      const description = normalize2(card.description);
-      let score = 0;
-      if (needle) {
-        if (name === needle) score = 4;
-        else if (name.startsWith(needle)) score = 3;
-        else if (name.includes(needle)) score = 2;
-        else if (description.includes(needle)) score = 1;
-        else return;
-      }
-      rows.push({ list, card, listIndex, cardIndex, score });
-    });
-  });
-  rows.sort(
-    (a, b) => b.score - a.score || a.listIndex - b.listIndex || a.cardIndex - b.cardIndex
-  );
-  const items = [];
-  for (const { list, card } of rows) {
-    const id = mentionId({ ...origin, cardId: card.id });
-    if (!id) continue;
-    items.push({
-      id,
-      title: clip(card.name, MENTION_TITLE_MAX2),
-      subtitle: clip(list.name, MENTION_TITLE_MAX2)
-    });
-    if (items.length >= MENTION_ITEMS_MAX) break;
-  }
-  return items;
-};
-var promoteCardList = (board, cardListId) => {
-  const work = workListFor(board);
-  if (!work || !cardListId) return "";
-  if (String(cardListId) === String(work.id)) return "";
-  if (String(cardListId) === String(board?.doneListId || "")) return "";
-  return String(work.id);
-};
-var mentionText = (card, listName, boardName) => {
-  const checklist = (card?.taskLists || []).flatMap((taskList) => taskList.tasks.map((task) => `- ${task.name}`)).slice(0, 12);
-  return [
-    `Tarjeta del kanban \xAB${boardName || ""}\xBB: \xAB${card?.name || ""}\xBB (id ${card?.id || ""}${listName ? `, columna ${listName}` : ""}).`,
-    card?.description ? `Descripci\xF3n: ${card.description}` : "",
-    checklist.length ? `Checklist:
-${checklist.join("\n")}` : ""
-  ].filter(Boolean).join("\n").slice(0, MENTION_TEXT_MAX2);
-};
-
 // src/service/main.js
 var PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
 var TOKEN = process.env.OPENCHAMBER_SERVICE_TOKEN || "";
@@ -2283,7 +2198,7 @@ var agentStatus = () => {
   };
 };
 var AGENT_INSTRUCTIONS = [
-  "When the user asks you to work on a Kanban card, referenced with @ or by name, and that card is still in IDEAS, move it to EN PROGRESO with kanban_move_card before you start. Do this only when they ask you to work on the card, not when they only ask about it or want to read it.",
+  "When the user asks you to work on a Kanban card, referenced by name or pasted with its cite button, and that card is still in IDEAS, move it to EN PROGRESO with kanban_move_card before you start. Do this only when they ask you to work on the card, not when they only ask about it or want to read it.",
   // The panel cannot always tell which chat session it is in, so the card would
   // stay without a session while you work it. Linking it here is the reliable
   // way: the session doing the work is you.
@@ -2433,21 +2348,6 @@ var client = () => {
       }
     }
   });
-};
-var mentionContext = (directory) => {
-  const config = readConfig();
-  if (!isConnected(config)) return null;
-  if (config.source === "local") {
-    return {
-      source: "local",
-      boardId: LOCAL_BOARD_ID,
-      directory,
-      client: new LocalClient({ ...config, projectKey: directory })
-    };
-  }
-  const boardId = resolveProjectBoard(directory);
-  if (!boardId) return null;
-  return { source: "planka", boardId, directory, client: new PlankaClient(config) };
 };
 var boardIdOf = async (config, requested) => {
   if (config.source === "local") return LOCAL_BOARD_ID;
@@ -3102,51 +3002,6 @@ var routes = {
     if (pin.key) setProjectBoard(pin.key, "");
     else if (directory) setProjectBoard(directory, "");
     return { directory, pinned: "", pinnedAt: "" };
-  },
-  // Rows for the composer's `@` menu. A search carries the composer's project;
-  // the picked row comes back alone, so its id carries the board.
-  "POST /mentions/search": async (body) => {
-    const directory = String(body?.directory || "");
-    ensureInstructions(directory);
-    const context = mentionContext(directory);
-    if (!context) return { items: [] };
-    try {
-      const board = await context.client.readBoard(context.boardId);
-      return {
-        items: mentionItems(board, body?.query, {
-          source: context.source,
-          boardId: context.boardId,
-          directory
-        })
-      };
-    } catch {
-      return { items: [] };
-    }
-  },
-  "POST /mentions/resolve": async (body) => {
-    const parsed = parseMentionId(body?.id);
-    if (!parsed) throw new PlankaError("Esa tarjeta ya no est\xE1 disponible.", { kind: "not-found", status: 404 });
-    const config = readConfig();
-    const clientForMention = parsed.source === "local" ? new LocalClient({ ...config, projectKey: parsed.directory }) : new PlankaClient(config);
-    const boardId = parsed.source === "local" ? LOCAL_BOARD_ID : parsed.boardId;
-    const board = await clientForMention.readBoard(boardId);
-    const list = (board?.lists || []).find(
-      (entry) => (entry.cards || []).some((card2) => String(card2.id) === String(parsed.cardId))
-    );
-    const card = (list?.cards || []).find((entry) => String(entry.id) === String(parsed.cardId));
-    if (!card) throw new PlankaError("Esa tarjeta ya no est\xE1 disponible.", { kind: "not-found", status: 404 });
-    const workListId = promoteCardList(board, list?.id);
-    let resolvedList = list;
-    if (workListId) {
-      try {
-        await clientForMention.moveCard(card.id, workListId, void 0, boardId);
-        if (parsed.source !== "local") invalidate();
-        resolvedList = (board.lists || []).find((entry) => String(entry.id) === workListId) || list;
-      } catch {
-      }
-    }
-    const boardName = board?.board?.name || board?.name || boardId;
-    return { text: mentionText(card, resolvedList?.name || "", boardName) };
   },
   "GET /card": async (_body, url) => {
     requireConnected();

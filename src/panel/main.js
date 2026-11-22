@@ -1,8 +1,8 @@
 import { connectHost } from '@openchamber/sdk';
 import { applyHostReady } from '@openchamber/sdk/ui';
-import { sortCardsByWork } from '../shared/work.js';
 import { pinState } from '../shared/board-pin.js';
 import { composerFieldHeight } from '../shared/composer.js';
+import { CITATION_TEXT_MAX, citationText } from '../shared/citation.js';
 import { projectForDirectory, shouldFollowBoard } from '../shared/board-follow.js';
 
 const host = connectHost();
@@ -27,6 +27,8 @@ const ICONS = {
   compress: '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
   expand: '<path d="m13 7 5 5-5 5"/><path d="m6 7 5 5-5 5"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
+  up: '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>',
+  quote: '<path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h3a1 1 0 0 1 1 1v1a2 2 0 0 1-2 2h-1a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h1a6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h3a1 1 0 0 1 1 1v1a2 2 0 0 1-2 2H6a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h1a6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/>',
   sort: '<path d="M7 4v16"/><path d="m4 17 3 3 3-3"/><path d="M13 6h7M13 11h5M13 16h3"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 15a1.65 1.65 0 0 0-1.51-1H2a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 3.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6h.09A1.65 1.65 0 0 0 9.1 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09A1.65 1.65 0 0 0 21 10.1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/>',
 };
@@ -60,9 +62,6 @@ const state = {
   stoppedOnly: false,
   dragId: '',
   dragging: false,
-  sorting: false,
-  sortPop: null,
-  sortMode: 'quick',
   composerListId: '',
   saving: 0,
   fetching: false,
@@ -1602,8 +1601,8 @@ const openSettings = () => {
   const styleGrid = el('div', 'style-grid');
   const styleOptions = [
     ['neumorphism', 'Neumorfismo', 'Relieve suave y sombras difusas.'],
-    ['brutalism', 'Brutalismo', 'Bordes duros y sombras sólidas.'],
     ['glass', 'Cristal', 'Fondo translúcido con desenfoque.'],
+    ['sketch', 'Sketch', 'Esquinas torcidas y trazo discontinuo, como un post-it.'],
   ];
   for (const [key, label, text] of styleOptions) {
     const option = el('button', 'style-card');
@@ -1634,6 +1633,7 @@ const openSettings = () => {
     fact('IDEAS', 'el + de la columna crea una tarjeta. El lápiz abre la tarjeta para editar título, detalles, checklist y sesión, y para borrarla. El tic la pasa a EN PROGRESO.'),
     fact('EN PROGRESO', 'es la tarjeta actual. Al moverla queda vinculada a la sesión en la que estás. En manual abres la sesión del lote con el + del Work Status y el agente deja la tarjeta para que la revises; en automático te pregunta antes de sumar cada tarjeta y el agente la mueve a HECHO al terminar.'),
     fact('HECHO', 'la tarjeta queda terminada. El botón de la columna HECHO cierra el lote: pide el resumen de cada sesión y suelta las tarjetas; la sesión sigue abierta para que la archives.'),
+    fact('Citar', 'el botón de comillas de una tarjeta pega en el mensaje su tablero, título, id, columna y detalles, para que el agente la trabaje sin abrir el panel. No mueve la tarjeta de columna.'),
   );
   sesionesBox.append(el('p', 'settings-note', 'Al cerrar el lote se sueltan sus tarjetas: si vuelves a mover una, se suma al lote que siga abierto o abre uno nuevo. La sesión sigue abierta para que la archives cuando quieras.'));
   sesiones.append(sesionesBox);
@@ -1800,7 +1800,7 @@ const cardDraggable = () => !state.search.trim() && state.labels.size === 0;
 
 // The pencil opens the sheet; a double click on the card does the same. A title
 // edit still happens only in the sheet, so it cannot move the card.
-const buildCard = (card, listIndex, inProgress = false) => {
+const buildCard = (card, listIndex, inProgress = false, listName = '') => {
   const node = el('article', 'card');
   node.tabIndex = 0;
   node.draggable = cardDraggable();
@@ -1837,12 +1837,13 @@ const buildCard = (card, listIndex, inProgress = false) => {
   if (card.labels.length) {
     const dots = el('div', 'card-labels');
     for (const label of card.labels) {
+      if (sizeTagKey(label.name)) continue;
       const dot = el('span', 'label-dot');
       dot.style.setProperty('--label', labelColor(label.color || label.name));
       dot.title = label.name;
       dots.append(dot);
     }
-    meta.append(dots);
+    if (dots.childNodes.length) meta.append(dots);
   }
   const due = dueInfo(card.dueDate);
   if (due) {
@@ -1861,6 +1862,24 @@ const buildCard = (card, listIndex, inProgress = false) => {
   }
   if (meta.childNodes.length) node.append(meta);
 
+  // The quote pastes the card's citation into the open chat. It never opens the
+  // sheet or moves the card: the agent decides what to do with it.
+  const cite = el('button', 'card-cite');
+  cite.type = 'button';
+  cite.title = `Citar la tarjeta ${card.name} en el chat`;
+  cite.setAttribute('aria-label', `Citar la tarjeta ${card.name} en el chat`);
+  cite.append(makeIcon('quote'));
+  cite.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const boardName = state.snapshot?.board?.name || state.snapshot?.name || '';
+    host
+      .compose({
+        text: citationText(card, listName, boardName).slice(0, CITATION_TEXT_MAX),
+        mode: 'append',
+      })
+      .then(() => toast('success', 'Cita añadida al chat.'))
+      .catch((error) => toast('error', error?.message || 'No se pudo citar la tarjeta.'));
+  });
   const edit = el('button', 'card-edit');
   edit.type = 'button';
   edit.title = 'Editar tarjeta';
@@ -1871,6 +1890,8 @@ const buildCard = (card, listIndex, inProgress = false) => {
     openSheet(card.id);
   });
   actions.append(edit);
+  // La cita va DEBAJO del lápiz: la columna se lee «editar / citar».
+  actions.append(cite);
 
   const open = () => openSheet(card.id);
   node.title = 'Doble clic o el lápiz para editar la tarjeta';
@@ -2043,171 +2064,6 @@ const closeDoneSessions = async (button) => {
   await refresh(true);
 };
 
-const IDEAS_NAME = /^ideas?$/i;
-
-// IDEAS is the backlog: the list named IDEAS when it exists, otherwise the one
-// that is neither EN PROGRESO nor HECHO (the same rule the service uses).
-const ideasListId = () => {
-  const snapshot = state.snapshot;
-  if (!snapshot?.lists?.length) return '';
-  const named = snapshot.lists.find((list) => IDEAS_NAME.test(String(list.name || '').trim()));
-  if (named) return named.id;
-  const backlog = snapshot.lists.find(
-    (list) => list.id !== snapshot.workListId && list.id !== snapshot.doneListId,
-  );
-  return backlog?.id || '';
-};
-
-const closeSortPopover = () => {
-  const pop = state.sortPop;
-  if (!pop) return;
-  pop.node.remove();
-  if (pop.anchor?.isConnected) {
-    pop.anchor.setAttribute('aria-expanded', 'false');
-    pop.anchor.classList.remove('open');
-  }
-  state.sortPop = null;
-};
-
-// Two ways to read the backlog. The labels are the only thing a person has to
-// understand; the note explains the chosen one in a line.
-const SORT_MODES = [
-  {
-    key: 'quick',
-    label: 'Rápido',
-    note: 'Primero lo que se hace en un rato: textos, detalles y cambios pequeños.',
-  },
-  {
-    key: 'big',
-    label: 'Complejo',
-    note: 'Primero lo grande: rediseños, interfaz, reescrituras y flujos completos.',
-  },
-];
-
-const sortIdeas = async (listId, mode, action, status) => {
-  if (state.sorting) return;
-  const list = findList(listId);
-  if (!list) {
-    closeSortPopover();
-    return;
-  }
-  const sorted = sortCardsByWork(list.cards, mode === 'big' ? 'big' : 'quick');
-  const targetIds = sorted.map((card) => card.id);
-  const currentIds = list.cards.map((card) => card.id);
-  if (targetIds.join('|') === currentIds.join('|')) {
-    status.textContent = 'Ya está en ese orden.';
-    return;
-  }
-
-  state.sorting = true;
-  state.saving += 1;
-  action.disabled = true;
-  action.textContent = 'Ordenando…';
-  status.textContent = `${targetIds.length} tarjetas · guardando el orden…`;
-
-  let moved = 0;
-  try {
-    // One moveCard per card that is out of place; each one persists in Planka
-    // or in the local board. The list is re-read after every move because
-    // moveCard refreshes the snapshot.
-    for (let index = 0; index < targetIds.length; index += 1) {
-      const live = findList(listId);
-      // The board changed under the sort (another project or board): stop.
-      if (!live) {
-        closeSortPopover();
-        return;
-      }
-      if (live.cards[index]?.id === targetIds[index]) continue;
-      await moveCard(targetIds[index], listId, index);
-      moved += 1;
-    }
-  } finally {
-    state.sorting = false;
-    state.saving -= 1;
-    action.disabled = false;
-    action.textContent = 'Ordenar IDEAS';
-  }
-
-  // moveCard reports its own failure with a toast, so the saved order is the
-  // only honest proof that every move landed.
-  const saved = (findList(listId)?.cards || []).map((card) => card.id).join('|');
-  if (moved && saved === targetIds.join('|')) {
-    status.textContent = 'Orden aplicado y guardado en el tablero.';
-    toast('success', 'IDEAS ordenadas.');
-    // The order is saved; the popover has done its job.
-    closeSortPopover();
-  } else if (moved) {
-    status.textContent = 'No se pudo guardar el orden completo. Prueba otra vez.';
-    toast('error', 'No se pudo guardar el orden de IDEAS.');
-  } else {
-    status.textContent = 'Ya está en ese orden.';
-  }
-};
-
-const openSortPopover = (anchor, listId) => {
-  closeSortPopover();
-  const node = el('div', 'sort-pop');
-  node.setAttribute('role', 'dialog');
-  node.setAttribute('aria-label', 'Ordenar IDEAS');
-
-  const head = el('div', 'sort-pop-head');
-  head.append(el('span', 'sort-pop-title', 'Ordenar IDEAS'));
-  const close = el('button', 'sort-pop-close');
-  close.type = 'button';
-  close.title = 'Cerrar';
-  close.setAttribute('aria-label', 'Cerrar el orden de IDEAS');
-  close.append(makeIcon('close'));
-  head.append(close);
-
-  const modes = el('div', 'sort-modes');
-  const note = el('p', 'sort-pop-note');
-  const paintMode = () => {
-    const mode = SORT_MODES.find((entry) => entry.key === state.sortMode) || SORT_MODES[0];
-    note.textContent = mode.note;
-    for (const button of modes.children) {
-      button.setAttribute('aria-pressed', button.dataset.mode === mode.key ? 'true' : 'false');
-    }
-  };
-  for (const mode of SORT_MODES) {
-    const button = el('button', 'sort-mode', mode.label);
-    button.type = 'button';
-    button.dataset.mode = mode.key;
-    button.addEventListener('click', () => {
-      state.sortMode = mode.key;
-      paintMode();
-    });
-    modes.append(button);
-  }
-  paintMode();
-
-  const foot = el('div', 'sort-pop-foot');
-  const action = el('button', 'btn-mint sort-run', 'Ordenar IDEAS');
-  action.type = 'button';
-  const status = el('div', 'sort-pop-status', 'El orden se guarda en el tablero.');
-  foot.append(action, status);
-
-  node.append(head, modes, note, foot);
-  document.body.append(node);
-
-  const width = Math.min(268, window.innerWidth - 16);
-  node.style.width = `${width}px`;
-  const rect = anchor.getBoundingClientRect();
-  node.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
-  const below = rect.bottom + 6;
-  if (below + node.offsetHeight <= window.innerHeight - 8) {
-    node.style.top = `${below}px`;
-  } else {
-    node.style.top = `${Math.max(8, rect.top - node.offsetHeight - 6)}px`;
-  }
-
-  anchor.setAttribute('aria-expanded', 'true');
-  anchor.classList.add('open');
-  state.sortPop = { node, anchor };
-
-  close.addEventListener('click', () => closeSortPopover());
-  action.addEventListener('click', () => void sortIdeas(listId, state.sortMode, action, status));
-  node.addEventListener('click', (event) => event.stopPropagation());
-};
 
 // A composer field grows with its text up to the lines it declares and then
 // scrolls. A single-line input hid everything after the first line, so you
@@ -2225,47 +2081,6 @@ const growComposerField = (field) => {
   field.style.height = `${next.height}px`;
   field.style.overflowY = next.scroll ? 'auto' : 'hidden';
 };
-
-const buildSortControl = (list) => {
-  const button = el('button', 'col-sort');
-  button.type = 'button';
-  button.title = 'Ordenar IDEAS por velocidad o complejidad';
-  button.setAttribute('aria-label', 'Ordenar IDEAS por velocidad o complejidad');
-  button.setAttribute('aria-haspopup', 'dialog');
-  button.setAttribute('aria-expanded', 'false');
-  button.append(makeIcon('sort'), el('span', 'col-sort-label', 'Ordenar'));
-  button.addEventListener('click', (event) => {
-    event.stopPropagation();
-    if (state.sortPop) {
-      closeSortPopover();
-      return;
-    }
-    openSortPopover(button, list.id);
-  });
-  return button;
-};
-
-document.addEventListener('click', (event) => {
-  const pop = state.sortPop;
-  if (!pop) return;
-  if (pop.node.contains(event.target) || event.target.closest?.('.col-sort')) return;
-  closeSortPopover();
-});
-
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeSortPopover();
-});
-
-// The popover is fixed; a scroll would leave it behind the header.
-document.addEventListener(
-  'scroll',
-  () => {
-    if (!state.sorting) closeSortPopover();
-  },
-  true,
-);
-
-window.addEventListener('resize', () => closeSortPopover());
 
 const formatSavedAt = (value) => {
   if (!value) return '';
@@ -2317,6 +2132,23 @@ const renderRecovery = () => {
   notice.replaceChildren(el('div', 'recovery-text', text), ...(recovery.canRestore ? [restore] : []));
 };
 
+// The arrow closes the column header: it is always in sight at the top of its
+// column, never floats over a card, and it still reads as "this column" while
+// the list scrolls underneath. It is shown whenever the list has something to
+// scroll up to, and disabled (dimmed, out of the tab order) at the top.
+const SCROLL_TOP_AT = 24;
+
+const syncScrollTopButton = (cards, button) => {
+  const overflowing = cards.scrollHeight > cards.clientHeight + 2;
+  button.hidden = !overflowing;
+  button.disabled = !overflowing || cards.scrollTop <= SCROLL_TOP_AT;
+};
+
+const scrollColumnToTop = (cards) => {
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+  cards.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+};
+
 const renderBoard = () => {  const board = state.refs?.board;
   if (!board) return;
   const snapshot = state.snapshot;
@@ -2331,8 +2163,17 @@ const renderBoard = () => {  const board = state.refs?.board;
     });
   }
   const boardScrollLeft = board.scrollLeft;
+  // The poll rebuilds every column. With the 120ms transitions live, a fresh
+  // button would paint its enabled mint style and then fade to grey on every
+  // render, so an idle column would blink every 2.5s. The class holds the new
+  // buttons in their final state until the restore loop has synced each one;
+  // real state changes (scroll, hover, active) keep their transitions.
+  board.classList.add('no-motion');
   board.replaceChildren();
-  if (!snapshot) return;
+  if (!snapshot) {
+    board.classList.remove('no-motion');
+    return;
+  }
   if (!snapshot.lists.length) {
     const isLocal = (state.config?.source || 'planka') === 'local';
     const empty = el('div', 'board-empty');
@@ -2352,12 +2193,22 @@ const renderBoard = () => {  const board = state.refs?.board;
       create,
     );
     board.append(empty);
+    board.classList.remove('no-motion');
     return;
   }
 
   snapshot.lists.forEach((list, listIndex) => {
     const column = el('section', 'column');
     column.dataset.listId = list.id;
+    // The card border says where the card is: dashed in the backlog, solid
+    // while it is being worked on, and gone once it is done. The panel knows
+    // the work and done lists by id; anything else reads as backlog.
+    column.dataset.state =
+      list.id === state.snapshot?.doneListId
+        ? 'done'
+        : list.id === state.snapshot?.workListId
+          ? 'progress'
+          : 'ideas';
     if (state.composerListId === list.id) column.classList.add('composing');
 
     const head = el('div', 'col-head');
@@ -2382,7 +2233,16 @@ const renderBoard = () => {  const board = state.refs?.board;
       const hint = el('div', 'column-hint', state.search || state.labels.size ? 'Sin coincidencias' : 'Arrastra una tarjeta aquí');
       cardsEl.append(hint);
     }
-    for (const card of visible) cardsEl.append(buildCard(card, listIndex, list.id === state.snapshot?.workListId));
+    for (const card of visible) cardsEl.append(buildCard(card, listIndex, list.id === state.snapshot?.workListId, list.name));
+
+    const toTop = el('button', 'scroll-top');
+    toTop.type = 'button';
+    toTop.hidden = true;
+    toTop.disabled = true;
+    toTop.setAttribute('aria-label', `Subir al principio de ${list.name}`);
+    toTop.append(makeIcon('up'));
+    toTop.addEventListener('click', () => scrollColumnToTop(cardsEl));
+    cardsEl.addEventListener('scroll', () => syncScrollTopButton(cardsEl, toTop), { passive: true });
 
     const composer = el('div', 'composer');
     const composerField = (className, placeholder, label, lines) => {
@@ -2455,10 +2315,8 @@ const renderBoard = () => {  const board = state.refs?.board;
     addCard.append(makeIcon('plus'));
     addCard.addEventListener('click', () => openComposer(list.id));
     // The + sits next to the column title; the count keeps the far right.
-    // Only IDEAS can be ordered by priority, and its chip sits next to the count.
     head.append(addCard);
-    if (list.id === ideasListId()) head.append(buildSortControl(list));
-    head.append(count);
+    head.append(count, toTop);
 
     let closeDone = null;
     if (list.id === snapshot.doneListId) {
@@ -2495,13 +2353,15 @@ const renderBoard = () => {  const board = state.refs?.board;
   });
 
   for (const column of board.querySelectorAll('.column')) {
-    const saved = scrollState.get(column.dataset.listId);
-    if (!saved) continue;
     const cards = column.querySelector('.cards');
     if (!cards) continue;
-    cards.scrollTop = saved.atBottom ? cards.scrollHeight : saved.top;
+    const saved = scrollState.get(column.dataset.listId);
+    if (saved) cards.scrollTop = saved.atBottom ? cards.scrollHeight : saved.top;
+    const toTop = column.querySelector('.scroll-top');
+    if (toTop) syncScrollTopButton(cards, toTop);
   }
   board.scrollLeft = boardScrollLeft;
+  board.classList.remove('no-motion');
 };
 
 
@@ -2988,10 +2848,7 @@ const refresh = async (silent = false) => {
   if (state.fetching || state.view !== 'board') return;
   state.fetching = true;
   try {
-    const [snapshot] = await Promise.all([
-      api('GET', '/snapshot'),
-      loadSessionStates(),
-    ]);
+    const [snapshot] = await Promise.all([api('GET', '/snapshot'), loadSessionStates()]);
     state.snapshot = snapshot;
     setBanner('');
     renderAll();
@@ -3013,10 +2870,7 @@ const refresh = async (silent = false) => {
 const refreshBoardOnly = async () => {
   if (state.view !== 'board') return;
   try {
-    const [snapshot] = await Promise.all([
-      api('GET', '/snapshot'),
-      loadSessionStates(),
-    ]);
+    const [snapshot] = await Promise.all([api('GET', '/snapshot'), loadSessionStates()]);
     state.snapshot = snapshot;
     setBanner('');
     renderAll();

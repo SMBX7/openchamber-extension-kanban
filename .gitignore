@@ -8,6 +8,9 @@ board.local.json.tmp
 
 .atl/
 
+# Screenshots the browser panel saves when checking the UI.
+.openchamber/
+
 board.local.*.json
 board.local.*.json.lock
 board.local.*.json.tmp

@@ -156,8 +156,6 @@ When the session already names its project, the project selector no longer appea
 - **Move**: drag a card inside a column or to another one. Dragging to DONE completes it.
   A card with its own session moves there when that session finishes its turn; in a batch,
   the main agent moves it after reviewing its subagent. Manual moves are never touched.
-- **Sort IDEAS**: **Sort** (Ordenar) orders by **Speed** (small work first) or
-  **Complexity** (redesigns and interface changes first).
 - **Search** with the magnifier.
 - **Stopped** (Paradas) filters cards in IN PROGRESS **without an active session**.
 
@@ -177,13 +175,12 @@ The Work Status section beside the chat; it lets you work without opening the pa
 - Below, the ideas: the tick starts one, the trash deletes it (with undo).
 - A card in IN PROGRESS with no session shows under **Stopped** (Paradas).
 
-### From the chat
+### Citing a card
 
-Type `@` in the composer and pick **Tarjetas** (Cards): IN PROGRESS comes first and IDEAS
-after, each row labelled with its column. The list stays short — type to search by title
-or details, and an exact title comes first. Picking a card that is still in IDEAS moves it
-to IN PROGRESS. The chip hands the agent the title, the id, the column and the details, so
-it can work the card without opening the panel. Cards in DONE stay out.
+Every card has a quote button next to its pencil. Picking it pastes the card's citation into
+the message open in the chat: the board, the title, the id, the column and the details, so
+the agent can work the card without opening the panel. Citing does not move the card: it
+stays in its column until you or the agent move it.
 
 ## Sessions: manual and automatic
 
@@ -196,8 +193,8 @@ a subagent, and several ready at once run in parallel, each on its own files.
   Status when you want the agent to take it. Both modes work in batches with subagents.
   The agent works the card and leaves it in IN PROGRESS with a note that it is ready: you
   review it, move it to DONE and ask for the summary when the batch is done. Referencing
-  a card in the chat to work on it — with `@` or by name — moves it to IN PROGRESS if it
-  is still in IDEAS.
+  a card in the chat to work on it — by name or with its quote button — moves it to IN
+  PROGRESS if it is still in IDEAS.
 - **Automatic**: the prompt asks before adding each card to the batch, so nothing joins
   silently. The agent reviews each subagent, moves the card to DONE itself and summarises
   when the batch ends; the session stays open for you to archive.
@@ -241,11 +238,11 @@ project never reads as empty when it is only missing.
 
 Change them in **Settings → Appearance** (Apariencia).
 
-<img src="docs/styles.png" width="700" alt="The three card styles">
+<img src="docs/styles.png" width="700" alt="Some of the card styles">
 
 - **Neumorphism** (Neumorfismo): soft relief, blurred shadows.
-- **Brutalism** (Brutalismo): hard borders, square corners, solid shadows.
 - **Glass** (Cristal): translucent surfaces with blur.
+- **Sketch**: wobbly corners, dashed strokes and a shadow with no blur, like a post-it.
 
 ## Common problems
 

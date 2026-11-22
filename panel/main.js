@@ -1826,36 +1826,6 @@ ${GUEST_SCROLLBAR_CSS}
 ${UI_SIZE_CSS}
 ${GUEST_UI_LOOK_CSS}`;
 
-  // src/shared/work.js
-  var QUICK = /\b(readme|docs|documentacion|texto|textos|titulo|titulos|nombre|nombres|etiqueta|etiquetas|color|colores|icono|iconos|indice|index|typo|renombrar|alinear|margen|espacio|pequen\w*|simple|rapido|rapida|minimo|quitar|ocultar|mostrar)\b/g;
-  var BIG = /\b(redisen\w*|reescrib\w*|reescritura|refactor\w*|arquitectura|migrac\w*|integrac\w*|inteligencia artificial|nuevo modo|desde cero|todo el panel|toda la interfaz|panel completo|flujo completo|sistema|complejo|compleja|rehacer|interfaz|panel|pantalla|columna|columnas|ventana|lateral)\b/g;
-  var WORK_LEVELS = [
-    { key: "quick", label: "R\xE1pido" },
-    { key: "medium", label: "Medio" },
-    { key: "big", label: "Complejo" }
-  ];
-  var normalizeText = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  var hits = (text, pattern) => (text.match(pattern) || []).length;
-  var classifyWork = (card) => {
-    const title = normalizeText(card?.name);
-    const body = normalizeText(card?.description);
-    const quick = 2 * hits(title, QUICK) + hits(body, QUICK);
-    const big = 2 * hits(title, BIG) + hits(body, BIG);
-    const level = big > quick ? 2 : quick > big ? 0 : 1;
-    const criterion = WORK_LEVELS[level];
-    return { level, key: criterion.key, label: criterion.label, quick, big };
-  };
-  var sortCardsByWork = (cards, direction = "quick") => {
-    const sign = direction === "big" ? -1 : 1;
-    return (Array.isArray(cards) ? cards : []).map((card, index) => ({ card, index, work: classifyWork(card) })).sort((a, b) => {
-      const levelDiff = a.work.level - b.work.level;
-      if (levelDiff) return sign * levelDiff;
-      const aScore = direction === "big" ? a.work.big : a.work.quick;
-      const bScore = direction === "big" ? b.work.big : b.work.quick;
-      return bScore - aScore || a.index - b.index;
-    }).map((entry) => entry.card);
-  };
-
   // src/shared/board-pin.js
   var pinState = ({ pinned, boardId, project }) => {
     const id = String(boardId || "");
@@ -1884,6 +1854,18 @@ ${GUEST_UI_LOOK_CSS}`;
     const room = Math.round(lineHeight * lines + padding + border2);
     const needed = Math.ceil(scrollHeight + border2);
     return { height: Math.min(needed, room), scroll: needed > room };
+  };
+
+  // src/shared/citation.js
+  var CITATION_TEXT_MAX = 16e3;
+  var citationText = (card, listName, boardName) => {
+    const checklist = (card?.taskLists || []).flatMap((taskList) => taskList.tasks.map((task) => `- ${task.name}`)).slice(0, 12);
+    return [
+      `Tarjeta del kanban \xAB${boardName || ""}\xBB: \xAB${card?.name || ""}\xBB (id ${card?.id || ""}${listName ? `, columna ${listName}` : ""}).`,
+      card?.description ? `Descripci\xF3n: ${card.description}` : "",
+      checklist.length ? `Checklist:
+${checklist.join("\n")}` : ""
+    ].filter(Boolean).join("\n").slice(0, CITATION_TEXT_MAX);
   };
 
   // src/shared/board-follow.js
@@ -1926,6 +1908,8 @@ ${GUEST_UI_LOOK_CSS}`;
     compress: '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
     expand: '<path d="m13 7 5 5-5 5"/><path d="m6 7 5 5-5 5"/>',
     chevron: '<path d="m6 9 6 6 6-6"/>',
+    up: '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>',
+    quote: '<path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h3a1 1 0 0 1 1 1v1a2 2 0 0 1-2 2h-1a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h1a6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h3a1 1 0 0 1 1 1v1a2 2 0 0 1-2 2H6a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h1a6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/>',
     sort: '<path d="M7 4v16"/><path d="m4 17 3 3 3-3"/><path d="M13 6h7M13 11h5M13 16h3"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 15a1.65 1.65 0 0 0-1.51-1H2a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 3.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6h.09A1.65 1.65 0 0 0 9.1 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09A1.65 1.65 0 0 0 21 10.1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/>'
   };
@@ -1958,9 +1942,6 @@ ${GUEST_UI_LOOK_CSS}`;
     stoppedOnly: false,
     dragId: "",
     dragging: false,
-    sorting: false,
-    sortPop: null,
-    sortMode: "quick",
     composerListId: "",
     saving: 0,
     fetching: false,
@@ -3309,8 +3290,8 @@ ${card.description}`.toLowerCase();
     const styleGrid = el2("div", "style-grid");
     const styleOptions = [
       ["neumorphism", "Neumorfismo", "Relieve suave y sombras difusas."],
-      ["brutalism", "Brutalismo", "Bordes duros y sombras s\xF3lidas."],
-      ["glass", "Cristal", "Fondo transl\xFAcido con desenfoque."]
+      ["glass", "Cristal", "Fondo transl\xFAcido con desenfoque."],
+      ["sketch", "Sketch", "Esquinas torcidas y trazo discontinuo, como un post-it."]
     ];
     for (const [key, label, text] of styleOptions) {
       const option = el2("button", "style-card");
@@ -3337,7 +3318,8 @@ ${card.description}`.toLowerCase();
     sesionesBox.append(
       fact("IDEAS", "el + de la columna crea una tarjeta. El l\xE1piz abre la tarjeta para editar t\xEDtulo, detalles, checklist y sesi\xF3n, y para borrarla. El tic la pasa a EN PROGRESO."),
       fact("EN PROGRESO", "es la tarjeta actual. Al moverla queda vinculada a la sesi\xF3n en la que est\xE1s. En manual abres la sesi\xF3n del lote con el + del Work Status y el agente deja la tarjeta para que la revises; en autom\xE1tico te pregunta antes de sumar cada tarjeta y el agente la mueve a HECHO al terminar."),
-      fact("HECHO", "la tarjeta queda terminada. El bot\xF3n de la columna HECHO cierra el lote: pide el resumen de cada sesi\xF3n y suelta las tarjetas; la sesi\xF3n sigue abierta para que la archives.")
+      fact("HECHO", "la tarjeta queda terminada. El bot\xF3n de la columna HECHO cierra el lote: pide el resumen de cada sesi\xF3n y suelta las tarjetas; la sesi\xF3n sigue abierta para que la archives."),
+      fact("Citar", "el bot\xF3n de comillas de una tarjeta pega en el mensaje su tablero, t\xEDtulo, id, columna y detalles, para que el agente la trabaje sin abrir el panel. No mueve la tarjeta de columna.")
     );
     sesionesBox.append(el2("p", "settings-note", "Al cerrar el lote se sueltan sus tarjetas: si vuelves a mover una, se suma al lote que siga abierto o abre uno nuevo. La sesi\xF3n sigue abierta para que la archives cuando quieras."));
     sesiones.append(sesionesBox);
@@ -3476,7 +3458,7 @@ ${card.description}`.toLowerCase();
     }
   };
   var cardDraggable = () => !state.search.trim() && state.labels.size === 0;
-  var buildCard = (card, listIndex, inProgress = false) => {
+  var buildCard = (card, listIndex, inProgress = false, listName = "") => {
     const node = el2("article", "card");
     node.tabIndex = 0;
     node.draggable = cardDraggable();
@@ -3502,12 +3484,13 @@ ${card.description}`.toLowerCase();
     if (card.labels.length) {
       const dots = el2("div", "card-labels");
       for (const label of card.labels) {
+        if (sizeTagKey(label.name)) continue;
         const dot = el2("span", "label-dot");
         dot.style.setProperty("--label", labelColor(label.color || label.name));
         dot.title = label.name;
         dots.append(dot);
       }
-      meta.append(dots);
+      if (dots.childNodes.length) meta.append(dots);
     }
     const due = dueInfo(card.dueDate);
     if (due) {
@@ -3525,6 +3508,19 @@ ${card.description}`.toLowerCase();
       meta.append(check);
     }
     if (meta.childNodes.length) node.append(meta);
+    const cite = el2("button", "card-cite");
+    cite.type = "button";
+    cite.title = `Citar la tarjeta ${card.name} en el chat`;
+    cite.setAttribute("aria-label", `Citar la tarjeta ${card.name} en el chat`);
+    cite.append(makeIcon("quote"));
+    cite.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const boardName = state.snapshot?.board?.name || state.snapshot?.name || "";
+      host.compose({
+        text: citationText(card, listName, boardName).slice(0, CITATION_TEXT_MAX),
+        mode: "append"
+      }).then(() => toast("success", "Cita a\xF1adida al chat.")).catch((error) => toast("error", error?.message || "No se pudo citar la tarjeta."));
+    });
     const edit = el2("button", "card-edit");
     edit.type = "button";
     edit.title = "Editar tarjeta";
@@ -3535,6 +3531,7 @@ ${card.description}`.toLowerCase();
       openSheet(card.id);
     });
     actions.append(edit);
+    actions.append(cite);
     const open = () => openSheet(card.id);
     node.title = "Doble clic o el l\xE1piz para editar la tarjeta";
     node.setAttribute("aria-label", `${card.name}. Doble clic o el l\xE1piz para editar la tarjeta.`);
@@ -3691,145 +3688,6 @@ ${card.description}`.toLowerCase();
     if (button2) button2.disabled = false;
     await refresh(true);
   };
-  var IDEAS_NAME = /^ideas?$/i;
-  var ideasListId = () => {
-    const snapshot = state.snapshot;
-    if (!snapshot?.lists?.length) return "";
-    const named = snapshot.lists.find((list) => IDEAS_NAME.test(String(list.name || "").trim()));
-    if (named) return named.id;
-    const backlog = snapshot.lists.find(
-      (list) => list.id !== snapshot.workListId && list.id !== snapshot.doneListId
-    );
-    return backlog?.id || "";
-  };
-  var closeSortPopover = () => {
-    const pop = state.sortPop;
-    if (!pop) return;
-    pop.node.remove();
-    if (pop.anchor?.isConnected) {
-      pop.anchor.setAttribute("aria-expanded", "false");
-      pop.anchor.classList.remove("open");
-    }
-    state.sortPop = null;
-  };
-  var SORT_MODES = [
-    {
-      key: "quick",
-      label: "R\xE1pido",
-      note: "Primero lo que se hace en un rato: textos, detalles y cambios peque\xF1os."
-    },
-    {
-      key: "big",
-      label: "Complejo",
-      note: "Primero lo grande: redise\xF1os, interfaz, reescrituras y flujos completos."
-    }
-  ];
-  var sortIdeas = async (listId, mode, action, status) => {
-    if (state.sorting) return;
-    const list = findList(listId);
-    if (!list) {
-      closeSortPopover();
-      return;
-    }
-    const sorted = sortCardsByWork(list.cards, mode === "big" ? "big" : "quick");
-    const targetIds = sorted.map((card) => card.id);
-    const currentIds = list.cards.map((card) => card.id);
-    if (targetIds.join("|") === currentIds.join("|")) {
-      status.textContent = "Ya est\xE1 en ese orden.";
-      return;
-    }
-    state.sorting = true;
-    state.saving += 1;
-    action.disabled = true;
-    action.textContent = "Ordenando\u2026";
-    status.textContent = `${targetIds.length} tarjetas \xB7 guardando el orden\u2026`;
-    let moved = 0;
-    try {
-      for (let index = 0; index < targetIds.length; index += 1) {
-        const live = findList(listId);
-        if (!live) {
-          closeSortPopover();
-          return;
-        }
-        if (live.cards[index]?.id === targetIds[index]) continue;
-        await moveCard(targetIds[index], listId, index);
-        moved += 1;
-      }
-    } finally {
-      state.sorting = false;
-      state.saving -= 1;
-      action.disabled = false;
-      action.textContent = "Ordenar IDEAS";
-    }
-    const saved = (findList(listId)?.cards || []).map((card) => card.id).join("|");
-    if (moved && saved === targetIds.join("|")) {
-      status.textContent = "Orden aplicado y guardado en el tablero.";
-      toast("success", "IDEAS ordenadas.");
-      closeSortPopover();
-    } else if (moved) {
-      status.textContent = "No se pudo guardar el orden completo. Prueba otra vez.";
-      toast("error", "No se pudo guardar el orden de IDEAS.");
-    } else {
-      status.textContent = "Ya est\xE1 en ese orden.";
-    }
-  };
-  var openSortPopover = (anchor, listId) => {
-    closeSortPopover();
-    const node = el2("div", "sort-pop");
-    node.setAttribute("role", "dialog");
-    node.setAttribute("aria-label", "Ordenar IDEAS");
-    const head = el2("div", "sort-pop-head");
-    head.append(el2("span", "sort-pop-title", "Ordenar IDEAS"));
-    const close = el2("button", "sort-pop-close");
-    close.type = "button";
-    close.title = "Cerrar";
-    close.setAttribute("aria-label", "Cerrar el orden de IDEAS");
-    close.append(makeIcon("close"));
-    head.append(close);
-    const modes = el2("div", "sort-modes");
-    const note = el2("p", "sort-pop-note");
-    const paintMode = () => {
-      const mode = SORT_MODES.find((entry) => entry.key === state.sortMode) || SORT_MODES[0];
-      note.textContent = mode.note;
-      for (const button2 of modes.children) {
-        button2.setAttribute("aria-pressed", button2.dataset.mode === mode.key ? "true" : "false");
-      }
-    };
-    for (const mode of SORT_MODES) {
-      const button2 = el2("button", "sort-mode", mode.label);
-      button2.type = "button";
-      button2.dataset.mode = mode.key;
-      button2.addEventListener("click", () => {
-        state.sortMode = mode.key;
-        paintMode();
-      });
-      modes.append(button2);
-    }
-    paintMode();
-    const foot = el2("div", "sort-pop-foot");
-    const action = el2("button", "btn-mint sort-run", "Ordenar IDEAS");
-    action.type = "button";
-    const status = el2("div", "sort-pop-status", "El orden se guarda en el tablero.");
-    foot.append(action, status);
-    node.append(head, modes, note, foot);
-    document.body.append(node);
-    const width = Math.min(268, window.innerWidth - 16);
-    node.style.width = `${width}px`;
-    const rect = anchor.getBoundingClientRect();
-    node.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
-    const below = rect.bottom + 6;
-    if (below + node.offsetHeight <= window.innerHeight - 8) {
-      node.style.top = `${below}px`;
-    } else {
-      node.style.top = `${Math.max(8, rect.top - node.offsetHeight - 6)}px`;
-    }
-    anchor.setAttribute("aria-expanded", "true");
-    anchor.classList.add("open");
-    state.sortPop = { node, anchor };
-    close.addEventListener("click", () => closeSortPopover());
-    action.addEventListener("click", () => void sortIdeas(listId, state.sortMode, action, status));
-    node.addEventListener("click", (event) => event.stopPropagation());
-  };
   var growComposerField = (field2) => {
     field2.style.height = "auto";
     const style = getComputedStyle(field2);
@@ -3843,41 +3701,6 @@ ${card.description}`.toLowerCase();
     field2.style.height = `${next.height}px`;
     field2.style.overflowY = next.scroll ? "auto" : "hidden";
   };
-  var buildSortControl = (list) => {
-    const button2 = el2("button", "col-sort");
-    button2.type = "button";
-    button2.title = "Ordenar IDEAS por velocidad o complejidad";
-    button2.setAttribute("aria-label", "Ordenar IDEAS por velocidad o complejidad");
-    button2.setAttribute("aria-haspopup", "dialog");
-    button2.setAttribute("aria-expanded", "false");
-    button2.append(makeIcon("sort"), el2("span", "col-sort-label", "Ordenar"));
-    button2.addEventListener("click", (event) => {
-      event.stopPropagation();
-      if (state.sortPop) {
-        closeSortPopover();
-        return;
-      }
-      openSortPopover(button2, list.id);
-    });
-    return button2;
-  };
-  document.addEventListener("click", (event) => {
-    const pop = state.sortPop;
-    if (!pop) return;
-    if (pop.node.contains(event.target) || event.target.closest?.(".col-sort")) return;
-    closeSortPopover();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeSortPopover();
-  });
-  document.addEventListener(
-    "scroll",
-    () => {
-      if (!state.sorting) closeSortPopover();
-    },
-    true
-  );
-  window.addEventListener("resize", () => closeSortPopover());
   var formatSavedAt = (value) => {
     if (!value) return "";
     const date = new Date(value);
@@ -3921,6 +3744,16 @@ ${card.description}`.toLowerCase();
     notice.hidden = false;
     notice.replaceChildren(el2("div", "recovery-text", text), ...recovery.canRestore ? [restore] : []);
   };
+  var SCROLL_TOP_AT = 24;
+  var syncScrollTopButton = (cards, button2) => {
+    const overflowing = cards.scrollHeight > cards.clientHeight + 2;
+    button2.hidden = !overflowing;
+    button2.disabled = !overflowing || cards.scrollTop <= SCROLL_TOP_AT;
+  };
+  var scrollColumnToTop = (cards) => {
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+    cards.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+  };
   var renderBoard = () => {
     const board = state.refs?.board;
     if (!board) return;
@@ -3936,8 +3769,12 @@ ${card.description}`.toLowerCase();
       });
     }
     const boardScrollLeft = board.scrollLeft;
+    board.classList.add("no-motion");
     board.replaceChildren();
-    if (!snapshot) return;
+    if (!snapshot) {
+      board.classList.remove("no-motion");
+      return;
+    }
     if (!snapshot.lists.length) {
       const isLocal = (state.config?.source || "planka") === "local";
       const empty = el2("div", "board-empty");
@@ -3955,11 +3792,13 @@ ${card.description}`.toLowerCase();
         create
       );
       board.append(empty);
+      board.classList.remove("no-motion");
       return;
     }
     snapshot.lists.forEach((list, listIndex) => {
       const column = el2("section", "column");
       column.dataset.listId = list.id;
+      column.dataset.state = list.id === state.snapshot?.doneListId ? "done" : list.id === state.snapshot?.workListId ? "progress" : "ideas";
       if (state.composerListId === list.id) column.classList.add("composing");
       const head = el2("div", "col-head");
       const dot = el2("span", "col-dot");
@@ -3982,7 +3821,15 @@ ${card.description}`.toLowerCase();
         const hint2 = el2("div", "column-hint", state.search || state.labels.size ? "Sin coincidencias" : "Arrastra una tarjeta aqu\xED");
         cardsEl.append(hint2);
       }
-      for (const card of visible) cardsEl.append(buildCard(card, listIndex, list.id === state.snapshot?.workListId));
+      for (const card of visible) cardsEl.append(buildCard(card, listIndex, list.id === state.snapshot?.workListId, list.name));
+      const toTop = el2("button", "scroll-top");
+      toTop.type = "button";
+      toTop.hidden = true;
+      toTop.disabled = true;
+      toTop.setAttribute("aria-label", `Subir al principio de ${list.name}`);
+      toTop.append(makeIcon("up"));
+      toTop.addEventListener("click", () => scrollColumnToTop(cardsEl));
+      cardsEl.addEventListener("scroll", () => syncScrollTopButton(cardsEl, toTop), { passive: true });
       const composer = el2("div", "composer");
       const composerField = (className, placeholder, label, lines) => {
         const box = el2("textarea", `composer-field ${className}`);
@@ -4051,8 +3898,7 @@ ${card.description}`.toLowerCase();
       addCard.append(makeIcon("plus"));
       addCard.addEventListener("click", () => openComposer(list.id));
       head.append(addCard);
-      if (list.id === ideasListId()) head.append(buildSortControl(list));
-      head.append(count);
+      head.append(count, toTop);
       let closeDone = null;
       if (list.id === snapshot.doneListId) {
         const sessions = /* @__PURE__ */ new Set();
@@ -4082,13 +3928,15 @@ ${card.description}`.toLowerCase();
       }
     });
     for (const column of board.querySelectorAll(".column")) {
-      const saved = scrollState.get(column.dataset.listId);
-      if (!saved) continue;
       const cards = column.querySelector(".cards");
       if (!cards) continue;
-      cards.scrollTop = saved.atBottom ? cards.scrollHeight : saved.top;
+      const saved = scrollState.get(column.dataset.listId);
+      if (saved) cards.scrollTop = saved.atBottom ? cards.scrollHeight : saved.top;
+      const toTop = column.querySelector(".scroll-top");
+      if (toTop) syncScrollTopButton(cards, toTop);
     }
     board.scrollLeft = boardScrollLeft;
+    board.classList.remove("no-motion");
   };
   var startListRename = (column, list, nameButton) => {
     if (column.querySelector(".col-name-input")) return;
@@ -4489,10 +4337,7 @@ ${card.description}`.toLowerCase();
     if (state.fetching || state.view !== "board") return;
     state.fetching = true;
     try {
-      const [snapshot] = await Promise.all([
-        api("GET", "/snapshot"),
-        loadSessionStates()
-      ]);
+      const [snapshot] = await Promise.all([api("GET", "/snapshot"), loadSessionStates()]);
       state.snapshot = snapshot;
       setBanner("");
       renderAll();
@@ -4511,10 +4356,7 @@ ${card.description}`.toLowerCase();
   var refreshBoardOnly = async () => {
     if (state.view !== "board") return;
     try {
-      const [snapshot] = await Promise.all([
-        api("GET", "/snapshot"),
-        loadSessionStates()
-      ]);
+      const [snapshot] = await Promise.all([api("GET", "/snapshot"), loadSessionStates()]);
       state.snapshot = snapshot;
       setBanner("");
       renderAll();
