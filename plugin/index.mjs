@@ -1893,7 +1893,7 @@ var agentVersion = () => {
 };
 var agentCodeVersion = () => {
   try {
-    return "1.11.0" ? "1.11.0" : agentVersion();
+    return "1.12.0" ? "1.12.0" : agentVersion();
   } catch {
     return agentVersion();
   }
