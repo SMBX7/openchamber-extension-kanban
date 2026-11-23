@@ -130,6 +130,42 @@ var dueTimestamp = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
+var pathOf = (value) => {
+  const raw = textOf(value);
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return raw.startsWith("/") ? raw : "";
+  }
+};
+var attachmentView = (attachment) => {
+  const data = attachment?.data && typeof attachment.data === "object" ? attachment.data : {};
+  const thumbnails = data.thumbnailUrls && typeof data.thumbnailUrls === "object" ? data.thumbnailUrls : {};
+  const image = data.image && typeof data.image === "object" ? data.image : null;
+  const type = textOf(attachment?.type) || "file";
+  const url = textOf(data.url);
+  return {
+    id: String(attachment?.id || ""),
+    cardId: String(attachment?.cardId || ""),
+    name: textOf(attachment?.name) || "Adjunto",
+    type,
+    externalUrl: type === "link" ? url : "",
+    mime: textOf(data.mimeType),
+    size: Number.isFinite(data.size) && data.size >= 0 ? data.size : 0,
+    isImage: Boolean(image),
+    width: Number.isFinite(image?.width) ? image.width : 0,
+    height: Number.isFinite(image?.height) ? image.height : 0,
+    url,
+    path: pathOf(url),
+    thumbnailUrl: textOf(thumbnails.outside360),
+    thumbnailPath: pathOf(thumbnails.outside360),
+    previewUrl: textOf(thumbnails.outside720),
+    previewPath: pathOf(thumbnails.outside720),
+    createdAt: textOf(attachment?.createdAt)
+  };
+};
 var PlankaClient = class {
   constructor(config, options = {}) {
     this.baseUrl = normaliseBaseUrl(config?.baseUrl);
@@ -255,6 +291,68 @@ var PlankaClient = class {
       });
     }
     return this.reauthing;
+  }
+  // The board payload already carries every attachment with its download and
+  // thumbnail URLs. The panel gets the bytes through the service, never from
+  // Planka, so this only needs to read one file at a time.
+  async readAttachmentFile(path) {
+    const target = /^https?:\/\//i.test(path) ? path : `${this.baseUrl}${path}`;
+    let response;
+    try {
+      response = await fetch(target, {
+        headers: { Accept: "*/*", ...this.token ? { Cookie: `accessToken=${this.token}` } : {} },
+        signal: AbortSignal.timeout(3e4)
+      });
+    } catch (error) {
+      throw new PlankaError(
+        error?.name === "TimeoutError" || error?.name === "AbortError" ? "Planka no ha respondido a tiempo." : "No se puede conectar con Planka.",
+        { kind: "network" }
+      );
+    }
+    if (response.status === 401 && this.password) {
+      await this.relogin();
+      return this.readAttachmentFile(path);
+    }
+    if (response.status === 401) {
+      throw new PlankaError("La sesi\xF3n de Planka ha caducado. Vuelve a entrar en Kanban.", {
+        kind: "auth",
+        status: 401
+      });
+    }
+    if (!response.ok) {
+      throw new PlankaError("Ese adjunto ya no est\xE1 en Planka.", { kind: "not-found", status: response.status });
+    }
+    return {
+      buffer: Buffer.from(await response.arrayBuffer()),
+      mime: textOf(response.headers.get("content-type")) || "application/octet-stream"
+    };
+  }
+  async uploadAttachment(cardId, { name, mime, buffer } = {}) {
+    const title = textOf(name).trim().slice(0, 128) || "Adjunto";
+    if (!buffer || !buffer.length) {
+      throw new PlankaError("El archivo est\xE1 vac\xEDo.", { kind: "validation" });
+    }
+    const form = new FormData();
+    form.append("type", "file");
+    form.append("name", title);
+    form.append("file", new Blob([buffer], { type: textOf(mime) || "application/octet-stream" }), title);
+    const data = await this.request(`/api/cards/${encode(cardId)}/attachments`, {
+      method: "POST",
+      form,
+      timeout: 6e4
+    });
+    return data?.item ?? null;
+  }
+  async deleteAttachment(attachmentId) {
+    await this.request(`/api/attachments/${encode(attachmentId)}`, { method: "DELETE" });
+    return true;
+  }
+  async setCardCover(cardId, attachmentId) {
+    const data = await this.request(`/api/cards/${encode(cardId)}`, {
+      method: "PATCH",
+      body: { coverAttachmentId: attachmentId ? String(attachmentId) : null }
+    });
+    return data?.item ?? null;
   }
   async getBoards() {
     const data = await this.request("/api/projects");
@@ -561,6 +659,21 @@ var normaliseBoard = (payload, baseUrl, requestedBoardId) => {
   const cardLabels = Array.isArray(included.cardLabels) ? included.cardLabels : [];
   const taskLists = Array.isArray(included.taskLists) ? included.taskLists : [];
   const tasks = Array.isArray(included.tasks) ? included.tasks : [];
+  const attachments = Array.isArray(included.attachments) ? included.attachments : [];
+  const attachmentsByCard = /* @__PURE__ */ new Map();
+  for (const attachment of attachments) {
+    const view2 = attachmentView(attachment);
+    if (!view2.id || !view2.cardId) continue;
+    const list = attachmentsByCard.get(view2.cardId) || [];
+    list.push(view2);
+    attachmentsByCard.set(view2.cardId, list);
+  }
+  for (const list of attachmentsByCard.values()) {
+    list.sort((a, b) => {
+      if (a.createdAt !== b.createdAt) return a.createdAt.localeCompare(b.createdAt);
+      return a.id.localeCompare(b.id);
+    });
+  }
   const lists = (Array.isArray(included.lists) ? included.lists : []).filter((list) => list && list.type === "active").sort(byPosition).map((list) => ({
     id: String(list.id),
     name: textOf(list.name).trim() || "Sin nombre",
@@ -602,6 +715,9 @@ var normaliseBoard = (payload, baseUrl, requestedBoardId) => {
         cardLabelId: String(cardLabel.id)
       } : null;
     }).filter(Boolean);
+    const cardAttachments = attachmentsByCard.get(String(card.id)) || [];
+    const coverAttachmentId = String(card.coverAttachmentId || "");
+    const cover = cardAttachments.find((attachment) => attachment.id === coverAttachmentId) || null;
     list.cards.push({
       id: String(card.id),
       name: textOf(card.name),
@@ -612,7 +728,10 @@ var normaliseBoard = (payload, baseUrl, requestedBoardId) => {
       position: Number.isFinite(card.position) ? card.position : 0,
       labels: cardLabelRows,
       taskLists: cardTaskLists,
-      checklist: { total, done }
+      checklist: { total, done },
+      attachments: cardAttachments,
+      coverAttachmentId,
+      cover
     });
   }
   for (const list of lists) list.cards.sort(byPosition);
@@ -692,7 +811,8 @@ var boardSummary = (board) => ({
       name: card.name,
       dueDate: card.dueDate || null,
       labels: card.labels.map((label) => label.name),
-      checklist: card.checklist
+      checklist: card.checklist,
+      attachments: Array.isArray(card.attachments) ? card.attachments.length : 0
     }))
   })),
   counts: board.counts

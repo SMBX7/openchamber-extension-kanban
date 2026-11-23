@@ -60,6 +60,47 @@ export const labelColor = (name) => {
   return `hsl(${hue} 58% 62%)`;
 };
 
+// A path (with its query) from a Planka URL, so the service can request the
+// file from the same server it already talks to even when Planka was configured
+// with another public base URL.
+const pathOf = (value) => {
+  const raw = textOf(value);
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return raw.startsWith('/') ? raw : '';
+  }
+};
+
+export const attachmentView = (attachment) => {
+  const data = attachment?.data && typeof attachment.data === 'object' ? attachment.data : {};
+  const thumbnails = data.thumbnailUrls && typeof data.thumbnailUrls === 'object' ? data.thumbnailUrls : {};
+  const image = data.image && typeof data.image === 'object' ? data.image : null;
+  const type = textOf(attachment?.type) || 'file';
+  const url = textOf(data.url);
+  return {
+    id: String(attachment?.id || ''),
+    cardId: String(attachment?.cardId || ''),
+    name: textOf(attachment?.name) || 'Adjunto',
+    type,
+    externalUrl: type === 'link' ? url : '',
+    mime: textOf(data.mimeType),
+    size: Number.isFinite(data.size) && data.size >= 0 ? data.size : 0,
+    isImage: Boolean(image),
+    width: Number.isFinite(image?.width) ? image.width : 0,
+    height: Number.isFinite(image?.height) ? image.height : 0,
+    url,
+    path: pathOf(url),
+    thumbnailUrl: textOf(thumbnails.outside360),
+    thumbnailPath: pathOf(thumbnails.outside360),
+    previewUrl: textOf(thumbnails.outside720),
+    previewPath: pathOf(thumbnails.outside720),
+    createdAt: textOf(attachment?.createdAt),
+  };
+};
+
 export class PlankaClient {
   constructor(config, options = {}) {
     this.baseUrl = normaliseBaseUrl(config?.baseUrl);
@@ -203,6 +244,78 @@ export class PlankaClient {
       });
     }
     return this.reauthing;
+  }
+
+  // The board payload already carries every attachment with its download and
+  // thumbnail URLs. The panel gets the bytes through the service, never from
+  // Planka, so this only needs to read one file at a time.
+  async readAttachmentFile(path) {
+    const target = /^https?:\/\//i.test(path) ? path : `${this.baseUrl}${path}`;
+    let response;
+    try {
+      // The download routes live outside /api, and Planka only reads the token
+      // there from the accessToken cookie, not from the Authorization header.
+      response = await fetch(target, {
+        headers: { Accept: '*/*', ...(this.token ? { Cookie: `accessToken=${this.token}` } : {}) },
+        signal: AbortSignal.timeout(30000),
+      });
+    } catch (error) {
+      throw new PlankaError(
+        error?.name === 'TimeoutError' || error?.name === 'AbortError'
+          ? 'Planka no ha respondido a tiempo.'
+          : 'No se puede conectar con Planka.',
+        { kind: 'network' },
+      );
+    }
+
+    if (response.status === 401 && this.password) {
+      await this.relogin();
+      return this.readAttachmentFile(path);
+    }
+    if (response.status === 401) {
+      throw new PlankaError('La sesión de Planka ha caducado. Vuelve a entrar en Kanban.', {
+        kind: 'auth',
+        status: 401,
+      });
+    }
+    if (!response.ok) {
+      throw new PlankaError('Ese adjunto ya no está en Planka.', { kind: 'not-found', status: response.status });
+    }
+
+    return {
+      buffer: Buffer.from(await response.arrayBuffer()),
+      mime: textOf(response.headers.get('content-type')) || 'application/octet-stream',
+    };
+  }
+
+  async uploadAttachment(cardId, { name, mime, buffer } = {}) {
+    const title = textOf(name).trim().slice(0, 128) || 'Adjunto';
+    if (!buffer || !buffer.length) {
+      throw new PlankaError('El archivo está vacío.', { kind: 'validation' });
+    }
+    const form = new FormData();
+    form.append('type', 'file');
+    form.append('name', title);
+    form.append('file', new Blob([buffer], { type: textOf(mime) || 'application/octet-stream' }), title);
+    const data = await this.request(`/api/cards/${encode(cardId)}/attachments`, {
+      method: 'POST',
+      form,
+      timeout: 60000,
+    });
+    return data?.item ?? null;
+  }
+
+  async deleteAttachment(attachmentId) {
+    await this.request(`/api/attachments/${encode(attachmentId)}`, { method: 'DELETE' });
+    return true;
+  }
+
+  async setCardCover(cardId, attachmentId) {
+    const data = await this.request(`/api/cards/${encode(cardId)}`, {
+      method: 'PATCH',
+      body: { coverAttachmentId: attachmentId ? String(attachmentId) : null },
+    });
+    return data?.item ?? null;
   }
 
   async getBoards() {
@@ -563,6 +676,22 @@ const normaliseBoard = (payload, baseUrl, requestedBoardId) => {
   const cardLabels = Array.isArray(included.cardLabels) ? included.cardLabels : [];
   const taskLists = Array.isArray(included.taskLists) ? included.taskLists : [];
   const tasks = Array.isArray(included.tasks) ? included.tasks : [];
+  const attachments = Array.isArray(included.attachments) ? included.attachments : [];
+
+  const attachmentsByCard = new Map();
+  for (const attachment of attachments) {
+    const view = attachmentView(attachment);
+    if (!view.id || !view.cardId) continue;
+    const list = attachmentsByCard.get(view.cardId) || [];
+    list.push(view);
+    attachmentsByCard.set(view.cardId, list);
+  }
+  for (const list of attachmentsByCard.values()) {
+    list.sort((a, b) => {
+      if (a.createdAt !== b.createdAt) return a.createdAt.localeCompare(b.createdAt);
+      return a.id.localeCompare(b.id);
+    });
+  }
 
   const lists = (Array.isArray(included.lists) ? included.lists : [])
     .filter((list) => list && list.type === 'active')
@@ -628,6 +757,10 @@ const normaliseBoard = (payload, baseUrl, requestedBoardId) => {
       })
       .filter(Boolean);
 
+    const cardAttachments = attachmentsByCard.get(String(card.id)) || [];
+    const coverAttachmentId = String(card.coverAttachmentId || '');
+    const cover = cardAttachments.find((attachment) => attachment.id === coverAttachmentId) || null;
+
     list.cards.push({
       id: String(card.id),
       name: textOf(card.name),
@@ -639,6 +772,9 @@ const normaliseBoard = (payload, baseUrl, requestedBoardId) => {
       labels: cardLabelRows,
       taskLists: cardTaskLists,
       checklist: { total, done },
+      attachments: cardAttachments,
+      coverAttachmentId,
+      cover,
     });
   }
 
@@ -730,6 +866,7 @@ export const boardSummary = (board) => ({
       dueDate: card.dueDate || null,
       labels: card.labels.map((label) => label.name),
       checklist: card.checklist,
+      attachments: Array.isArray(card.attachments) ? card.attachments.length : 0,
     })),
   })),
   counts: board.counts,

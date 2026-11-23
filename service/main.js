@@ -931,6 +931,42 @@ var dueTimestamp = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
+var pathOf = (value) => {
+  const raw = textOf(value);
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return raw.startsWith("/") ? raw : "";
+  }
+};
+var attachmentView = (attachment) => {
+  const data = attachment?.data && typeof attachment.data === "object" ? attachment.data : {};
+  const thumbnails = data.thumbnailUrls && typeof data.thumbnailUrls === "object" ? data.thumbnailUrls : {};
+  const image = data.image && typeof data.image === "object" ? data.image : null;
+  const type = textOf(attachment?.type) || "file";
+  const url = textOf(data.url);
+  return {
+    id: String(attachment?.id || ""),
+    cardId: String(attachment?.cardId || ""),
+    name: textOf(attachment?.name) || "Adjunto",
+    type,
+    externalUrl: type === "link" ? url : "",
+    mime: textOf(data.mimeType),
+    size: Number.isFinite(data.size) && data.size >= 0 ? data.size : 0,
+    isImage: Boolean(image),
+    width: Number.isFinite(image?.width) ? image.width : 0,
+    height: Number.isFinite(image?.height) ? image.height : 0,
+    url,
+    path: pathOf(url),
+    thumbnailUrl: textOf(thumbnails.outside360),
+    thumbnailPath: pathOf(thumbnails.outside360),
+    previewUrl: textOf(thumbnails.outside720),
+    previewPath: pathOf(thumbnails.outside720),
+    createdAt: textOf(attachment?.createdAt)
+  };
+};
 var PlankaClient = class {
   constructor(config, options = {}) {
     this.baseUrl = normaliseBaseUrl(config?.baseUrl);
@@ -1056,6 +1092,68 @@ var PlankaClient = class {
       });
     }
     return this.reauthing;
+  }
+  // The board payload already carries every attachment with its download and
+  // thumbnail URLs. The panel gets the bytes through the service, never from
+  // Planka, so this only needs to read one file at a time.
+  async readAttachmentFile(path) {
+    const target = /^https?:\/\//i.test(path) ? path : `${this.baseUrl}${path}`;
+    let response;
+    try {
+      response = await fetch(target, {
+        headers: { Accept: "*/*", ...this.token ? { Cookie: `accessToken=${this.token}` } : {} },
+        signal: AbortSignal.timeout(3e4)
+      });
+    } catch (error) {
+      throw new PlankaError(
+        error?.name === "TimeoutError" || error?.name === "AbortError" ? "Planka no ha respondido a tiempo." : "No se puede conectar con Planka.",
+        { kind: "network" }
+      );
+    }
+    if (response.status === 401 && this.password) {
+      await this.relogin();
+      return this.readAttachmentFile(path);
+    }
+    if (response.status === 401) {
+      throw new PlankaError("La sesi\xF3n de Planka ha caducado. Vuelve a entrar en Kanban.", {
+        kind: "auth",
+        status: 401
+      });
+    }
+    if (!response.ok) {
+      throw new PlankaError("Ese adjunto ya no est\xE1 en Planka.", { kind: "not-found", status: response.status });
+    }
+    return {
+      buffer: Buffer.from(await response.arrayBuffer()),
+      mime: textOf(response.headers.get("content-type")) || "application/octet-stream"
+    };
+  }
+  async uploadAttachment(cardId, { name, mime, buffer } = {}) {
+    const title = textOf(name).trim().slice(0, 128) || "Adjunto";
+    if (!buffer || !buffer.length) {
+      throw new PlankaError("El archivo est\xE1 vac\xEDo.", { kind: "validation" });
+    }
+    const form = new FormData();
+    form.append("type", "file");
+    form.append("name", title);
+    form.append("file", new Blob([buffer], { type: textOf(mime) || "application/octet-stream" }), title);
+    const data = await this.request(`/api/cards/${encode(cardId)}/attachments`, {
+      method: "POST",
+      form,
+      timeout: 6e4
+    });
+    return data?.item ?? null;
+  }
+  async deleteAttachment(attachmentId) {
+    await this.request(`/api/attachments/${encode(attachmentId)}`, { method: "DELETE" });
+    return true;
+  }
+  async setCardCover(cardId, attachmentId) {
+    const data = await this.request(`/api/cards/${encode(cardId)}`, {
+      method: "PATCH",
+      body: { coverAttachmentId: attachmentId ? String(attachmentId) : null }
+    });
+    return data?.item ?? null;
   }
   async getBoards() {
     const data = await this.request("/api/projects");
@@ -1362,6 +1460,21 @@ var normaliseBoard = (payload, baseUrl, requestedBoardId) => {
   const cardLabels = Array.isArray(included.cardLabels) ? included.cardLabels : [];
   const taskLists = Array.isArray(included.taskLists) ? included.taskLists : [];
   const tasks = Array.isArray(included.tasks) ? included.tasks : [];
+  const attachments = Array.isArray(included.attachments) ? included.attachments : [];
+  const attachmentsByCard = /* @__PURE__ */ new Map();
+  for (const attachment of attachments) {
+    const view2 = attachmentView(attachment);
+    if (!view2.id || !view2.cardId) continue;
+    const list = attachmentsByCard.get(view2.cardId) || [];
+    list.push(view2);
+    attachmentsByCard.set(view2.cardId, list);
+  }
+  for (const list of attachmentsByCard.values()) {
+    list.sort((a, b) => {
+      if (a.createdAt !== b.createdAt) return a.createdAt.localeCompare(b.createdAt);
+      return a.id.localeCompare(b.id);
+    });
+  }
   const lists = (Array.isArray(included.lists) ? included.lists : []).filter((list) => list && list.type === "active").sort(byPosition).map((list) => ({
     id: String(list.id),
     name: textOf(list.name).trim() || "Sin nombre",
@@ -1403,6 +1516,9 @@ var normaliseBoard = (payload, baseUrl, requestedBoardId) => {
         cardLabelId: String(cardLabel.id)
       } : null;
     }).filter(Boolean);
+    const cardAttachments = attachmentsByCard.get(String(card.id)) || [];
+    const coverAttachmentId = String(card.coverAttachmentId || "");
+    const cover = cardAttachments.find((attachment) => attachment.id === coverAttachmentId) || null;
     list.cards.push({
       id: String(card.id),
       name: textOf(card.name),
@@ -1413,7 +1529,10 @@ var normaliseBoard = (payload, baseUrl, requestedBoardId) => {
       position: Number.isFinite(card.position) ? card.position : 0,
       labels: cardLabelRows,
       taskLists: cardTaskLists,
-      checklist: { total, done }
+      checklist: { total, done },
+      attachments: cardAttachments,
+      coverAttachmentId,
+      cover
     });
   }
   for (const list of lists) list.cards.sort(byPosition);
@@ -2173,6 +2292,8 @@ var reusableBatchSession = (links, snapshot, { manual = false } = {}) => {
 var PORT = Number(process.env.OPENCHAMBER_SERVICE_PORT);
 var TOKEN = process.env.OPENCHAMBER_SERVICE_TOKEN || "";
 var SNAPSHOT_TTL_MS = 1500;
+var MAX_BODY_BYTES = 24 * 1024 * 1024;
+var MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;
 var sessionPassword = "";
 var cache = { key: "", boardId: "", at: 0, data: null, inflight: null };
 var projectScope = new import_node_async_hooks.AsyncLocalStorage();
@@ -2387,6 +2508,7 @@ var getSnapshot = async ({ boardId = "", fresh = false } = {}) => {
 };
 var snapshotView = (snapshot) => ({
   ...snapshot,
+  source: readConfig().source === "local" ? "local" : "planka",
   project: getBoardProject(snapshot.board.id),
   workListId: workListFor(snapshot)?.id || "",
   // A local board that is not on disk while a previous copy is here is not a
@@ -2695,7 +2817,7 @@ var readBody = (req) => new Promise((resolve3, reject) => {
   let size = 0;
   req.on("data", (chunk) => {
     size += chunk.length;
-    if (size > 2e6) {
+    if (size > MAX_BODY_BYTES) {
       reject(new PlankaError("La petici\xF3n es demasiado grande.", { kind: "validation", status: 413 }));
       req.destroy();
       return;
@@ -3346,6 +3468,83 @@ var routes = {
     await client().removeLabel(cardId, labelId, boardId);
     invalidate();
     return { ok: true };
+  },
+  // Attachments live in Planka. The local board is one JSON file and does not
+  // hold binaries, so it says so instead of pretending to save a photo.
+  "GET /attachment": async (_body, url) => {
+    const config = requireConnected();
+    if (config.source === "local") {
+      throw new PlankaError("Los adjuntos necesitan una conexi\xF3n con Planka.", { kind: "unsupported" });
+    }
+    const id = String(url.searchParams.get("id") || "");
+    if (!id) throw new PlankaError("Falta el adjunto.", { kind: "validation" });
+    const boardId = await boardIdOf(config);
+    const snapshot = await getSnapshot({ boardId });
+    const attachment = snapshot.lists.flatMap((list) => list.cards).flatMap((card) => card.attachments || []).find((item) => item.id === id);
+    if (!attachment) {
+      throw new PlankaError("Ese adjunto ya no existe.", { kind: "not-found", status: 404 });
+    }
+    if (attachment.type !== "file") {
+      throw new PlankaError("Ese adjunto es un enlace.", { kind: "unsupported" });
+    }
+    const size = url.searchParams.get("size") || "full";
+    const path = size === "360" ? attachment.thumbnailPath || attachment.path : size === "720" ? attachment.previewPath || attachment.path : attachment.path;
+    if (!path) throw new PlankaError("Ese adjunto no tiene archivo.", { kind: "not-found", status: 404 });
+    const file = await client().readAttachmentFile(path);
+    return {
+      mime: file.mime || attachment.mime || "application/octet-stream",
+      size: file.buffer.length,
+      data: file.buffer.toString("base64")
+    };
+  },
+  "POST /attachment": async (body) => {
+    const config = requireConnected();
+    if (config.source === "local") {
+      throw new PlankaError("Los adjuntos necesitan una conexi\xF3n con Planka.", { kind: "unsupported" });
+    }
+    const cardId = String(body.cardId || "");
+    if (!cardId) throw new PlankaError("Falta la tarjeta del adjunto.", { kind: "validation" });
+    const encoded = typeof body.data === "string" ? body.data : "";
+    if (!encoded) throw new PlankaError("El archivo est\xE1 vac\xEDo.", { kind: "validation" });
+    const buffer = Buffer.from(encoded, "base64");
+    if (!buffer.length) throw new PlankaError("El archivo est\xE1 vac\xEDo.", { kind: "validation" });
+    if (buffer.length > MAX_ATTACHMENT_BYTES) {
+      throw new PlankaError("El archivo supera los 12 MB.", { kind: "validation", status: 413 });
+    }
+    const boardId = await boardIdOf(config);
+    const snapshot = await getSnapshot({ boardId });
+    if (!flattenCards(snapshot).some((card) => card.id === cardId)) {
+      throw new PlankaError("Esa tarjeta ya no existe en Planka.", { kind: "not-found", status: 404 });
+    }
+    const item = await client().uploadAttachment(cardId, {
+      name: body.name,
+      mime: body.mime,
+      buffer
+    });
+    invalidate();
+    return { attachment: item ? attachmentView(item) : null };
+  },
+  "DELETE /attachment": async (body) => {
+    const config = requireConnected();
+    if (config.source === "local") {
+      throw new PlankaError("Los adjuntos necesitan una conexi\xF3n con Planka.", { kind: "unsupported" });
+    }
+    const id = String(body.id || "");
+    if (!id) throw new PlankaError("Falta el adjunto.", { kind: "validation" });
+    await client().deleteAttachment(id);
+    invalidate();
+    return { ok: true };
+  },
+  "POST /attachment/cover": async (body) => {
+    const config = requireConnected();
+    if (config.source === "local") {
+      throw new PlankaError("Los adjuntos necesitan una conexi\xF3n con Planka.", { kind: "unsupported" });
+    }
+    const cardId = String(body.cardId || "");
+    if (!cardId) throw new PlankaError("Falta la tarjeta.", { kind: "validation" });
+    const item = await client().setCardCover(cardId, String(body.attachmentId || ""));
+    invalidate();
+    return { card: item };
   }
 };
 var server = import_node_http.default.createServer((req, res) => {

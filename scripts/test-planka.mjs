@@ -19,21 +19,31 @@ await build({
 });
 
 const require = createRequire(import.meta.url);
-const { PlankaClient } = require(bundle);
+const { PlankaClient, boardSummary } = require(bundle);
 
 const calls = [];
 const bodies = [];
+const requests = [];
 let queue = [];
 globalThis.fetch = async (url, init) => {
   calls.push({ url: String(url), method: init?.method || 'GET' });
-  bodies.push(init?.body ? String(init.body) : '');
+  requests.push(init || {});
+  bodies.push(init?.body && typeof init.body === 'string' ? init.body : '');
   const next = queue.shift();
   if (!next) throw new Error(`unexpected fetch ${url}`);
   return {
     status: next.status,
     ok: next.status >= 200 && next.status < 300,
+    headers: {
+      get(name) {
+        return String(name).toLowerCase() === 'content-type' ? next.mime || null : null;
+      },
+    },
     async text() {
       return next.body === undefined ? '' : JSON.stringify(next.body);
+    },
+    async arrayBuffer() {
+      return Uint8Array.from(next.bytes || []).buffer;
     },
   };
 };
@@ -138,5 +148,115 @@ queue = [];
 await assert.rejects(() => client().createCard('l1', '   ', 'b1'), /El título no puede quedar vacío/);
 assert.equal(calls.length, 0);
 
+// Attachments travel inside the board payload. The panel reads them from the
+// card, so the normalised card carries the files and which one is the cover.
+const boardWithAttachments = {
+  item: { id: 'b1', name: 'Tablero' },
+  included: {
+    lists: [{ id: 'l1', name: 'IDEAS', position: 65536, type: 'active' }],
+    cards: [{ id: 'c1', listId: 'l1', name: 'Tarjeta', position: 65536, coverAttachmentId: 'a2' }],
+    labels: [],
+    cardLabels: [],
+    taskLists: [],
+    tasks: [],
+    attachments: [
+      {
+        id: 'a1',
+        cardId: 'c1',
+        type: 'file',
+        name: 'foto.jpg',
+        createdAt: '2026-01-01T10:00:00.000Z',
+        data: {
+          mimeType: 'image/jpeg',
+          size: 2048,
+          image: { width: 800, height: 600, thumbnailsExtension: 'jpg' },
+          url: 'http://planka.test/attachments/a1/download/foto.jpg',
+          thumbnailUrls: {
+            outside360: 'http://planka.test/attachments/a1/download/thumbnails/outside-360.jpg',
+            outside720: 'http://planka.test/attachments/a1/download/thumbnails/outside-720.jpg',
+          },
+        },
+      },
+      {
+        id: 'a2',
+        cardId: 'c1',
+        type: 'file',
+        name: 'plan.pdf',
+        createdAt: '2026-01-02T10:00:00.000Z',
+        data: {
+          mimeType: 'application/pdf',
+          size: 999,
+          image: null,
+          url: 'http://planka.test/attachments/a2/download/plan.pdf',
+        },
+      },
+    ],
+  },
+};
+
+queue = [{ status: 200, body: boardWithAttachments }];
+const board = await client().readBoard('b1');
+const attachedCard = board.lists[0].cards[0];
+assert.equal(attachedCard.attachments.length, 2);
+assert.equal(attachedCard.attachments[0].isImage, true);
+assert.equal(attachedCard.attachments[1].isImage, false);
+assert.equal(
+  attachedCard.attachments[0].thumbnailUrl,
+  'http://planka.test/attachments/a1/download/thumbnails/outside-360.jpg',
+);
+assert.equal(attachedCard.coverAttachmentId, 'a2');
+assert.equal(attachedCard.cover.name, 'plan.pdf');
+// The agent reads the board through the summary: it counts the files too.
+assert.equal(boardSummary(board).lists[0].cards[0].attachments, 2);
+
+// A photo goes up as one multipart file with the Planka shape: type=file, a
+// name, and the bytes. Planka turns the first attachment into the cover.
+calls.length = 0;
+bodies.length = 0;
+requests.length = 0;
+queue = [{ status: 200, body: { item: { id: 'a3', cardId: 'c1' } } }];
+const uploaded = await client().uploadAttachment('c1', {
+  name: 'foto.jpg',
+  mime: 'image/jpeg',
+  buffer: Buffer.from('hola'),
+});
+assert.equal(uploaded.id, 'a3');
+assert.equal(calls[0].url, 'http://planka.test/api/cards/c1/attachments');
+assert.equal(requests[0].method, 'POST');
+assert.ok(requests[0].body instanceof FormData);
+assert.equal(requests[0].body.get('type'), 'file');
+assert.equal(requests[0].body.get('name'), 'foto.jpg');
+assert.ok(requests[0].body.get('file') instanceof Blob);
+
+// Deleting an attachment is the Planka route by attachment id.
+calls.length = 0;
+queue = [{ status: 200, body: { item: {} } }];
+await client().deleteAttachment('a3');
+assert.equal(calls[0].url, 'http://planka.test/api/attachments/a3');
+assert.equal(calls[0].method, 'DELETE');
+
+// The cover is a card field: an id sets it and null clears it.
+calls.length = 0;
+bodies.length = 0;
+queue = [{ status: 200, body: { item: { id: 'c1' } } }];
+await client().setCardCover('c1', 'a1', 'b1');
+assert.deepEqual(JSON.parse(bodies[0]), { coverAttachmentId: 'a1' });
+bodies.length = 0;
+queue = [{ status: 200, body: { item: { id: 'c1' } } }];
+await client().setCardCover('c1', '', 'b1');
+assert.deepEqual(JSON.parse(bodies[0]), { coverAttachmentId: null });
+
+// The panel never talks to Planka: the service reads the bytes with the
+// token and hands them over as a buffer.
+calls.length = 0;
+queue = [{ status: 200, bytes: [1, 2, 3], mime: 'image/jpeg' }];
+const file = await client().readAttachmentFile('/attachments/a1/download/thumbnails/outside-360.jpg');
+assert.equal(file.mime, 'image/jpeg');
+assert.deepEqual([...file.buffer], [1, 2, 3]);
+assert.equal(
+  calls[0].url,
+  'http://planka.test/attachments/a1/download/thumbnails/outside-360.jpg',
+);
+
 rmSync(dir, { recursive: true, force: true });
-console.log('planka routes: 13 assertions ok');
+console.log('planka routes: 24 assertions ok');
