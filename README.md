@@ -22,7 +22,7 @@ each control below gives its English name and, in brackets, the label on screen.
 - **Three columns**: IDEAS, IN PROGRESS and DONE. Nothing else.
 - **Boards**: create a Planka board with its three columns from the panel, or add the
   columns to an empty one.
-- **Cards** with a title, details and a session.
+- **Cards** with a title, details, a session and photo or file attachments.
 - **Sessions**: a card follows its OpenChamber session while it works.
 - **Manual or automatic**: open the session yourself, or let the agent ask first.
 - **A local board per project**: the same board, no server.
@@ -151,6 +151,10 @@ When the session already names its project, the project selector no longer appea
   (Confirmar) saves and closes, **Cancel** (Cancelar) discards.
 - **Session dot**: the small dot left of the pencil shows the session state, and only
   while the card is in IN PROGRESS.
+- **Attachments**: inside the editor, **Add photo or file** (Añadir foto o archivo) uploads
+  images and documents to the card. Photos become thumbnails, the star marks the cover that
+  the board shows, and the trash removes one. They are saved immediately, not with **Confirm**.
+  Planka keeps the files; the local board does not store them.
 - **Delete**: inside the editor, press **Delete card** (Eliminar tarjeta) twice; you get
   five seconds of **Undo** (Deshacer).
 - **Move**: drag a card inside a column or to another one. Dragging to DONE completes it.

@@ -21,7 +21,7 @@ Conéctalo a tu Planka o guárdalo todo en este equipo. La interfaz está en esp
 - **Tres columnas**: IDEAS, EN PROGRESO y HECHO. Nada más.
 - **Tableros**: crea un tablero de Planka con sus tres columnas desde el panel, o añade
   las columnas a uno vacío.
-- **Tarjetas** con título, detalles y una sesión.
+- **Tarjetas** con título, detalles, una sesión y fotos o archivos adjuntos.
 - **Sesiones**: la tarjeta sigue a su sesión de OpenChamber mientras trabaja.
 - **Manual o automático**: abre la sesión tú, o deja que el agente pregunte antes.
 - **Un tablero local por proyecto**: el mismo tablero, sin servidor.
@@ -154,6 +154,10 @@ Cuando la sesión ya dice a qué proyecto pertenece, el selector de proyecto no 
   **Cancelar** descarta.
 - **Punto de sesión**: el punto a la izquierda del lápiz muestra el estado de la sesión,
   y solo mientras la tarjeta está en EN PROGRESO.
+- **Adjuntos**: dentro del editor, **Añadir foto o archivo** sube imágenes y documentos a
+  la tarjeta. Las fotos se ven en miniatura, la estrella marca la portada que muestra el
+  tablero y la papelera quita uno. Se guardan al momento, no con **Confirmar**. Los
+  archivos los guarda Planka; el tablero local no los almacena.
 - **Borrar**: dentro del editor, pulsa **Eliminar tarjeta** dos veces; tienes cinco
   segundos de **Deshacer**.
 - **Mover**: arrastra la tarjeta dentro de una columna o a otra. Al arrastrarla a HECHO

@@ -1172,6 +1172,86 @@
       }
       .description:focus { border-color: var(--oc-focus, var(--oc-primary)); }
 
+      /* Adjuntos: la foto de portada manda en la tarjeta; el resto vive en la
+         hoja, en filas que se abren o se descargan. */
+      .card-cover {
+        margin: -9px -10px 7px; max-height: 140px; overflow: hidden;
+        border-radius: calc(var(--card-radius) - 2px) calc(var(--card-radius) - 2px) 4px 4px;
+        background: color-mix(in srgb, var(--oc-fg) 8%, transparent);
+      }
+      .card-cover img { display: block; width: 100%; max-height: 140px; object-fit: cover; }
+      .attach-mini { display: inline-flex; align-items: center; gap: 4px; }
+      .attach-mini .icon { width: 11px; height: 11px; }
+
+      .sheet-attachments { display: flex; flex-direction: column; gap: 8px; }
+      .attachments-note { font-size: 10.5px; line-height: 1.4; color: var(--oc-muted); }
+      .attachments-empty { font-size: 11.5px; color: var(--oc-muted); }
+      .attachment-list { display: flex; flex-direction: column; gap: 6px; }
+      .attachment-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
+      .attachment-add .icon { width: 13px; height: 13px; }
+      .attachment-row {
+        display: flex; align-items: center; gap: 9px; padding: 6px; border-radius: 9px;
+        background: color-mix(in srgb, var(--oc-fg) 5%, transparent);
+      }
+      .attachment-thumb {
+        width: 42px; height: 42px; flex: none; padding: 0; overflow: hidden;
+        border: 0; border-radius: 7px; cursor: pointer;
+        display: grid; place-items: center; color: var(--oc-muted);
+        background: color-mix(in srgb, var(--oc-fg) 8%, transparent);
+      }
+      .attachment-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+      .attachment-thumb .icon { width: 18px; height: 18px; }
+      .attachment-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+      .attachment-name {
+        border: 0; padding: 0; background: transparent; text-align: left; cursor: pointer;
+        color: var(--oc-fg); font-size: 12px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .attachment-name:hover { text-decoration: underline; }
+      .attachment-meta { font-size: 10px; color: var(--oc-muted); }
+      .attachment-cover-tag {
+        font-size: 9.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+        color: var(--mint-text);
+      }
+      .attachment-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+      .attachment-action {
+        width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; cursor: pointer;
+        display: grid; place-items: center;
+        background: transparent; color: var(--oc-muted);
+      }
+      .attachment-action .icon { width: 13px; height: 13px; }
+      .attachment-action:hover { background: color-mix(in srgb, var(--oc-fg) 8%, transparent); color: var(--oc-fg); }
+      .attachment-action.active { color: var(--mint-text); }
+      .attachment-delete:hover,
+      .attachment-delete.confirming {
+        color: var(--oc-error-text, var(--oc-error));
+        background: color-mix(in srgb, var(--oc-error) 12%, transparent);
+      }
+
+      .attachment-preview-backdrop {
+        position: fixed; inset: 0; z-index: 60; padding: 24px;
+        display: grid; place-items: center; background: rgba(0, 0, 0, .72);
+      }
+      .attachment-preview {
+        margin: 0; max-width: 92vw; max-height: 88vh;
+        display: flex; flex-direction: column; align-items: center; gap: 8px;
+      }
+      .attachment-preview-image {
+        max-width: 92vw; max-height: 78vh; object-fit: contain;
+        border-radius: 10px; background: rgba(255, 255, 255, .04);
+      }
+      .attachment-preview-caption {
+        max-width: 80vw; color: #fff; font-size: 12px; opacity: .85;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .attachment-preview-close {
+        position: absolute; top: 14px; right: 14px; width: 32px; height: 32px;
+        border: 0; border-radius: 50%; cursor: pointer;
+        display: grid; place-items: center;
+        background: rgba(0, 0, 0, .45); color: #fff;
+      }
+      .attachment-preview-close .icon { width: 16px; height: 16px; }
+
       .sheet-delete-section { margin-top: 4px; }
       .sheet-delete {
         color: var(--oc-error-text, var(--oc-error));
@@ -1214,6 +1294,8 @@
       .panel-board .col-count { font-size: 9.5px; }
       .panel-board .cards { gap: 6px; padding: 3px 5px 8px; border-radius: 9px; }
       .panel-board .card { padding: 7px 8px; }
+      .panel-board .card-cover { margin: -7px -8px 6px; max-height: 96px; }
+      .panel-board .card-cover img { max-height: 96px; }
       .panel-board .card-title { font-size: 12px; }
       .panel-board .card-desc { font-size: 10.5px; }
       .panel-board .card-meta { gap: 5px; margin-top: 6px; font-size: 9.5px; }

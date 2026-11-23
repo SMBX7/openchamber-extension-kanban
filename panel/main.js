@@ -1911,6 +1911,11 @@ ${checklist.join("\n")}` : ""
     up: '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>',
     quote: '<path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h3a1 1 0 0 1 1 1v1a2 2 0 0 1-2 2h-1a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h1a6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h3a1 1 0 0 1 1 1v1a2 2 0 0 1-2 2H6a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h1a6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/>',
     sort: '<path d="M7 4v16"/><path d="m4 17 3 3 3-3"/><path d="M13 6h7M13 11h5M13 16h3"/>',
+    paperclip: '<path d="M20.5 11.5 12 20a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.85 1.85 0 0 1-2.6-2.6l8.3-8.3"/>',
+    image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m21 15-4.5-4.5L7 20"/>',
+    star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9Z"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/>',
+    download: '<path d="M12 4v11"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 15a1.65 1.65 0 0 0-1.51-1H2a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 3.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6h.09A1.65 1.65 0 0 0 9.1 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09A1.65 1.65 0 0 0 21 10.1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/>'
   };
   var state = {
@@ -1943,6 +1948,7 @@ ${checklist.join("\n")}` : ""
     dragId: "",
     dragging: false,
     composerListId: "",
+    attachmentCache: /* @__PURE__ */ new Map(),
     saving: 0,
     fetching: false,
     poll: null,
@@ -1987,6 +1993,84 @@ ${checklist.join("\n")}` : ""
     else if (diff === 1) label = "Ma\xF1ana";
     else label = date.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
     return { label, late: diff < 0, due };
+  };
+  var formatSize = (bytes) => {
+    const value = Number(bytes);
+    if (!Number.isFinite(value) || value <= 0) return "";
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+    return `${(value / (1024 * 1024)).toFixed(value < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+  };
+  var attachmentDataUrl = async (attachment, size = "360") => {
+    const key = `${attachment.id}:${size}`;
+    const cacheable = size !== "full";
+    if (cacheable && state.attachmentCache.has(key)) return state.attachmentCache.get(key);
+    const answer = await api(
+      "GET",
+      `/attachment?id=${encodeURIComponent(attachment.id)}&size=${encodeURIComponent(size)}`
+    );
+    const url = `data:${answer.mime || attachment.mime || "application/octet-stream"};base64,${answer.data}`;
+    if (cacheable) {
+      if (state.attachmentCache.size > 120) state.attachmentCache.clear();
+      state.attachmentCache.set(key, url);
+    }
+    return url;
+  };
+  var forgetAttachmentCache = (id) => {
+    for (const key of [...state.attachmentCache.keys()]) {
+      if (key.startsWith(`${id}:`)) state.attachmentCache.delete(key);
+    }
+  };
+  var MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+  var MAX_IMAGE_EDGE = 1600;
+  var blobToBase64 = (blob) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || "");
+      resolve(text.slice(text.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
+    reader.readAsDataURL(blob);
+  });
+  var shrinkImage = async (file) => {
+    if (!file.type.startsWith("image/")) return file;
+    if (file.type === "image/svg+xml" || file.type === "image/gif") return file;
+    if (file.size <= 1.5 * 1024 * 1024) return file;
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(file);
+    } catch {
+      return file;
+    }
+    const edge = Math.max(bitmap.width, bitmap.height) || 1;
+    const scale = Math.min(1, MAX_IMAGE_EDGE / edge);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close?.();
+    const png = file.type === "image/png";
+    const blob = await new Promise(
+      (resolve) => canvas.toBlob(resolve, png ? "image/png" : "image/jpeg", 0.85)
+    );
+    if (!blob || blob.size >= file.size) return file;
+    const extension = png ? ".png" : ".jpg";
+    const name = file.name.replace(/\.[^.]+$/, "") + extension;
+    return new File([blob], name, { type: blob.type });
+  };
+  var uploadAttachment = async (cardId, file) => {
+    const prepared = await shrinkImage(file);
+    if (!prepared.size) throw new Error("El archivo est\xE1 vac\xEDo.");
+    if (prepared.size > MAX_UPLOAD_BYTES) throw new Error("El archivo supera los 12 MB.");
+    const data = await blobToBase64(prepared);
+    const answer = await api("POST", "/attachment", {
+      cardId,
+      name: prepared.name || file.name || "Adjunto",
+      mime: prepared.type || "application/octet-stream",
+      data
+    });
+    return answer.attachment;
   };
   var parseBody = (text) => {
     try {
@@ -3465,6 +3549,18 @@ ${card.description}`.toLowerCase();
     node.dataset.cardId = card.id;
     node.setAttribute("role", "button");
     node.setAttribute("aria-label", `${card.name}. Abrir tarjeta`);
+    if (card.cover?.isImage) {
+      const cover = el2("div", "card-cover");
+      const image = el2("img");
+      image.alt = "";
+      image.draggable = false;
+      image.loading = "lazy";
+      cover.append(image);
+      node.append(cover);
+      void attachmentDataUrl(card.cover, "360").then((url) => {
+        image.src = url;
+      }).catch(() => cover.remove());
+    }
     const actions = el2("div", "card-actions");
     node.append(actions);
     const sessionState = inProgress ? state.sessions?.[card.id] : null;
@@ -3506,6 +3602,13 @@ ${card.description}`.toLowerCase();
       bar.append(fill);
       check.append(bar, el2("span", "", `${card.checklist.done}/${card.checklist.total}`));
       meta.append(check);
+    }
+    const attachmentCount = Array.isArray(card.attachments) ? card.attachments.length : 0;
+    if (attachmentCount > 0) {
+      const count = el2("span", "attach-mini");
+      count.title = attachmentCount === 1 ? "1 adjunto" : `${attachmentCount} adjuntos`;
+      count.append(makeIcon("paperclip"), el2("span", "", String(attachmentCount)));
+      meta.append(count);
     }
     if (meta.childNodes.length) node.append(meta);
     const cite = el2("button", "card-cite");
@@ -4099,6 +4202,19 @@ ${card.description}`.toLowerCase();
     description.value = card.description;
     description.placeholder = "A\xF1ade detalles\u2026";
     descriptionSection.append(description);
+    const attachmentsSection = el2("div", "sheet-attachments");
+    attachmentsSection.append(el2("span", "section-label", "Adjuntos"));
+    const attachmentsNote = el2("div", "attachments-note");
+    const attachmentsList = el2("div", "attachment-list");
+    const addAttachment = el2("button", "ghost-btn attachment-add");
+    addAttachment.type = "button";
+    const addAttachmentLabel = el2("span", "", "A\xF1adir foto o archivo");
+    addAttachment.append(makeIcon("paperclip"), addAttachmentLabel);
+    const fileInput = el2("input", "attachment-input");
+    fileInput.type = "file";
+    fileInput.multiple = true;
+    fileInput.hidden = true;
+    attachmentsSection.append(attachmentsNote, attachmentsList, addAttachment, fileInput);
     const deleteSection = el2("div", "sheet-delete-section");
     const remove = el2("button", "ghost-btn sheet-delete");
     remove.type = "button";
@@ -4125,7 +4241,7 @@ ${card.description}`.toLowerCase();
       void queueDelete(card, node || document.createElement("div"));
     });
     deleteSection.append(remove);
-    scroll.append(sessionSection, descriptionSection, deleteSection);
+    scroll.append(sessionSection, descriptionSection, attachmentsSection, deleteSection);
     const foot = el2("div", "sheet-foot");
     const saveState = el2("span", "save-state", "");
     const cancel = el2("button", "ghost-btn sheet-cancel", "Cancelar");
@@ -4144,6 +4260,12 @@ ${card.description}`.toLowerCase();
       sessionRemove,
       sessionNote,
       description,
+      attachmentsList,
+      attachmentsNote,
+      addAttachment,
+      addAttachmentLabel,
+      fileInput,
+      uploading: false,
       saveState,
       pending: /* @__PURE__ */ new Set()
     };
@@ -4166,11 +4288,42 @@ ${card.description}`.toLowerCase();
       session.pending.add("description");
       setSaveState("Sin guardar");
     });
+    addAttachment.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async () => {
+      const files = [...fileInput.files || []];
+      fileInput.value = "";
+      if (!files.length || session.uploading) return;
+      session.uploading = true;
+      addAttachment.disabled = true;
+      addAttachmentLabel.textContent = "Subiendo\u2026";
+      let uploaded = 0;
+      try {
+        for (const file of files) {
+          try {
+            await uploadAttachment(session.card.id, file);
+            uploaded += 1;
+          } catch (error) {
+            toast("error", `${file.name}: ${error.message}`);
+          }
+        }
+        if (uploaded) {
+          toast("success", uploaded === 1 ? "Adjunto guardado." : "Adjuntos guardados.");
+          await reloadSheetCard(session);
+        }
+      } catch (error) {
+        toast("error", error.message);
+      } finally {
+        session.uploading = false;
+        addAttachment.disabled = false;
+        addAttachmentLabel.textContent = "A\xF1adir foto o archivo";
+      }
+    });
     close.addEventListener("click", () => void closeSheet());
     backdrop.addEventListener("click", () => void closeSheet());
     cancel.addEventListener("click", () => void closeSheet());
     confirm.addEventListener("click", () => void confirmSheet());
     root.append(backdrop, sheet);
+    renderAttachments(session);
     void loadSessionSheet(session);
     requestAnimationFrame(() => {
       backdrop.classList.add("open");
@@ -4180,6 +4333,175 @@ ${card.description}`.toLowerCase();
       title.setSelectionRange(title.value.length, title.value.length);
     });
     return session;
+  };
+  var attachmentsEnabled = () => state.snapshot?.source !== "local";
+  var openAttachmentPreview = async (attachment) => {
+    const backdrop = el2("div", "attachment-preview-backdrop");
+    const figure = el2("figure", "attachment-preview");
+    const image = el2("img", "attachment-preview-image");
+    image.alt = attachment.name;
+    figure.append(image, el2("figcaption", "attachment-preview-caption", attachment.name));
+    const close = el2("button", "attachment-preview-close");
+    close.type = "button";
+    close.title = "Cerrar";
+    close.setAttribute("aria-label", "Cerrar la vista previa");
+    close.append(makeIcon("close"));
+    const dismiss = () => {
+      backdrop.remove();
+      document.removeEventListener("keydown", onKey);
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") dismiss();
+    };
+    backdrop.addEventListener("click", (event) => {
+      if (event.target === backdrop) dismiss();
+    });
+    close.addEventListener("click", dismiss);
+    document.addEventListener("keydown", onKey);
+    backdrop.append(close, figure);
+    root.append(backdrop);
+    try {
+      image.src = await attachmentDataUrl(attachment, "full");
+    } catch (error) {
+      dismiss();
+      toast("error", error.message);
+    }
+  };
+  var downloadAttachment = async (attachment) => {
+    const url = await attachmentDataUrl(attachment, "full");
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = attachment.name || "adjunto";
+    document.body.append(link);
+    link.click();
+    link.remove();
+  };
+  var reloadSheetCard = async (session) => {
+    const answer = await api("GET", `/card?id=${encodeURIComponent(session.card.id)}`);
+    session.card = answer.card;
+    mergeCard(answer.card);
+    renderAttachments(session);
+    await refreshBoardOnly();
+  };
+  var attachmentRow = (session, attachment) => {
+    const row = el2("div", "attachment-row");
+    const active2 = session.card.coverAttachmentId === attachment.id;
+    const isLink = attachment.type === "link" && attachment.externalUrl;
+    const open = () => {
+      if (isLink) {
+        host.openUrl(attachment.externalUrl).catch(() => toast("error", "No se pudo abrir el enlace."));
+        return;
+      }
+      if (attachment.isImage) void openAttachmentPreview(attachment);
+      else downloadAttachment(attachment).catch((error) => toast("error", error.message));
+    };
+    const thumb = el2("button", "attachment-thumb");
+    thumb.type = "button";
+    thumb.title = isLink ? "Abrir el enlace" : attachment.isImage ? "Ver la foto" : "Descargar el archivo";
+    thumb.setAttribute(
+      "aria-label",
+      isLink ? `Abrir ${attachment.name}` : attachment.isImage ? `Ver ${attachment.name}` : `Descargar ${attachment.name}`
+    );
+    if (isLink) {
+      thumb.append(makeIcon("external"));
+    } else if (attachment.isImage) {
+      const image = el2("img");
+      image.alt = "";
+      image.draggable = false;
+      thumb.append(image);
+      void attachmentDataUrl(attachment, "360").then((url) => {
+        image.src = url;
+      }).catch(() => thumb.replaceChildren(makeIcon("image")));
+    } else {
+      thumb.append(makeIcon("file"));
+    }
+    thumb.addEventListener("click", open);
+    const info = el2("div", "attachment-info");
+    const name = el2("button", "attachment-name", attachment.name);
+    name.type = "button";
+    name.title = attachment.name;
+    name.addEventListener("click", open);
+    const kind = isLink ? "Enlace" : attachment.isImage ? "Foto" : "Archivo";
+    const metaBits = [kind, formatSize(attachment.size)].filter(Boolean);
+    info.append(name, el2("span", "attachment-meta", metaBits.join(" \xB7 ")));
+    if (active2 && attachment.isImage) info.append(el2("span", "attachment-cover-tag", "Portada"));
+    const actions = el2("div", "attachment-actions");
+    if (attachment.isImage) {
+      const cover = el2("button", "attachment-action");
+      cover.type = "button";
+      cover.classList.toggle("active", active2);
+      cover.title = active2 ? "Quitar de portada" : "Usar como portada";
+      cover.setAttribute("aria-label", cover.title);
+      cover.setAttribute("aria-pressed", active2 ? "true" : "false");
+      cover.append(makeIcon("star"));
+      cover.addEventListener("click", async () => {
+        cover.disabled = true;
+        try {
+          await api("POST", "/attachment/cover", {
+            cardId: session.card.id,
+            attachmentId: active2 ? "" : attachment.id
+          });
+          await reloadSheetCard(session);
+        } catch (error) {
+          cover.disabled = false;
+          toast("error", error.message);
+        }
+      });
+      actions.append(cover);
+    }
+    const remove = el2("button", "attachment-action attachment-delete");
+    remove.type = "button";
+    remove.title = "Eliminar adjunto";
+    remove.setAttribute("aria-label", `Eliminar ${attachment.name}`);
+    remove.append(makeIcon("trash"));
+    let confirming = false;
+    let timer = null;
+    const reset = () => {
+      confirming = false;
+      remove.classList.remove("confirming");
+      remove.title = "Eliminar adjunto";
+    };
+    remove.addEventListener("click", async () => {
+      if (!confirming) {
+        confirming = true;
+        remove.classList.add("confirming");
+        remove.title = "Pulsa otra vez para eliminar";
+        timer = setTimeout(reset, 2500);
+        return;
+      }
+      clearTimeout(timer);
+      remove.disabled = true;
+      try {
+        await api("DELETE", "/attachment", { id: attachment.id });
+        forgetAttachmentCache(attachment.id);
+        toast("success", "Adjunto eliminado.");
+        await reloadSheetCard(session);
+      } catch (error) {
+        remove.disabled = false;
+        reset();
+        toast("error", error.message);
+      }
+    });
+    actions.append(remove);
+    row.append(thumb, info, actions);
+    return row;
+  };
+  var renderAttachments = (session) => {
+    if (!session || state.sheet !== session) return;
+    const enabled = attachmentsEnabled();
+    const attachments = Array.isArray(session.card.attachments) ? session.card.attachments : [];
+    session.addAttachment.style.display = enabled ? "" : "none";
+    session.fileInput.disabled = !enabled;
+    session.attachmentsNote.hidden = false;
+    session.attachmentsNote.textContent = enabled ? "Se guardan al momento. La estrella marca la foto de portada." : "Los adjuntos necesitan una conexi\xF3n con Planka: el tablero local no guarda archivos.";
+    session.attachmentsList.replaceChildren();
+    if (!attachments.length) {
+      if (enabled) session.attachmentsList.append(el2("div", "attachments-empty", "Sin fotos ni archivos."));
+      return;
+    }
+    for (const attachment of attachments) {
+      session.attachmentsList.append(attachmentRow(session, attachment));
+    }
   };
   var loadSessionSheet = async (sheet) => {
     if (!sheet) return;
@@ -4332,6 +4654,7 @@ ${card.description}`.toLowerCase();
     if (!pending.has("description") && document.activeElement !== session.description) {
       session.description.value = server.description;
     }
+    renderAttachments(session);
   };
   var refresh = async (silent = false) => {
     if (state.fetching || state.view !== "board") return;
